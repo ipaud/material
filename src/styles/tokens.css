@@ -1,0 +1,50 @@
+:root {
+  /* Surfaces — near-black, layered */
+  --surface-0: #0c0c0d; /* app background / viewport well */
+  --surface-1: #121214; /* panels */
+  --surface-2: #18181b; /* raised: inputs, cards */
+  --surface-3: #1f1f23; /* hover / active raised */
+
+  /* Hairlines */
+  --border-0: #232327;
+  --border-1: #2e2e34;
+
+  /* Text */
+  --text-0: #dcdce0; /* primary */
+  --text-1: #98989f; /* secondary */
+  --text-2: #626269; /* tertiary / labels */
+
+  /* Signal colors — used sparingly */
+  --accent: #e8973f; /* playhead, primary action, active state */
+  --accent-dim: #8a5c2b;
+  --mod: #4fb3bf; /* modulation-driven values */
+  --danger: #d1564f;
+  --ok: #6aa06a;
+
+  /* Type */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-md: 12px;
+  --text-lg: 13px;
+
+  /* Spacing rhythm — dense */
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 24px;
+
+  --radius-1: 3px;
+  --radius-2: 5px;
+
+  --titlebar-height: 42px;
+  --workspace-tabs-height: 34px;
+
+  --duration-fast: 120ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

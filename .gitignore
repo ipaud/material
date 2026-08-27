@@ -1,0 +1,11 @@
+node_modules/
+out/
+dist/
+release/
+*.local
+.DS_Store
+*.log
+coverage/
+.vite/
+# local dev projects reference user media — never commit
+dev-projects/

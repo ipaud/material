@@ -1,0 +1,14 @@
+appId: com.pauavila.material
+productName: MATERIAL
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+mac:
+  category: public.app-category.graphics-design
+  target:
+    - target: dir
+      arch: [arm64]
+  identity: null # unsigned local builds for now
+npmRebuild: false
