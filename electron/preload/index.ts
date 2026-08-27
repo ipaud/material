@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { IPC, type MaterialApi, type MenuEventId } from '../../shared/ipc';
+import { IPC, type ExportProgressEvent, type MaterialApi, type MenuEventId } from '../../shared/ipc';
 
 const api: MaterialApi & { getPathForFile(file: File): string } = {
   getAppInfo: () => ipcRenderer.invoke(IPC.appInfo),
@@ -15,6 +15,18 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
   listPresets: () => ipcRenderer.invoke(IPC.listPresets),
   savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
   deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),
+  exportSaveDialog: (format, defaultName) =>
+    ipcRenderer.invoke(IPC.exportSaveDialog, format, defaultName),
+  exportStart: (config) => ipcRenderer.invoke(IPC.exportStart, config),
+  exportFrame: (sessionId, rgba) => ipcRenderer.invoke(IPC.exportFrame, sessionId, rgba),
+  exportFinish: (sessionId) => ipcRenderer.invoke(IPC.exportFinish, sessionId),
+  exportCancel: (sessionId) => ipcRenderer.invoke(IPC.exportCancel, sessionId),
+  onExportProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: ExportProgressEvent) =>
+      callback(data);
+    ipcRenderer.on(IPC.exportProgress, listener);
+    return () => ipcRenderer.removeListener(IPC.exportProgress, listener);
+  },
   onMenuEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, id: MenuEventId) => callback(id);
     ipcRenderer.on(IPC.menuEvent, listener);

@@ -1,7 +1,7 @@
 import { useProjectStore } from '@/state/projectStore';
+import { useExportStore } from '@/state/exportStore';
 import { saveProject } from '@/projects/projectActions';
 import { pinCurrentLook } from '@/projects/lookActions';
-import { exportPngStill } from '@/export/exportStill';
 
 export function TitleBar() {
   const name = useProjectStore((s) => s.project.name);
@@ -21,7 +21,10 @@ export function TitleBar() {
       <button className="titlebar-action" onClick={() => void saveProject()}>
         Save
       </button>
-      <button className="titlebar-action primary" onClick={() => void exportPngStill()}>
+      <button
+        className="titlebar-action primary"
+        onClick={() => useExportStore.getState().openDialog()}
+      >
         Export
       </button>
     </header>

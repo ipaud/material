@@ -16,6 +16,7 @@ import { readSanitizedSvg } from '../media/svg';
 import { readProjectFile, writeProjectFile } from '../filesystem/projects';
 import { deleteUserPreset, listUserPresets, saveUserPreset } from '../filesystem/presets';
 import { isApprovedMediaPath } from '../filesystem/mediaRegistry';
+import { cancelExport, finishExport, startExport, writeExportFrame } from '../export/encoder';
 
 const pathArgSchema = z.string().min(1);
 const nameArgSchema = z.string().min(1).max(255);
@@ -81,6 +82,35 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     if (!isApprovedMediaPath(filePath)) throw new Error('SVG has not been imported');
     return readSanitizedSvg(filePath);
   });
+
+  ipcMain.handle(IPC.exportSaveDialog, async (_event, rawFormat: unknown, rawName: unknown) => {
+    const win = getWindow();
+    if (!win) return null;
+    const format = z.enum(['png-sequence', 'h264']).parse(rawFormat);
+    const defaultName = sanitizeDefaultName(nameArgSchema.parse(rawName));
+    if (format === 'h264') {
+      const result = await dialog.showSaveDialog(win, {
+        title: 'Export H.264',
+        defaultPath: `${defaultName}.mp4`,
+        filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+      });
+      return result.canceled || !result.filePath ? null : result.filePath;
+    }
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose folder for PNG sequence',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
+  });
+
+  ipcMain.handle(IPC.exportStart, (_event, rawConfig: unknown) => startExport(rawConfig, getWindow));
+  ipcMain.handle(IPC.exportFrame, (_event, sessionId: unknown, frame: unknown) =>
+    writeExportFrame(sessionId, frame, getWindow),
+  );
+  ipcMain.handle(IPC.exportFinish, (_event, sessionId: unknown) =>
+    finishExport(sessionId, getWindow),
+  );
+  ipcMain.handle(IPC.exportCancel, (_event, sessionId: unknown) => cancelExport(sessionId));
 
   ipcMain.handle(IPC.listPresets, async () => listUserPresets());
   ipcMain.handle(IPC.savePreset, async (_event, rawPreset: unknown) => saveUserPreset(rawPreset));

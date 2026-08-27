@@ -8,6 +8,9 @@ import { importMediaPaths, openProjectFromPath } from './projects/projectActions
 import { modulationRuntime } from './modulation/runtime';
 import * as modulationActions from './modulation/modulationActions';
 import { playback } from './playback/PlaybackController';
+import { createFrameEvaluator, runAnimationExport } from './export/exportRunner';
+import { useExportStore } from './state/exportStore';
+import * as presetActions from './projects/presetActions';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -22,6 +25,10 @@ if (import.meta.env.DEV) {
       modulationRuntime,
       modulationActions,
       playback,
+      createFrameEvaluator,
+      runAnimationExport,
+      useExportStore,
+      presetActions,
     },
   });
 }

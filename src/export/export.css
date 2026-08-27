@@ -1,0 +1,87 @@
+.export-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.export-dialog {
+  width: 380px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-2);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.export-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.export-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.export-field .param-label {
+  flex: 0 0 92px;
+}
+.export-field .select {
+  flex: 1;
+}
+
+.export-range-inputs {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.export-summary {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  text-align: right;
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--sp-2);
+}
+
+.export-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-sm);
+}
+.export-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.export-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+
+.export-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--text-sm);
+  word-break: break-all;
+}
+.export-error {
+  color: var(--danger);
+}

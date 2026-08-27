@@ -7,7 +7,7 @@ import {
   openProject,
   saveProject,
 } from '@/projects/projectActions';
-import { exportPngStill } from '@/export/exportStill';
+import { useExportStore } from '@/state/exportStore';
 
 /** Wire native menu events (File/Edit/View accelerators) to app actions. */
 export function useMenuEvents(): void {
@@ -39,8 +39,7 @@ export function useMenuEvents(): void {
           useUiStore.getState().toggleDebugOverlay();
           break;
         case 'export':
-          // Full export panel arrives in Phase 7; PNG still export works now.
-          void exportPngStill();
+          useExportStore.getState().openDialog();
           break;
       }
     });

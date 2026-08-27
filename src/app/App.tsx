@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { LibraryPanel } from '@/library/LibraryPanel';
 import { Viewport } from '@/viewport/Viewport';
 import { ExplorePanel } from '@/explore/ExplorePanel';
+import { ExportDialog } from '@/export/ExportDialog';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
 import './app.css';
@@ -48,6 +49,7 @@ export function App() {
       </div>
       <WorkspaceTabs />
       <Toasts />
+      <ExportDialog />
     </div>
   );
 }

@@ -15,8 +15,38 @@ export const IPC = {
   listPresets: 'presets:list',
   savePreset: 'presets:save',
   deletePreset: 'presets:delete',
+  exportSaveDialog: 'export:save-dialog',
+  exportStart: 'export:start',
+  exportFrame: 'export:frame',
+  exportFinish: 'export:finish',
+  exportCancel: 'export:cancel',
+  exportProgress: 'export:progress',
   menuEvent: 'menu:event',
 } as const;
+
+export type ExportFormat = 'png-sequence' | 'h264';
+
+export interface ExportConfig {
+  format: ExportFormat;
+  width: number;
+  height: number;
+  fps: number;
+  /** Absolute output path (mp4 file or directory for sequences). */
+  outPath: string;
+  /** Optional audio file to mux (h264 only). */
+  audioPath: string | null;
+  /** Trim of the muxed audio in seconds (start offset + duration). */
+  audioStartSec: number;
+  durationSec: number;
+}
+
+export interface ExportProgressEvent {
+  sessionId: string;
+  phase: 'encoding' | 'finalizing' | 'done' | 'error' | 'cancelled';
+  framesWritten: number;
+  message?: string;
+  outPath?: string;
+}
 
 export interface AppInfo {
   version: string;
@@ -54,5 +84,13 @@ export interface MaterialApi {
   listPresets(): Promise<Preset[]>;
   savePreset(preset: Preset): Promise<void>;
   deletePreset(id: string): Promise<void>;
+  /** Pick an export destination (extension depends on format). */
+  exportSaveDialog(format: ExportFormat, defaultName: string): Promise<string | null>;
+  exportStart(config: ExportConfig): Promise<{ sessionId: string }>;
+  /** Stream one RGBA frame (width*height*4 bytes) into the encoder. */
+  exportFrame(sessionId: string, rgba: Uint8Array): Promise<void>;
+  exportFinish(sessionId: string): Promise<{ outPath: string }>;
+  exportCancel(sessionId: string): Promise<void>;
+  onExportProgress(callback: (event: ExportProgressEvent) => void): () => void;
   onMenuEvent(callback: (id: MenuEventId) => void): () => void;
 }
