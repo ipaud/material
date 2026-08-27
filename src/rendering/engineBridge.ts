@@ -11,6 +11,8 @@ function mediaUrl(path: string): string {
 
 let loadedSourcePath: string | null = null;
 let loadGeneration = 0;
+let loadedMaterialAsset: string | null = null;
+let materialGeneration = 0;
 let activeTechniqueId: string | null = null;
 let activeRenderer: TechniqueRenderer | null = null;
 
@@ -71,6 +73,29 @@ function syncFromProject(): void {
   }
   if (instance) engine.setTechniqueParams(instance.params);
   engine.setMaterialState(project.material);
+
+  // Custom material texture (SVG or raster image).
+  const materialAsset = project.material.materialId === 'custom' ? project.material.assetPath : null;
+  if (materialAsset !== loadedMaterialAsset) {
+    loadedMaterialAsset = materialAsset;
+    const generation = ++materialGeneration;
+    if (!materialAsset) {
+      engine.setMaterialTexture(null);
+    } else {
+      import('@/materials/textureLoader')
+        .then(({ loadMaterialTexture }) => loadMaterialTexture(materialAsset))
+        .then((texture) => {
+          if (generation === materialGeneration) engine.setMaterialTexture(texture);
+          else texture.dispose();
+        })
+        .catch((err) => {
+          if (generation === materialGeneration) {
+            reportError('Load material', err);
+            engine.setMaterialTexture(null);
+          }
+        });
+    }
+  }
 }
 
 function syncFromUi(): void {
@@ -88,6 +113,7 @@ export function startEngineBridge(): () => void {
     unsubProject();
     unsubUi();
     loadedSourcePath = null;
+    loadedMaterialAsset = null;
     activeTechniqueId = null;
     activeRenderer = null;
   };

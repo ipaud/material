@@ -120,6 +120,28 @@
   border-bottom: 1px solid var(--border-0);
   padding: var(--sp-2) 0 var(--sp-3);
 }
+
+.preset-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-0);
+}
+.preset-bar .select {
+  flex: 1;
+  min-width: 0;
+}
+.preset-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-0);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-1);
+  font-size: var(--text-xs);
+  padding: 2px 6px;
+  outline: none;
+}
 .inspector-section-header {
   padding: var(--sp-2) var(--sp-4);
 }

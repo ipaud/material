@@ -12,7 +12,10 @@ import {
 } from '../../shared/constants/app';
 import { detectEncoders, ffmpegPath, ffprobePath } from '../media/ffmpeg';
 import { probeMedia } from '../media/probe';
+import { readSanitizedSvg } from '../media/svg';
 import { readProjectFile, writeProjectFile } from '../filesystem/projects';
+import { deleteUserPreset, listUserPresets, saveUserPreset } from '../filesystem/presets';
+import { isApprovedMediaPath } from '../filesystem/mediaRegistry';
 
 const pathArgSchema = z.string().min(1);
 const nameArgSchema = z.string().min(1).max(255);
@@ -72,6 +75,18 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     await writeProjectFile(filePath, rawProject);
     app.addRecentDocument(filePath);
   });
+
+  ipcMain.handle(IPC.readSvg, async (_event, rawPath: unknown) => {
+    const filePath = pathArgSchema.parse(rawPath);
+    if (!isApprovedMediaPath(filePath)) throw new Error('SVG has not been imported');
+    return readSanitizedSvg(filePath);
+  });
+
+  ipcMain.handle(IPC.listPresets, async () => listUserPresets());
+  ipcMain.handle(IPC.savePreset, async (_event, rawPreset: unknown) => saveUserPreset(rawPreset));
+  ipcMain.handle(IPC.deletePreset, async (_event, rawId: unknown) =>
+    deleteUserPreset(pathArgSchema.parse(rawId)),
+  );
 
   ipcMain.handle(IPC.openProjectDialog, async (): Promise<string | null> => {
     const win = getWindow();

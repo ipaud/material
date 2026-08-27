@@ -51,6 +51,8 @@ export interface ParamSection {
 /** Per-frame context handed to technique renderers. */
 export interface TechniqueContext {
   sourceTexture: THREE.Texture | null;
+  /** Rasterized custom material (SVG/image), when materialId is 'custom'. */
+  materialTexture: THREE.Texture | null;
   compWidth: number;
   compHeight: number;
   material: MaterialState;

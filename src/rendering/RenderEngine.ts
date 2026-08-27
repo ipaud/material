@@ -28,6 +28,7 @@ export class RenderEngine {
   private readonly camera = new THREE.PerspectiveCamera(20, 1, 10, 100000);
 
   private sourceTexture: THREE.Texture | null = null;
+  private materialTexture: THREE.Texture | null = null;
   private originalQuad: THREE.Mesh | null = null;
   private techniqueRenderer: TechniqueRenderer | null = null;
   private techniqueParams: ParamRecord = {};
@@ -115,6 +116,12 @@ export class RenderEngine {
 
   setMaterialState(material: MaterialState): void {
     this.materialState = material;
+    this.invalidate();
+  }
+
+  setMaterialTexture(texture: THREE.Texture | null): void {
+    if (this.materialTexture && this.materialTexture !== texture) this.materialTexture.dispose();
+    this.materialTexture = texture;
     this.invalidate();
   }
 
@@ -276,6 +283,7 @@ export class RenderEngine {
       if (showProcessed && this.materialState) {
         this.techniqueRenderer.update(this.techniqueParams, {
           sourceTexture: this.sourceTexture,
+          materialTexture: this.materialTexture,
           compWidth: this.compWidth,
           compHeight: this.compHeight,
           material: this.materialState,

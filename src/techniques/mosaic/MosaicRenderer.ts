@@ -33,6 +33,7 @@ uniform float uLumDepth;
 uniform float uDepth;
 uniform vec2 uJitter;
 uniform float uSeed;
+uniform float uSquareElement;
 
 out vec2 vLocal;
 out vec3 vCellColor;
@@ -62,7 +63,9 @@ void main() {
   float cellH = uCompH / uRows;
 
   float scaleF = clamp(uScale * mapAmount(s, uLumScale), uMinScale, uMaxScale);
-  vec2 size = vec2(cellW, cellH) * (1.0 - uSpacing) * scaleF * alive;
+  // Texture materials keep a square element footprint; SDF shapes fill the cell.
+  vec2 footprint = uSquareElement > 0.5 ? vec2(min(cellW, cellH)) : vec2(cellW, cellH);
+  vec2 size = footprint * (1.0 - uSpacing) * scaleF * alive;
 
   vec2 rnd = hash21(id * 0.6180339887 + uSeed);
   vec2 jitterOff = (rnd - 0.5) * 2.0 * uJitter * vec2(cellW, cellH);
@@ -93,8 +96,10 @@ ${GLSL_SHAPES}
 
 uniform int uShape;
 uniform float uAspect;
-uniform int uColorMode;
+uniform int uColorMode; // 0 source-fill, 1 mono, 2 original, 3 source-tint
 uniform vec3 uMonoColor;
+uniform sampler2D uMatTex;
+uniform int uUseTex;
 
 in vec2 vLocal;
 in vec3 vCellColor;
@@ -103,11 +108,24 @@ in float vOpacity;
 out vec4 fragColor;
 
 void main() {
-  float d = sdShape(uShape, vLocal, uAspect);
-  float aa = fwidth(d) * 1.2 + 0.0001;
-  float alpha = (1.0 - smoothstep(-aa, aa, d)) * vOpacity;
+  float alpha;
+  vec3 color;
+  if (uUseTex == 1) {
+    vec2 tuv = vec2(vLocal.x / max(uAspect, 0.0001), vLocal.y) + 0.5;
+    if (tuv.x < 0.0 || tuv.x > 1.0 || tuv.y < 0.0 || tuv.y > 1.0) discard;
+    vec4 t = texture(uMatTex, tuv);
+    alpha = t.a * vOpacity;
+    if (uColorMode == 2) color = t.rgb;
+    else if (uColorMode == 1) color = uMonoColor;
+    else if (uColorMode == 3) color = t.rgb * vCellColor;
+    else color = vCellColor;
+  } else {
+    float d = sdShape(uShape, vLocal, uAspect);
+    float aa = fwidth(d) * 1.2 + 0.0001;
+    alpha = (1.0 - smoothstep(-aa, aa, d)) * vOpacity;
+    color = uColorMode == 1 ? uMonoColor : vCellColor;
+  }
   if (alpha <= 0.003) discard;
-  vec3 color = uColorMode == 1 ? uMonoColor : vCellColor;
   fragColor = vec4(color, alpha);
 }
 `;
@@ -164,6 +182,9 @@ export class MosaicRenderer implements TechniqueRenderer {
         uAspect: { value: 1 },
         uColorMode: { value: 0 },
         uMonoColor: { value: new THREE.Color('#ffffff') },
+        uMatTex: { value: null },
+        uUseTex: { value: 0 },
+        uSquareElement: { value: 0 },
       },
     });
 
@@ -216,7 +237,12 @@ export class MosaicRenderer implements TechniqueRenderer {
     set('uSeed', ctx.seed);
     set('uShape', shapeIndexForMaterial(ctx.material.materialId));
     set('uAspect', typeof ctx.material.params.aspect === 'number' ? ctx.material.params.aspect : 1);
-    set('uColorMode', ctx.material.colorMode === 'mono' ? 1 : 0);
+    const useTex = ctx.material.materialId === 'custom' && ctx.materialTexture !== null;
+    if (u.uMatTex) u.uMatTex.value = useTex ? ctx.materialTexture : null;
+    set('uUseTex', useTex ? 1 : 0);
+    set('uSquareElement', useTex ? 1 : 0);
+    const COLOR_MODES: Record<string, number> = { source: 0, mono: 1, original: 2, sourceColor: 3 };
+    set('uColorMode', COLOR_MODES[ctx.material.colorMode] ?? 0);
   }
 
   dispose(): void {

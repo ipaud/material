@@ -16,10 +16,11 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "useDefineForClassFields": true,
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      "@electron/*": ["./electron/*"]
     }
   },
   "include": ["src", "shared", "tests"]

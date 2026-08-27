@@ -1,5 +1,6 @@
 import type { MediaMetadata } from './schemas/media';
 import type { Project } from './schemas/project';
+import type { Preset } from './schemas/preset';
 
 export const IPC = {
   appInfo: 'app:info',
@@ -10,6 +11,10 @@ export const IPC = {
   openProjectDialog: 'project:open-dialog',
   saveProjectDialog: 'project:save-dialog',
   savePngDialog: 'export:save-png',
+  readSvg: 'media:read-svg',
+  listPresets: 'presets:list',
+  savePreset: 'presets:save',
+  deletePreset: 'presets:delete',
   menuEvent: 'menu:event',
 } as const;
 
@@ -44,5 +49,10 @@ export interface MaterialApi {
   saveProjectDialog(defaultName: string): Promise<string | null>;
   /** Saves a base64-encoded PNG via a Finder dialog; returns chosen path or null. */
   savePngDialog(base64Png: string, defaultName: string): Promise<string | null>;
+  /** Read an SVG file, sanitized (scripts/handlers/external refs stripped). */
+  readSvg(path: string): Promise<string>;
+  listPresets(): Promise<Preset[]>;
+  savePreset(preset: Preset): Promise<void>;
+  deletePreset(id: string): Promise<void>;
   onMenuEvent(callback: (id: MenuEventId) => void): () => void;
 }

@@ -11,6 +11,10 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
   saveProjectDialog: (defaultName) => ipcRenderer.invoke(IPC.saveProjectDialog, defaultName),
   savePngDialog: (base64Png, defaultName) =>
     ipcRenderer.invoke(IPC.savePngDialog, base64Png, defaultName),
+  readSvg: (path) => ipcRenderer.invoke(IPC.readSvg, path),
+  listPresets: () => ipcRenderer.invoke(IPC.listPresets),
+  savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
+  deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),
   onMenuEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, id: MenuEventId) => callback(id);
     ipcRenderer.on(IPC.menuEvent, listener);

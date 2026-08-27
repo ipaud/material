@@ -57,6 +57,32 @@
 .media-item.offline .media-kind {
   color: var(--danger);
 }
+.media-mat-btn {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  border: 1px solid var(--border-1);
+  border-radius: 2px;
+  padding: 0 3px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.media-item:hover .media-mat-btn {
+  opacity: 1;
+}
+.media-mat-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.looks-section {
+  margin-top: var(--sp-3);
+  border-top: 1px solid var(--border-0);
+}
+
 .media-offline-badge {
   margin-left: auto;
   font-family: var(--font-mono);

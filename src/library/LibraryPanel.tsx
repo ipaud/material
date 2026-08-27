@@ -1,6 +1,7 @@
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { relinkSource } from '@/projects/projectActions';
+import { applyLook, deleteLook } from '@/projects/lookActions';
 import './library.css';
 
 const KIND_LABEL: Record<string, string> = {
@@ -24,6 +25,10 @@ export function LibraryPanel() {
       if (kind === 'audio') {
         return { ...p, composition: { ...p.composition, audioSourceId: id } };
       }
+      if (kind === 'svg') {
+        // SVGs are materials, not composition sources.
+        return { ...p, material: { ...p.material, materialId: 'custom', assetPath: source.path } };
+      }
       if (kind === 'image' || kind === 'video') {
         const meta = source.metadata;
         return {
@@ -37,6 +42,14 @@ export function LibraryPanel() {
         };
       }
       return p;
+    });
+  };
+
+  const useAsMaterial = (id: string) => {
+    apply((p) => {
+      const source = p.sources.find((s) => s.id === id);
+      if (!source) return p;
+      return { ...p, material: { ...p.material, materialId: 'custom', assetPath: source.path } };
     });
   };
 
@@ -69,13 +82,60 @@ export function LibraryPanel() {
                       {source.metadata?.fileName ?? source.path.split('/').pop()}
                     </span>
                     {isOffline && <span className="media-offline-badge">RELINK</span>}
+                    {!isOffline && source.kind === 'image' && (
+                      <span
+                        className="media-mat-btn"
+                        role="button"
+                        title="Use as repeated material"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          useAsMaterial(source.id);
+                        }}
+                      >
+                        MAT
+                      </span>
+                    )}
                   </button>
                 </li>
               );
             })}
           </ul>
         )}
+        <PinnedLooks />
       </div>
     </>
+  );
+}
+
+function PinnedLooks() {
+  const looks = useProjectStore((s) => s.project.pinnedLooks);
+  if (looks.length === 0) return null;
+  return (
+    <div className="looks-section">
+      <div className="panel-header">
+        <span className="label">Pinned Looks</span>
+      </div>
+      <ul className="media-list">
+        {looks.map((look) => (
+          <li key={look.id}>
+            <button className="media-item" onClick={() => applyLook(look.id)} title="Apply look">
+              <span className="media-kind">◆</span>
+              <span className="media-name">{look.label}</span>
+              <span
+                className="media-mat-btn"
+                role="button"
+                title="Delete look"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteLook(look.id);
+                }}
+              >
+                ✕
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

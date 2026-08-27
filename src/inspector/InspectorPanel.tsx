@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { getTechnique } from '@/techniques/registry';
 import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
+import { PresetBar } from './PresetBar';
 import type { ParamDef } from '@/techniques/types';
 import type { ParamValue } from '@shared/schemas/project';
 import '@/components/parameter-slider.css';
@@ -53,6 +54,7 @@ export function InspectorPanel() {
         )}
         {hasSource && definition && technique && (
           <>
+            <PresetBar />
             <div className="inspector-section">
               <div className="inspector-section-header">
                 <span className="label">Material</span>
@@ -70,6 +72,11 @@ export function InspectorPanel() {
                         {m.name}
                       </option>
                     ))}
+                    {material.assetPath && (
+                      <option value="custom">
+                        Custom: {material.assetPath.split('/').pop()}
+                      </option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -85,6 +92,12 @@ export function InspectorPanel() {
                   >
                     <option value="source">From Source</option>
                     <option value="mono">Monochrome</option>
+                    {material.materialId === 'custom' && (
+                      <>
+                        <option value="original">Original</option>
+                        <option value="sourceColor">Source Tint</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
