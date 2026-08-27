@@ -50,3 +50,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.media-item.offline {
+  color: var(--danger);
+}
+.media-item.offline .media-kind {
+  color: var(--danger);
+}
+.media-offline-badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 2px;
+  padding: 0 3px;
+  flex-shrink: 0;
+}

@@ -6,6 +6,9 @@ import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from '.
 
 const isDev = !app.isPackaged;
 
+// Dev-only: allow CDP-based QA tooling to drive the app.
+if (isDev) app.commandLine.appendSwitch('remote-debugging-port', '9223');
+
 let mainWindow: BrowserWindow | null = null;
 
 registerMediaSchemeAsPrivileged();
@@ -21,7 +24,7 @@ function createWindow(): void {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {
-      preload: path.join(import.meta.dirname, '../preload/index.mjs'),
+      preload: path.join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

@@ -1,0 +1,125 @@
+.param-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 1px var(--sp-4);
+  height: 24px;
+}
+
+.param-label {
+  flex: 0 0 92px;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.param-track {
+  position: relative;
+  flex: 1;
+  height: 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  cursor: ew-resize;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.param-track:hover {
+  border-color: var(--border-1);
+}
+
+.param-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--surface-3);
+  border-right: 1px solid var(--accent-dim);
+  pointer-events: none;
+}
+.param-track:hover .param-fill {
+  border-right-color: var(--accent);
+}
+
+.param-value {
+  position: relative;
+  padding: 0 6px;
+  font-size: var(--text-xs);
+  color: var(--text-0);
+  cursor: text;
+  z-index: 1;
+}
+.param-unit {
+  color: var(--text-2);
+  margin-left: 1px;
+}
+
+.param-input {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-0);
+  border: none;
+  outline: none;
+  text-align: right;
+  padding: 0 6px;
+  font-size: var(--text-xs);
+  z-index: 1;
+}
+
+/* Boolean + select rows share the layout */
+.param-control {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.toggle {
+  width: 26px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-1);
+  position: relative;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-1);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.toggle.on {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.toggle.on::after {
+  transform: translateX(12px);
+  background: var(--text-0);
+}
+
+.select {
+  background: var(--surface-2);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  color: var(--text-0);
+  font-size: var(--text-xs);
+  padding: 2px 4px;
+  outline: none;
+}
+
+.inspector-section {
+  border-bottom: 1px solid var(--border-0);
+  padding: var(--sp-2) 0 var(--sp-3);
+}
+.inspector-section-header {
+  padding: var(--sp-2) var(--sp-4);
+}

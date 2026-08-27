@@ -23,6 +23,10 @@ export default defineConfig({
       lib: {
         entry: resolve(__dirname, 'electron/preload/index.ts'),
       },
+      rollupOptions: {
+        // Sandboxed preload scripts must be CommonJS.
+        output: { format: 'cjs', entryFileNames: '[name].cjs' },
+      },
     },
     resolve: {
       alias: {

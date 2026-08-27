@@ -1,0 +1,86 @@
+.viewport {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewport-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+  touch-action: none;
+}
+.viewport-canvas.checker {
+  background-image:
+    linear-gradient(45deg, #1a1a1d 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1a1d 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1a1d 75%),
+    linear-gradient(-45deg, transparent 75%, #1a1a1d 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.viewport-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-0);
+  flex-shrink: 0;
+}
+
+.vp-btn {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  padding: 3px 7px;
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+}
+.vp-btn:hover {
+  color: var(--text-0);
+  border-color: var(--border-1);
+}
+.vp-btn.active {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.vp-readout {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  padding: 0 var(--sp-2);
+}
+
+.vp-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border-0);
+  margin: 0 var(--sp-2);
+}
+
+.debug-overlay {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  padding: var(--sp-3);
+  background: rgba(12, 12, 13, 0.85);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  font-size: var(--text-xs);
+  color: var(--ok);
+  line-height: 1.7;
+  pointer-events: none;
+  z-index: 20;
+}
+.debug-renderer {
+  color: var(--text-2);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

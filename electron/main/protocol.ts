@@ -14,6 +14,7 @@ export function registerMediaSchemeAsPrivileged(): void {
         secure: true,
         stream: true,
         supportFetchAPI: true,
+        corsEnabled: true,
       },
     },
   ]);
@@ -25,17 +26,23 @@ export function registerMediaSchemeAsPrivileged(): void {
  * are handled by net.fetch's file protocol support (needed for <video>).
  */
 export function registerMediaProtocolHandler(): void {
-  protocol.handle(MEDIA_SCHEME, (request) => {
+  protocol.handle(MEDIA_SCHEME, async (request) => {
     try {
+      console.log('[material://]', request.url.slice(0, 120));
       const url = new URL(request.url);
       const filePath = url.searchParams.get('p');
       if (!filePath || !isApprovedMediaPath(filePath)) {
         return new Response('Not found', { status: 404 });
       }
-      return net.fetch(pathToFileURL(filePath).toString(), {
+      const res = await net.fetch(pathToFileURL(filePath).toString(), {
         headers: request.headers,
         bypassCustomProtocolHandlers: true,
       });
+      // The renderer runs on a different origin (dev server / file), so media
+      // responses must carry CORS headers for fetch/Image/Texture loading.
+      const headers = new Headers(res.headers);
+      headers.set('Access-Control-Allow-Origin', '*');
+      return new Response(res.body, { status: res.status, headers });
     } catch (err) {
       return new Response(`Media error: ${err instanceof Error ? err.message : 'unknown'}`, {
         status: 500,

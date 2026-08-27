@@ -8,6 +8,7 @@ import { Toasts } from './Toasts';
 import { Gutter } from '@/components/Gutter';
 import { EmptyState } from '@/components/EmptyState';
 import { LibraryPanel } from '@/library/LibraryPanel';
+import { Viewport } from '@/viewport/Viewport';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
 import './app.css';
@@ -29,9 +30,9 @@ export function App() {
         </aside>
         <Gutter panel="library" />
         <main className="viewport-area">
+          <Viewport />
           {!hasSources && <EmptyState isDragOver={isDragOver} />}
           {isDragOver && <div className="drop-overlay" />}
-          {/* GPU viewport mounts here in Phase 1 */}
         </main>
         <Gutter panel="inspector" />
         <aside className="panel panel-right" style={{ width: inspectorWidth }}>

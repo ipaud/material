@@ -16,6 +16,8 @@ interface UiStore {
   libraryWidth: number;
   inspectorWidth: number;
   timelineHeight: number;
+  /** Source ids whose files are missing on disk (MEDIA OFFLINE). */
+  offlineSources: string[];
 
   setWorkspace: (workspace: WorkspaceId) => void;
   toggleDebugOverlay: () => void;
@@ -23,6 +25,7 @@ interface UiStore {
   pushToast: (kind: AppToast['kind'], message: string) => void;
   dismissToast: (id: string) => void;
   setPanelSize: (panel: 'library' | 'inspector' | 'timeline', size: number) => void;
+  setOfflineSources: (ids: string[]) => void;
 }
 
 let toastCounter = 0;
@@ -35,6 +38,8 @@ export const useUiStore = create<UiStore>((set) => ({
   libraryWidth: 220,
   inspectorWidth: 280,
   timelineHeight: 140,
+  offlineSources: [],
+  setOfflineSources: (ids) => set({ offlineSources: ids }),
 
   setWorkspace: (workspace) => set({ workspace }),
   setPanelSize: (panel, size) =>

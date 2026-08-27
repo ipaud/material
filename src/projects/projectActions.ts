@@ -1,7 +1,23 @@
 import { useProjectStore } from '@/state/projectStore';
 import { reportError, useUiStore } from '@/state/uiStore';
 import { uid } from '@/utils/id';
+import { getTechnique } from '@/techniques/registry';
+import { defaultParams } from '@/techniques/types';
 import type { MediaMetadata } from '@shared/schemas/media';
+import type { Project } from '@shared/schemas/project';
+
+/** Ensure the project has an enabled technique chain (defaults to Mosaic). */
+export function withTechniqueEnsured(p: Project): Project {
+  if (p.techniques.length > 0) return p;
+  const mosaic = getTechnique('mosaic');
+  if (!mosaic) return p;
+  return {
+    ...p,
+    techniques: [
+      { id: uid('tech'), techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
+    ],
+  };
+}
 
 export async function saveProject(forceDialog = false): Promise<void> {
   const { project, projectPath, markSaved } = useProjectStore.getState();
@@ -23,10 +39,51 @@ export async function openProject(): Promise<void> {
   try {
     const path = await window.material.openProjectDialog();
     if (!path) return;
-    const result = await window.material.readProject(path);
-    useProjectStore.getState().loadProject(result.path, result.project);
+    await openProjectFromPath(path);
   } catch (err) {
     reportError('Open project', err);
+  }
+}
+
+export async function openProjectFromPath(path: string): Promise<void> {
+  const result = await window.material.readProject(path);
+  useProjectStore.getState().loadProject(result.path, result.project);
+  await checkOfflineSources();
+}
+
+/** Probe every source; mark missing files as MEDIA OFFLINE. */
+async function checkOfflineSources(): Promise<void> {
+  const { project } = useProjectStore.getState();
+  const offline: string[] = [];
+  for (const source of project.sources) {
+    try {
+      await window.material.probeMedia(source.path);
+    } catch {
+      offline.push(source.id);
+    }
+  }
+  useUiStore.getState().setOfflineSources(offline);
+  if (offline.length > 0) {
+    useUiStore.getState().pushToast('error', `${offline.length} media file(s) offline`);
+  }
+}
+
+/** Relink a missing source to a new file chosen in Finder. */
+export async function relinkSource(sourceId: string): Promise<void> {
+  try {
+    const paths = await window.material.openMediaDialog();
+    const newPath = paths[0];
+    if (!newPath) return;
+    const metadata = await window.material.probeMedia(newPath);
+    useProjectStore.getState().apply((p) => ({
+      ...p,
+      sources: p.sources.map((s) =>
+        s.id === sourceId ? { ...s, path: newPath, kind: metadata.kind, metadata } : s,
+      ),
+    }));
+    await checkOfflineSources();
+  } catch (err) {
+    reportError('Relink media', err);
   }
 }
 
@@ -63,7 +120,7 @@ export async function importMediaPaths(paths: string[]): Promise<void> {
       if (!p.composition.audioSourceId && metadata.kind === 'audio') {
         composition = { ...composition, audioSourceId: sourceId };
       }
-      return { ...p, sources, composition };
+      return withTechniqueEnsured({ ...p, sources, composition });
     });
   }
 }
