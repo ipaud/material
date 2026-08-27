@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useExportStore } from '@/state/exportStore';
 import { useProjectStore } from '@/state/projectStore';
 import { usePlaybackStore } from '@/state/playbackStore';
@@ -36,6 +36,12 @@ export function ExportDialog() {
   const [startSec, setStartSec] = useState(0);
   const [durationInput, setDurationInput] = useState<number | null>(null);
   const [includeAudio, setIncludeAudio] = useState(true);
+  const [alpha, setAlpha] = useState(false);
+  const [encoders, setEncoders] = useState<string[]>([]);
+
+  useEffect(() => {
+    void window.material.getAppInfo().then((info) => setEncoders(info.availableEncoders));
+  }, []);
 
   const { width, height } = useMemo(() => {
     if (resolution === '1080') return { width: 1920, height: 1080 };
@@ -55,6 +61,8 @@ export function ExportDialog() {
   const estimatedFrames = Math.ceil(effectiveDuration * fps);
   const running = phase === 'running';
   const hasAudio = project.composition.audioSourceId !== null;
+  const hasProRes = encoders.includes('prores_ks');
+  const supportsAlpha = format === 'prores4444' || format === 'png-sequence';
 
   const startExport = async () => {
     if (format === 'png-still') {
@@ -73,6 +81,7 @@ export function ExportDialog() {
       durationSec: effectiveDuration,
       outPath,
       includeAudio: includeAudio && hasAudio,
+      alpha: alpha && supportsAlpha,
     });
   };
 
@@ -92,10 +101,17 @@ export function ExportDialog() {
           <>
             <div className="export-field">
               <span className="param-label">Format</span>
-              <select className="select" value={format} onChange={(e) => setFormat(e.target.value as DialogFormat)}>
+              <select
+                className="select"
+                value={format}
+                onChange={(e) => setFormat(e.target.value as DialogFormat)}
+              >
                 <option value="png-still">PNG Still</option>
-                <option value="png-sequence">PNG Sequence</option>
+                <option value="png-sequence">PNG Sequence (alpha)</option>
                 <option value="h264">H.264 MP4</option>
+                {/* Only offered when this machine's FFmpeg can actually encode it. */}
+                {hasProRes && <option value="prores422">ProRes 422 HQ</option>}
+                {hasProRes && <option value="prores4444">ProRes 4444 (alpha)</option>}
               </select>
             </div>
             <div className="export-field">
@@ -159,7 +175,7 @@ export function ExportDialog() {
                     </div>
                   </div>
                 )}
-                {format === 'h264' && hasAudio && (
+                {format !== 'png-sequence' && hasAudio && (
                   <div className="export-field">
                     <span className="param-label">Audio</span>
                     <button
@@ -168,6 +184,18 @@ export function ExportDialog() {
                       aria-checked={includeAudio}
                       aria-label="Include audio"
                       onClick={() => setIncludeAudio(!includeAudio)}
+                    />
+                  </div>
+                )}
+                {supportsAlpha && (
+                  <div className="export-field">
+                    <span className="param-label">Alpha</span>
+                    <button
+                      className={`toggle${alpha ? ' on' : ''}`}
+                      role="switch"
+                      aria-checked={alpha}
+                      aria-label="Transparent background"
+                      onClick={() => setAlpha(!alpha)}
                     />
                   </div>
                 )}

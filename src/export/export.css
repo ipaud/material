@@ -85,3 +85,20 @@
 .export-error {
   color: var(--danger);
 }
+
+.recovery-dialog {
+  width: 420px;
+}
+.recovery-text {
+  font-size: var(--text-md);
+  color: var(--text-0);
+  line-height: 1.5;
+}
+.recovery-note {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.recovery-actions {
+  gap: var(--sp-2);
+}

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron';
 import path from 'node:path';
-import { registerIpcHandlers } from '../ipc/handlers';
+import { registerIpcHandlers, SESSION_ID } from '../ipc/handlers';
+import { clearRecovery } from '../filesystem/recovery';
 import { buildAppMenu } from './menu';
 import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from './protocol';
 
@@ -76,4 +77,18 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+// A recovery file left on disk means the previous session did not shut down
+// cleanly, so it must only be removed on a deliberate quit.
+let recoveryCleared = false;
+app.on('will-quit', (event) => {
+  if (recoveryCleared) return;
+  event.preventDefault();
+  void clearRecovery(SESSION_ID)
+    .catch(() => undefined)
+    .finally(() => {
+      recoveryCleared = true;
+      app.quit();
+    });
 });

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ParamRecord } from '@shared/schemas/project';
 import type { TechniqueContext, TechniqueRenderer } from '../types';
-import { GLSL_HASH, GLSL_LUMINANCE } from '@/rendering/shaders/chunks';
+import { GLSL_HASH } from '@/rendering/shaders/chunks';
 import { GLSL_TEMPORAL_SAMPLE } from '@/rendering/shaders/temporal';
 
 const MAX_COPIES = 64;
@@ -54,7 +54,6 @@ void main() {
 `;
 
 const FRAGMENT = /* glsl */ `
-${GLSL_LUMINANCE}
 ${GLSL_TEMPORAL_SAMPLE}
 
 uniform float uDecay;

@@ -4,9 +4,13 @@
  * (the TS versions exist for CPU-side evaluation and tests).
  */
 
-/** Rec. 709 luma. */
+/**
+ * Rec. 709 luma.
+ * Named `matLuminance`, not `luminance`: three.js declares its own `luminance`
+ * in the fragment common chunk, and redefining it fails to compile.
+ */
 export const GLSL_LUMINANCE = /* glsl */ `
-float luminance(vec3 color) {
+float matLuminance(vec3 color) {
   return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
 `;

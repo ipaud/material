@@ -27,6 +27,12 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
     ipcRenderer.on(IPC.exportProgress, listener);
     return () => ipcRenderer.removeListener(IPC.exportProgress, listener);
   },
+  getSessionId: () => ipcRenderer.invoke(IPC.sessionId),
+  writeRecovery: (projectPath, project) =>
+    ipcRenderer.invoke(IPC.recoveryWrite, projectPath, project),
+  listRecoveries: () => ipcRenderer.invoke(IPC.recoveryList),
+  clearRecovery: () => ipcRenderer.invoke(IPC.recoveryClear),
+  discardRecovery: (sessionId) => ipcRenderer.invoke(IPC.recoveryDiscard, sessionId),
   onMenuEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, id: MenuEventId) => callback(id);
     ipcRenderer.on(IPC.menuEvent, listener);

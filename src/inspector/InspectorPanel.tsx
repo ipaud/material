@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
@@ -15,6 +15,7 @@ export function InspectorPanel() {
   const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
   const material = useProjectStore((s) => s.project.material);
   const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
+  const modulations = useProjectStore((s) => s.project.modulations);
   const apply = useProjectStore((s) => s.apply);
   const beginTransient = useProjectStore((s) => s.beginTransient);
   const commitTransient = useProjectStore((s) => s.commitTransient);
@@ -43,6 +44,10 @@ export function InspectorPanel() {
   );
 
   const definition = technique ? getTechnique(technique.techniqueId) : null;
+  // Parameter ids currently driven by an enabled mapping.
+  const modulatedTargets = new Set(
+    modulations.filter((m) => m.enabled).map((m) => m.target),
+  );
 
   return (
     <>
@@ -152,21 +157,23 @@ export function InspectorPanel() {
               />
             </div>
             {definition.sections.map((section) => (
-              <div className="inspector-section" key={section.label}>
-                <div className="inspector-section-header">
-                  <span className="label">{section.label}</span>
-                </div>
+              <CollapsibleSection
+                key={section.label}
+                label={section.label}
+                count={section.params.filter((p) => modulatedTargets.has(p.id)).length}
+              >
                 {section.params.map((param) => (
                   <ParamControl
                     key={param.id}
                     def={param}
                     value={technique.params[param.id] ?? param.default}
+                    modulated={modulatedTargets.has(param.id)}
                     onChange={(v) => setParam(param.id, v)}
                     onDragStart={beginTransient}
                     onDragEnd={commitTransient}
                   />
                 ))}
-              </div>
+              </CollapsibleSection>
             ))}
           </>
         )}
@@ -175,15 +182,39 @@ export function InspectorPanel() {
   );
 }
 
+function CollapsibleSection({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="inspector-section">
+      <button className="inspector-section-header" onClick={() => setOpen(!open)}>
+        <span className={`section-chevron${open ? '' : ' collapsed'}`}>▼</span>
+        <span className="label">{label}</span>
+        {count > 0 && <span className="section-count">{count} MOD</span>}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 function ParamControl({
   def,
   value,
+  modulated,
   onChange,
   onDragStart,
   onDragEnd,
 }: {
   def: ParamDef;
   value: ParamValue;
+  modulated?: boolean;
   onChange: (value: ParamValue) => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -198,6 +229,7 @@ function ParamControl({
         step={def.step}
         defaultValue={def.default}
         {...(def.unit !== undefined ? { unit: def.unit } : {})}
+        {...(modulated ? { modulated: true } : {})}
         onChange={onChange}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}

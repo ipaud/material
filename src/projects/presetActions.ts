@@ -91,6 +91,102 @@ export const BUILTIN_PRESETS: Preset[] = [
     builtin: true,
   },
   {
+    // System preset: every tile holds a different, seeded moment — a broken
+    // mirror in time. Bass widens the spread. Needs a video source.
+    id: 'builtin-time-fracture',
+    name: 'Time Fracture',
+    techniqueId: 'mosaic',
+    params: {
+      columns: 24,
+      rows: 14,
+      scale: 1,
+      spacing: 0.02,
+      lumToScale: 0,
+      tileMode: 'tile',
+      offsetMode: 'random',
+      maxOffsetSec: 2,
+      falloff: 1,
+    },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [
+      {
+        id: 'fracture-bass-offset',
+        enabled: true,
+        source: 'bass',
+        target: 'maxOffsetSec',
+        amount: 0.5,
+        min: 0,
+        max: 1,
+        invert: false,
+        smoothing: 0.2,
+        curve: 'linear',
+        frozenValue: null,
+      },
+    ],
+    builtin: true,
+  },
+  {
+    // System preset (spec §50): the image loses modules as energy rises —
+    // disintegration by threshold and scatter, not a fire simulation.
+    id: 'builtin-slow-burn',
+    name: 'Slow Burn',
+    techniqueId: 'mosaic',
+    params: {
+      columns: 96,
+      rows: 54,
+      scale: 1.15,
+      spacing: 0.08,
+      lumToScale: 0.9,
+      threshold: 0.05,
+      contrast: 1.2,
+      randomRotation: 0.08,
+      tileMode: 'off',
+    },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [
+      {
+        id: 'burn-time-threshold',
+        enabled: true,
+        source: 'time',
+        target: 'threshold',
+        amount: 0.55,
+        min: 0,
+        max: 1,
+        invert: false,
+        smoothing: 0.15,
+        curve: 'linear',
+        frozenValue: null,
+      },
+      {
+        id: 'burn-master-scatter',
+        enabled: true,
+        source: 'master',
+        target: 'jitterX',
+        amount: 0.35,
+        min: 0,
+        max: 1,
+        invert: false,
+        smoothing: 0.3,
+        curve: 'linear',
+        frozenValue: null,
+      },
+      {
+        id: 'burn-transient-scatter',
+        enabled: true,
+        source: 'transients',
+        target: 'jitterY',
+        amount: 0.3,
+        min: 0,
+        max: 1,
+        invert: false,
+        smoothing: 0.1,
+        curve: 'exponential',
+        frozenValue: null,
+      },
+    ],
+    builtin: true,
+  },
+  {
     // Official system preset (Phase 5 creative review): beat-quarter pump —
     // invert + exponential gives the rise-and-snap. Needs BPM set.
     id: 'builtin-pump',
@@ -116,6 +212,35 @@ export const BUILTIN_PRESETS: Preset[] = [
     builtin: true,
   },
 ];
+
+const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transients']);
+
+/**
+ * What a preset needs from the project to actually do something.
+ * Derived from the preset's own content so nothing has to be declared twice.
+ */
+export function presetRequirements(preset: Preset): { video: boolean; audio: boolean; bpm: boolean } {
+  const temporalTechniques = new Set(['echo', 'step-print', 'slit-scan']);
+  return {
+    video: preset.params.tileMode === 'tile' || temporalTechniques.has(preset.techniqueId),
+    audio: preset.modulations.some((m) => AUDIO_SOURCES.has(m.source)),
+    bpm: preset.modulations.some((m) => m.source.startsWith('beat:')),
+  };
+}
+
+/** Human-readable note for a preset that needs more than the current project has. */
+export function unmetRequirementNote(
+  preset: Preset,
+  project: { hasVideo: boolean; hasAudio: boolean; hasBpm: boolean },
+): string | null {
+  const req = presetRequirements(preset);
+  const missing: string[] = [];
+  if (req.video && !project.hasVideo) missing.push('a video source');
+  if (req.audio && !project.hasAudio) missing.push('an audio source');
+  if (req.bpm && !project.hasBpm) missing.push('a BPM');
+  if (missing.length === 0) return null;
+  return `Needs ${missing.join(' and ')}`;
+}
 
 export async function listAllPresets(): Promise<Preset[]> {
   try {

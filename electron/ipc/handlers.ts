@@ -17,6 +17,16 @@ import { readProjectFile, writeProjectFile } from '../filesystem/projects';
 import { deleteUserPreset, listUserPresets, saveUserPreset } from '../filesystem/presets';
 import { isApprovedMediaPath } from '../filesystem/mediaRegistry';
 import { cancelExport, finishExport, startExport, writeExportFrame } from '../export/encoder';
+import {
+  clearRecovery,
+  discardRecovery,
+  listRecoveries,
+  writeRecovery,
+} from '../filesystem/recovery';
+import { randomUUID } from 'node:crypto';
+
+/** Identifies this app run; scopes the autosave file. */
+export const SESSION_ID = randomUUID();
 
 const pathArgSchema = z.string().min(1);
 const nameArgSchema = z.string().min(1).max(255);
@@ -86,13 +96,19 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   ipcMain.handle(IPC.exportSaveDialog, async (_event, rawFormat: unknown, rawName: unknown) => {
     const win = getWindow();
     if (!win) return null;
-    const format = z.enum(['png-sequence', 'h264']).parse(rawFormat);
+    const format = z.enum(['png-sequence', 'h264', 'prores422', 'prores4444']).parse(rawFormat);
     const defaultName = sanitizeDefaultName(nameArgSchema.parse(rawName));
-    if (format === 'h264') {
+    if (format !== 'png-sequence') {
+      const isProRes = format.startsWith('prores');
+      const ext = isProRes ? 'mov' : 'mp4';
       const result = await dialog.showSaveDialog(win, {
-        title: 'Export H.264',
-        defaultPath: `${defaultName}.mp4`,
-        filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+        title: isProRes ? 'Export ProRes' : 'Export H.264',
+        defaultPath: `${defaultName}.${ext}`,
+        filters: [
+          isProRes
+            ? { name: 'QuickTime Movie', extensions: ['mov'] }
+            : { name: 'MP4 Video', extensions: ['mp4'] },
+        ],
       });
       return result.canceled || !result.filePath ? null : result.filePath;
     }
@@ -111,6 +127,17 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     finishExport(sessionId, getWindow),
   );
   ipcMain.handle(IPC.exportCancel, (_event, sessionId: unknown) => cancelExport(sessionId));
+
+  ipcMain.handle(IPC.sessionId, () => SESSION_ID);
+  ipcMain.handle(IPC.recoveryWrite, async (_event, rawPath: unknown, rawProject: unknown) => {
+    const projectPath = rawPath === null ? null : pathArgSchema.parse(rawPath);
+    await writeRecovery(SESSION_ID, projectPath, rawProject);
+  });
+  ipcMain.handle(IPC.recoveryList, () => listRecoveries(SESSION_ID));
+  ipcMain.handle(IPC.recoveryClear, () => clearRecovery(SESSION_ID));
+  ipcMain.handle(IPC.recoveryDiscard, (_event, rawId: unknown) =>
+    discardRecovery(z.string().uuid().parse(rawId)),
+  );
 
   ipcMain.handle(IPC.listPresets, async () => listUserPresets());
   ipcMain.handle(IPC.savePreset, async (_event, rawPreset: unknown) => saveUserPreset(rawPreset));

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useUiStore } from '@/state/uiStore';
 import { useProjectStore } from '@/state/projectStore';
 import { useMenuEvents } from '@/hooks/useMenuEvents';
@@ -11,12 +12,16 @@ import { LibraryPanel } from '@/library/LibraryPanel';
 import { Viewport } from '@/viewport/Viewport';
 import { ExplorePanel } from '@/explore/ExplorePanel';
 import { ExportDialog } from '@/export/ExportDialog';
+import { RecoveryPrompt } from './RecoveryPrompt';
+import { TechniquesBrowser } from '@/techniques/TechniquesBrowser';
+import { startAutosave } from '@/projects/autosave';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
 import './app.css';
 
 export function App() {
   useMenuEvents();
+  useEffect(() => startAutosave(), []);
   const { isDragOver, onDragOver, onDragLeave, onDrop } = useMediaDrop();
   const libraryWidth = useUiStore((s) => s.libraryWidth);
   const inspectorWidth = useUiStore((s) => s.inspectorWidth);
@@ -35,6 +40,7 @@ export function App() {
         <main className="viewport-area">
           <Viewport />
           {workspace === 'explore' && <ExplorePanel />}
+          {workspace === 'techniques' && <TechniquesBrowser />}
           {!hasSources && <EmptyState isDragOver={isDragOver} />}
           {isDragOver && <div className="drop-overlay" />}
         </main>
@@ -50,6 +56,7 @@ export function App() {
       <WorkspaceTabs />
       <Toasts />
       <ExportDialog />
+      <RecoveryPrompt />
     </div>
   );
 }

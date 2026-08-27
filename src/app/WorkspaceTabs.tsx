@@ -3,7 +3,7 @@ import { useUiStore, type WorkspaceId } from '@/state/uiStore';
 const TABS: { id: WorkspaceId; label: string; available: boolean }[] = [
   { id: 'create', label: 'CREATE', available: true },
   { id: 'explore', label: 'EXPLORE', available: true },
-  { id: 'techniques', label: 'TECHNIQUES', available: false },
+  { id: 'techniques', label: 'TECHNIQUES', available: true },
   { id: 'modulation', label: 'MODULATION', available: false },
   { id: 'performance', label: 'PERFORMANCE', available: false },
 ];

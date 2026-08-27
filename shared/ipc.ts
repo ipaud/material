@@ -21,19 +21,34 @@ export const IPC = {
   exportFinish: 'export:finish',
   exportCancel: 'export:cancel',
   exportProgress: 'export:progress',
+  sessionId: 'session:id',
+  recoveryWrite: 'recovery:write',
+  recoveryList: 'recovery:list',
+  recoveryClear: 'recovery:clear',
+  recoveryDiscard: 'recovery:discard',
   menuEvent: 'menu:event',
 } as const;
 
-export type ExportFormat = 'png-sequence' | 'h264';
+export interface RecoveryEntry {
+  version: 1;
+  sessionId: string;
+  savedAt: string;
+  projectPath: string | null;
+  project: Project;
+}
+
+export type ExportFormat = 'png-sequence' | 'h264' | 'prores422' | 'prores4444';
 
 export interface ExportConfig {
   format: ExportFormat;
   width: number;
   height: number;
   fps: number;
-  /** Absolute output path (mp4 file or directory for sequences). */
+  /** Absolute output path (mp4/mov file, or directory for sequences). */
   outPath: string;
-  /** Optional audio file to mux (h264 only). */
+  /** Render on transparency instead of the composition background. */
+  alpha: boolean;
+  /** Optional audio file to mux (movie formats only). */
   audioPath: string | null;
   /** Trim of the muxed audio in seconds (start offset + duration). */
   audioStartSec: number;
@@ -92,5 +107,13 @@ export interface MaterialApi {
   exportFinish(sessionId: string): Promise<{ outPath: string }>;
   exportCancel(sessionId: string): Promise<void>;
   onExportProgress(callback: (event: ExportProgressEvent) => void): () => void;
+  /** Stable id for this app run; scopes the autosave file. */
+  getSessionId(): Promise<string>;
+  /** Autosave — writes to userData/recovery, never to the user's project. */
+  writeRecovery(projectPath: string | null, project: Project): Promise<void>;
+  /** Recovery entries from sessions that did not shut down cleanly. */
+  listRecoveries(): Promise<RecoveryEntry[]>;
+  clearRecovery(): Promise<void>;
+  discardRecovery(sessionId: string): Promise<void>;
   onMenuEvent(callback: (id: MenuEventId) => void): () => void;
 }

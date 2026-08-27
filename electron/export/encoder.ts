@@ -5,16 +5,17 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { BrowserWindow } from 'electron';
-import { ffmpegPath } from '../media/ffmpeg';
+import { detectEncoders, ffmpegPath } from '../media/ffmpeg';
 import { IPC, type ExportConfig, type ExportProgressEvent } from '../../shared/ipc';
 import { isApprovedMediaPath } from '../filesystem/mediaRegistry';
 
 export const exportConfigSchema = z.object({
-  format: z.enum(['png-sequence', 'h264']),
+  format: z.enum(['png-sequence', 'h264', 'prores422', 'prores4444']),
   width: z.number().int().min(16).max(8192),
   height: z.number().int().min(16).max(8192),
   fps: z.number().min(1).max(120),
   outPath: z.string().min(1),
+  alpha: z.boolean(),
   audioPath: z.string().nullable(),
   audioStartSec: z.number().min(0),
   durationSec: z.number().positive(),
@@ -44,10 +45,25 @@ function buildFfmpegArgs(config: ExportConfig): string[] {
     '-r', String(config.fps),
     '-i', '-',
   ];
+  if (config.format === 'png-sequence') {
+    // PNG sequence into the chosen directory; RGBA is preserved as-is.
+    args.push('-c:v', 'png', path.join(config.outPath, 'frame_%05d.png'));
+    return args;
+  }
+
+  // Movie formats can mux the project's audio, trimmed to the export range.
+  if (config.audioPath) {
+    args.push(
+      '-ss',
+      String(config.audioStartSec),
+      '-t',
+      String(config.durationSec),
+      '-i',
+      config.audioPath,
+    );
+  }
+
   if (config.format === 'h264') {
-    if (config.audioPath) {
-      args.push('-ss', String(config.audioStartSec), '-t', String(config.durationSec), '-i', config.audioPath);
-    }
     args.push(
       '-c:v', 'libx264',
       '-pix_fmt', 'yuv420p',
@@ -55,14 +71,29 @@ function buildFfmpegArgs(config: ExportConfig): string[] {
       '-preset', 'medium',
       '-movflags', '+faststart',
     );
-    if (config.audioPath) {
-      args.push('-c:a', 'aac', '-b:a', '192k', '-shortest');
-    }
-    args.push(config.outPath);
+  } else if (config.format === 'prores422') {
+    // ProRes 422 HQ — no alpha channel in this profile.
+    args.push('-c:v', 'prores_ks', '-profile:v', '3', '-pix_fmt', 'yuv422p10le', '-vendor', 'apl0');
   } else {
-    // PNG sequence into the chosen directory.
-    args.push('-c:v', 'png', path.join(config.outPath, 'frame_%05d.png'));
+    // ProRes 4444, the profile that actually carries alpha.
+    args.push(
+      '-c:v', 'prores_ks',
+      '-profile:v', '4444',
+      '-pix_fmt', config.alpha ? 'yuva444p10le' : 'yuv444p10le',
+      '-vendor', 'apl0',
+      '-alpha_bits', config.alpha ? '16' : '0',
+    );
   }
+
+  if (config.audioPath) {
+    args.push(
+      '-c:a',
+      config.format === 'h264' ? 'aac' : 'pcm_s16le',
+      ...(config.format === 'h264' ? ['-b:a', '192k'] : []),
+      '-shortest',
+    );
+  }
+  args.push(config.outPath);
   return args;
 }
 
@@ -78,6 +109,13 @@ export async function startExport(
   if (!path.isAbsolute(config.outPath)) throw new Error('Export path must be absolute');
   if (config.format === 'png-sequence') {
     await fs.mkdir(config.outPath, { recursive: true });
+  }
+  if (config.format.startsWith('prores')) {
+    // Never offer a codec this machine's FFmpeg cannot actually produce.
+    const encoders = await detectEncoders();
+    if (!encoders.includes('prores_ks')) {
+      throw new Error('ProRes encoder (prores_ks) is not available in this FFmpeg build');
+    }
   }
 
   const proc = spawn(ffmpegPath, buildFfmpegArgs(config), {
@@ -186,8 +224,8 @@ export async function cancelExport(rawSessionId: unknown): Promise<void> {
   session.cancelled = true;
   session.proc.kill('SIGKILL');
   sessions.delete(sessionId);
-  // Best-effort cleanup of partial h264 output.
-  if (session.config.format === 'h264') {
+  // Best-effort cleanup of a partial movie file (sequences keep their frames).
+  if (session.config.format !== 'png-sequence') {
     await fs.rm(session.config.outPath, { force: true });
   }
 }

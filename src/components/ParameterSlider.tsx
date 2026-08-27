@@ -9,6 +9,10 @@ interface ParameterSliderProps {
   step: number;
   defaultValue: number;
   unit?: string;
+  /** Marks the row as driven by a modulation mapping. */
+  modulated?: boolean;
+  /** Live modulated value, shown alongside the base value. */
+  modulatedValue?: number;
   /** Fired continuously during a drag. */
   onChange: (value: number) => void;
   /** Gesture boundaries — used to coalesce undo history. */
@@ -41,6 +45,8 @@ export function ParameterSlider({
   step,
   defaultValue,
   unit,
+  modulated,
+  modulatedValue,
   onChange,
   onDragStart,
   onDragEnd,
@@ -102,11 +108,16 @@ export function ParameterSlider({
   }, [editText, min, max, step, onChange, onDragStart, onDragEnd]);
 
   const fraction = max > min ? (value - min) / (max - min) : 0;
+  const modFraction =
+    modulated && typeof modulatedValue === 'number' && max > min
+      ? Math.min(Math.max((modulatedValue - min) / (max - min), 0), 1)
+      : null;
 
   return (
-    <div className="param-row">
+    <div className={`param-row${modulated ? ' modulated' : ''}`}>
       <span className="param-label" onDoubleClick={onDoubleClick}>
         {label}
+        {modulated && <span className="param-mod-dot" title="Driven by modulation" />}
       </span>
       <div
         ref={trackRef}
@@ -117,6 +128,9 @@ export function ParameterSlider({
         onDoubleClick={onDoubleClick}
       >
         <div className="param-fill" style={{ width: `${fraction * 100}%` }} />
+        {modFraction !== null && (
+          <div className="param-mod-marker" style={{ left: `${modFraction * 100}%` }} />
+        )}
         {editing ? (
           <input
             ref={inputRef}

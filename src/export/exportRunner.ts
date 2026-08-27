@@ -20,6 +20,7 @@ export interface AnimationExportRequest {
   durationSec: number;
   outPath: string;
   includeAudio: boolean;
+  alpha?: boolean;
 }
 
 /**
@@ -70,8 +71,9 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
   const store = useExportStore.getState();
   const totalFrames = Math.max(Math.ceil(request.durationSec * request.fps), 1);
   const { project } = useProjectStore.getState();
+  const alpha = request.alpha === true;
   const audioPath =
-    request.includeAudio && request.format === 'h264'
+    request.includeAudio && request.format !== 'png-sequence'
       ? (project.sources.find((s) => s.id === project.composition.audioSourceId)?.path ?? null)
       : null;
 
@@ -87,6 +89,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       height: request.height,
       fps: request.fps,
       outPath: request.outPath,
+      alpha,
       audioPath,
       audioStartSec: request.startSec,
       durationSec: request.durationSec,
@@ -108,7 +111,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         await engine.prepareTemporalForExport(timeSec, i === 0);
       }
       if (video) await seekVideoExact(video, timeSec);
-      const rgba = engine.renderStill(request.width, request.height, params);
+      const rgba = engine.renderStill(request.width, request.height, params, alpha);
       await window.material.exportFrame(sessionId, rgba);
       store.setProgress(i + 1);
     }

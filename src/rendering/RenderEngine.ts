@@ -412,7 +412,12 @@ export class RenderEngine {
    * Explore thumbnails). Optional paramsOverride bypasses the live modulation
    * transform. Returns tightly packed RGBA bytes, top row first.
    */
-  renderStill(width: number, height: number, paramsOverride?: ParamRecord): Uint8Array {
+  renderStill(
+    width: number,
+    height: number,
+    paramsOverride?: ParamRecord,
+    transparent = false,
+  ): Uint8Array {
     const renderer = this.renderer;
     if (!renderer) throw new Error('Engine not initialized');
     const target = new THREE.WebGLRenderTarget(width, height, {
@@ -426,7 +431,9 @@ export class RenderEngine {
       renderer.setRenderTarget(target);
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, width, height);
-      renderer.setClearColor(this.compBackground, 1);
+      // Alpha exports composite onto transparency, not the comp background.
+      if (transparent) renderer.setClearColor('#000000', 0);
+      else renderer.setClearColor(this.compBackground, 1);
       renderer.clear();
       this.updateCamera(width / height);
       this.syncScene(paramsOverride);

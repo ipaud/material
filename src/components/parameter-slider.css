@@ -121,12 +121,69 @@
   padding: var(--sp-2) 0 var(--sp-3);
 }
 
+/* Modulated parameters read as "driven, not yours to fight" */
+.param-row.modulated .param-label {
+  color: var(--mod);
+}
+.param-mod-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--mod);
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.param-mod-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--mod);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Collapsible inspector sections */
+.inspector-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-4);
+  cursor: pointer;
+}
+.inspector-section-header:hover .label {
+  color: var(--text-1);
+}
+.section-chevron {
+  font-size: 8px;
+  color: var(--text-2);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.section-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+.section-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--border-1);
+}
+
+.preset-bar-wrap {
+  border-bottom: 1px solid var(--border-0);
+}
 .preset-bar {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--border-0);
+}
+.preset-note {
+  padding: 0 var(--sp-4) var(--sp-3);
+  font-size: var(--text-xs);
+  color: var(--accent);
 }
 .preset-bar .select {
   flex: 1;

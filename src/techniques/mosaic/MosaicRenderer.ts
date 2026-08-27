@@ -66,7 +66,7 @@ void main() {
 
   vec2 cellUV = vec2((col + 0.5) / uCols, 1.0 - (row + 0.5) / uRows);
   vec3 src = texture(uSource, cellUV).rgb;
-  float lum = luminance(src);
+  float lum = matLuminance(src);
   float s = adjustSample(lum, uContrast, uGamma, uInvert);
 
   float alive = step(uThreshold, s);
