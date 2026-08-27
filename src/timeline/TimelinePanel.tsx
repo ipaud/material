@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { usePlaybackStore } from '@/state/playbackStore';
+import { useAudioStore } from '@/state/audioStore';
+import { useProjectStore } from '@/state/projectStore';
 import { playback } from '@/playback/PlaybackController';
+import { beatTimes } from '@/audio/beatGrid';
+import { Meters } from './Meters';
 import './timeline.css';
 
 function formatTime(sec: number): string {
@@ -15,10 +19,13 @@ export function TimelinePanel() {
   const timeSec = usePlaybackStore((s) => s.timeSec);
   const durationSec = usePlaybackStore((s) => s.durationSec);
   const loop = usePlaybackStore((s) => s.loop);
+  const audioLoading = useAudioStore((s) => s.loading);
+  const bpm = useProjectStore((s) => s.project.timeline.bpm);
+  const beatOffsetSec = useProjectStore((s) => s.project.timeline.beatOffsetSec);
+  const apply = useProjectStore((s) => s.apply);
   const trackRef = useRef<HTMLDivElement>(null);
   const scrubbing = useRef(false);
 
-  // Space = play/pause (ignored while typing in an input).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
@@ -43,10 +50,10 @@ export function TimelinePanel() {
     [durationSec],
   );
 
-  if (durationSec === 0) {
+  if (durationSec === 0 && !audioLoading) {
     return (
       <div className="timeline-empty">
-        <span className="label">Timeline — select a video source</span>
+        <span className="label">Timeline — add a video or audio source</span>
       </div>
     );
   }
@@ -68,6 +75,42 @@ export function TimelinePanel() {
         </button>
         <span className="vp-readout mono">{formatTime(timeSec)}</span>
         <span className="vp-readout mono dim">/ {formatTime(durationSec)}</span>
+        {audioLoading && <span className="vp-readout">analyzing audio…</span>}
+        <span className="timeline-spacer" />
+        <span className="label">BPM</span>
+        <input
+          className="timeline-num mono"
+          type="number"
+          min={20}
+          max={300}
+          step={0.1}
+          value={bpm ?? ''}
+          placeholder="—"
+          onChange={(e) => {
+            const v = e.target.value === '' ? null : Number(e.target.value);
+            apply((p) => ({
+              ...p,
+              timeline: { ...p.timeline, bpm: v !== null && Number.isFinite(v) && v > 0 ? v : null },
+            }));
+          }}
+          title="Manual BPM (empty = no beat grid)"
+        />
+        <span className="label">OFFSET</span>
+        <input
+          className="timeline-num mono"
+          type="number"
+          step={0.01}
+          value={beatOffsetSec}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            apply((p) => ({
+              ...p,
+              timeline: { ...p.timeline, beatOffsetSec: Number.isFinite(v) ? v : 0 },
+            }));
+          }}
+          title="Beat-1 offset in seconds"
+        />
+        <Meters />
       </div>
       <div
         ref={trackRef}
@@ -85,8 +128,73 @@ export function TimelinePanel() {
         }}
       >
         <div className="timeline-progress" style={{ width: `${frac * 100}%` }} />
+        <WaveformCanvas />
+        <BeatGrid />
         <div className="timeline-playhead" style={{ left: `${frac * 100}%` }} />
       </div>
+    </div>
+  );
+}
+
+function WaveformCanvas() {
+  const peaks = useAudioStore((s) => s.peaks);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const draw = () => {
+      const dpr = window.devicePixelRatio;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (w === 0 || h === 0) return;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, w, h);
+      if (!peaks) return;
+      ctx.fillStyle = 'rgba(152, 152, 159, 0.55)';
+      const buckets = peaks.length / 2;
+      const mid = h / 2;
+      for (let x = 0; x < w; x++) {
+        const b = Math.floor((x / w) * buckets);
+        const min = peaks[b * 2] as number;
+        const max = peaks[b * 2 + 1] as number;
+        const y0 = mid + min * mid * 0.92;
+        const y1 = mid + max * mid * 0.92;
+        ctx.fillRect(x, y0, 1, Math.max(y1 - y0, 1));
+      }
+    };
+    draw();
+    const observer = new ResizeObserver(draw);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [peaks]);
+
+  return <canvas ref={canvasRef} className="timeline-waveform" />;
+}
+
+function BeatGrid() {
+  const bpm = useProjectStore((s) => s.project.timeline.bpm);
+  const beatOffsetSec = useProjectStore((s) => s.project.timeline.beatOffsetSec);
+  const durationSec = usePlaybackStore((s) => s.durationSec);
+  if (!bpm || durationSec === 0) return null;
+  const beats = beatTimes(0, durationSec, bpm, beatOffsetSec);
+  // Cap DOM nodes for very long tracks / high BPM.
+  const step = Math.max(Math.ceil(beats.length / 400), 1);
+  return (
+    <div className="timeline-beats">
+      {beats
+        .filter((_, i) => i % step === 0)
+        .map((t, i) => (
+          <div
+            key={i}
+            className={`beat-tick${Math.round((t - beatOffsetSec) / (60 / bpm)) % 4 === 0 ? ' bar' : ''}`}
+            style={{ left: `${(t / durationSec) * 100}%` }}
+          />
+        ))}
     </div>
   );
 }

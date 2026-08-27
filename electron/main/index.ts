@@ -9,6 +9,9 @@ const isDev = !app.isPackaged;
 // Dev-only: allow CDP-based QA tooling to drive the app.
 if (isDev) app.commandLine.appendSwitch('remote-debugging-port', '9223');
 
+// MATERIAL is an offline instrument: audio playback must not require a gesture.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 let mainWindow: BrowserWindow | null = null;
 
 registerMediaSchemeAsPrivileged();

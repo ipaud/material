@@ -1,6 +1,7 @@
 .app {
   display: grid;
-  grid-template-rows: var(--titlebar-height) 1fr auto var(--workspace-tabs-height);
+  /* titlebar / main / gutter / timeline / workspace tabs */
+  grid-template-rows: var(--titlebar-height) 1fr auto auto var(--workspace-tabs-height);
   height: 100%;
 }
 

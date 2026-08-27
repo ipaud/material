@@ -4,6 +4,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
 import { getTechnique } from '@/techniques/registry';
 import { playback } from '@/playback/PlaybackController';
+import { audioEngine } from '@/audio/AudioEngine';
 import type { TechniqueRenderer } from '@/techniques/types';
 
 function mediaUrl(path: string): string {
@@ -11,6 +12,7 @@ function mediaUrl(path: string): string {
 }
 
 let loadedSourcePath: string | null = null;
+let loadedAudioPath: string | null = null;
 let loadGeneration = 0;
 let loadedMaterialAsset: string | null = null;
 let materialGeneration = 0;
@@ -82,6 +84,21 @@ function syncFromProject(): void {
     }
   }
 
+  // Audio source (analysis + audio-master clock).
+  const audioSource = project.sources.find(
+    (s) => s.id === composition.audioSourceId && s.kind === 'audio',
+  );
+  const audioPath = audioSource?.path ?? null;
+  if (audioPath !== loadedAudioPath) {
+    loadedAudioPath = audioPath;
+    if (audioPath) {
+      void audioEngine.load(audioPath).then(() => playback.audioChanged());
+    } else {
+      audioEngine.unload();
+      playback.audioChanged();
+    }
+  }
+
   // Technique renderer lifecycle.
   const instance = project.techniques.find((t) => t.enabled) ?? null;
   const techniqueId = instance?.techniqueId ?? null;
@@ -142,6 +159,7 @@ export function startEngineBridge(): () => void {
     unsubProject();
     unsubUi();
     loadedSourcePath = null;
+    loadedAudioPath = null;
     loadedMaterialAsset = null;
     activeTechniqueId = null;
     activeRenderer = null;
