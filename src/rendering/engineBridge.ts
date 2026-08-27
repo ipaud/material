@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
-import { getTechnique } from '@/techniques/registry';
+import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { playback } from '@/playback/PlaybackController';
 import { audioEngine } from '@/audio/AudioEngine';
 import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
+import { StaticTemporalSource, VideoTemporalSource } from './temporal/sources';
+import type { TemporalSource } from './temporal/TemporalFrameProvider';
 import type { TechniqueRenderer } from '@/techniques/types';
 
 function mediaUrl(path: string): string {
@@ -21,6 +23,12 @@ let loadedMaterialAsset: string | null = null;
 let materialGeneration = 0;
 let activeTechniqueId: string | null = null;
 let activeRenderer: TechniqueRenderer | null = null;
+let activeTemporalSource: TemporalSource | null = null;
+
+/** Re-attach the temporal source after it (or the technique) changed. */
+function syncTemporalSource(): void {
+  engine.setTemporalSource(activeTemporalSource);
+}
 
 function syncFromProject(): void {
   const { project } = useProjectStore.getState();
@@ -37,6 +45,8 @@ function syncFromProject(): void {
     loadedSourcePath = sourceKey;
     const generation = ++loadGeneration;
     playback.detachVideo();
+    activeTemporalSource = null;
+    engine.setTemporalSource(null);
     if (!source) {
       engine.setSource(null);
     } else if (source.kind === 'image') {
@@ -51,6 +61,8 @@ function syncFromProject(): void {
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.generateMipmaps = true;
           engine.setSource(texture);
+          activeTemporalSource = new StaticTemporalSource(texture);
+          engine.setTemporalSource(activeTemporalSource);
         },
         undefined,
         () => {
@@ -73,6 +85,8 @@ function syncFromProject(): void {
         texture.colorSpace = THREE.SRGBColorSpace;
         playback.attachVideo(video);
         engine.setSource(texture);
+        activeTemporalSource = new VideoTemporalSource(video, texture);
+        engine.setTemporalSource(activeTemporalSource);
         playback.seek(0);
       });
       video.addEventListener('error', () => {
@@ -119,9 +133,10 @@ function syncFromProject(): void {
   }
   if (instance) engine.setTechniqueParams(instance.params);
   engine.setMaterialState(project.material);
-  engine.setRingEnabled(
-    instance?.params.tileMode === 'tile' && instance.params.offsetMode !== 'none',
-  );
+  // Temporal history is needed whenever a technique samples past frames.
+  const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
+  engine.setTemporalEnabled(needsTemporal);
+  if (needsTemporal) syncTemporalSource();
 
   configureModulation();
 

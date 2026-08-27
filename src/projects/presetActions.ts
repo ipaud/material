@@ -66,7 +66,11 @@ export const BUILTIN_PRESETS: Preset[] = [
       lumToScale: 0.4,
       tileMode: 'tile',
       offsetMode: 'radial',
-      maxOffset: 24,
+      temporalDirection: 'outward', // center = now, outer = progressively older
+      maxOffsetSec: 0.9,
+      falloff: 1,
+      centerX: 0,
+      centerY: 0,
     },
     material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
     modulations: [
@@ -74,7 +78,7 @@ export const BUILTIN_PRESETS: Preset[] = [
         id: 'echo-bass-offset',
         enabled: true,
         source: 'bass',
-        target: 'maxOffset',
+        target: 'maxOffsetSec',
         amount: 0.6,
         min: 0,
         max: 1,

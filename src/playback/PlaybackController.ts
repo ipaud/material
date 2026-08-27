@@ -98,6 +98,8 @@ class PlaybackController {
 
   seek(timeSec: number): void {
     const clamped = Math.min(Math.max(timeSec, 0), this.getDuration());
+    // Frames before a seek are not history for what comes after it (§13).
+    engine.resetTemporal();
     if (this.audioMaster) audioEngine.seek(clamped);
     if (this.video) {
       this.video.currentTime = Math.min(clamped, this.video.duration || 0);

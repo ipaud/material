@@ -1,4 +1,5 @@
 import type { TechniqueDefinition } from '../types';
+import { TEMPORAL_MODE_OPTIONS } from '@/rendering/shaders/temporal';
 import { MosaicRenderer } from './MosaicRenderer';
 
 export const mosaicDefinition: TechniqueDefinition = {
@@ -52,7 +53,7 @@ export const mosaicDefinition: TechniqueDefinition = {
       ],
     },
     {
-      label: 'Video Tile',
+      label: 'Temporal',
       params: [
         {
           type: 'select',
@@ -68,16 +69,37 @@ export const mosaicDefinition: TechniqueDefinition = {
         {
           type: 'select',
           id: 'offsetMode',
-          label: 'Time Offset',
-          options: [
-            { value: 'none', label: 'None' },
-            { value: 'radial', label: 'Radial' },
-            { value: 'random', label: 'Random' },
-          ],
-          default: 'none',
+          label: 'Distribution',
+          options: TEMPORAL_MODE_OPTIONS,
+          default: 'radial',
           explore: { randomizable: false },
         },
-        { type: 'number', id: 'maxOffset', label: 'Max Offset', min: 0, max: 55, step: 1, default: 20, modulatable: true, explore: { randomizable: false } },
+        {
+          type: 'number',
+          id: 'maxOffsetSec',
+          label: 'Max Offset',
+          min: 0,
+          max: 2.29, // (56 - 1) / 24 — one full temporal buffer span
+          step: 0.01,
+          default: 1,
+          unit: 's',
+          modulatable: true,
+          explore: { randomizable: false },
+        },
+        { type: 'number', id: 'falloff', label: 'Falloff', min: 0.2, max: 4, step: 0.01, default: 1, modulatable: true, explore: { randomizable: true, min: 0.4, max: 2.5, weight: 0.5 } },
+        {
+          type: 'select',
+          id: 'temporalDirection',
+          label: 'Direction',
+          options: [
+            { value: 'outward', label: 'Outward (center = now)' },
+            { value: 'inward', label: 'Inward (center = past)' },
+          ],
+          default: 'outward',
+          explore: { randomizable: false },
+        },
+        { type: 'number', id: 'centerX', label: 'Center X', min: -0.5, max: 0.5, step: 0.01, default: 0, modulatable: true, explore: { randomizable: false } },
+        { type: 'number', id: 'centerY', label: 'Center Y', min: -0.5, max: 0.5, step: 0.01, default: 0, modulatable: true, explore: { randomizable: false } },
       ],
     },
     {

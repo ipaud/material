@@ -27,7 +27,18 @@ Meaningful deviations and choices not obvious from the spec.
 - **Proxy system deferred** (Phase 3 spec item): Apple Silicon decodes 1080p
   H.264 preview effortlessly; proxies become worthwhile with 4K+ sources.
   Architecture keeps preview and final-render sampling separate, so proxies
-  slot into the bridge later without renderer changes.
+  slot into the bridge later without renderer changes. The temporal cache is
+  already proxy-resolution (256x144 slots), so frame history never scales with
+  source resolution.
+- **material:// serves byte ranges itself** (Phase 8): wrapping the file
+  response to add CORS headers silently stripped range support, so `<video>`
+  reported `seekable = [0, 0]` and refused to seek at all. The handler now
+  answers `Range` requests with 206 + `Content-Range` and advertises
+  `Accept-Ranges`. Frame-exact temporal decoding depends on this.
+- **backgroundThrottling: false** (Phase 8): Chromium throttles rAF to a near
+  halt when the window is occluded, which stalls preview rendering. A visual
+  instrument must keep running on a second display, behind another window, or
+  while exporting.
 
 ## Rendering
 

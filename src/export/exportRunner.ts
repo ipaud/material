@@ -97,20 +97,28 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     for (let i = 0; i < totalFrames; i++) {
       if (useExportStore.getState().cancelRequested) {
         await window.material.exportCancel(sessionId);
+        engine.endExportMode();
         store.finish('cancelled', 'Export cancelled');
         return;
       }
       const { timeSec, params } = evaluate(i);
+      // Temporal history is rebuilt from exact composition timestamps —
+      // the first frame primes the whole buffer, later frames advance it (§3).
+      if (engine.isTemporalActive) {
+        await engine.prepareTemporalForExport(timeSec, i === 0);
+      }
       if (video) await seekVideoExact(video, timeSec);
       const rgba = engine.renderStill(request.width, request.height, params);
       await window.material.exportFrame(sessionId, rgba);
       store.setProgress(i + 1);
     }
+    engine.endExportMode();
 
     const { outPath } = await window.material.exportFinish(sessionId);
     store.finish('done', outPath);
     useUiStore.getState().pushToast('info', `Exported ${outPath.split('/').pop()}`);
   } catch (err) {
+    engine.endExportMode();
     if (sessionId) {
       try {
         await window.material.exportCancel(sessionId);

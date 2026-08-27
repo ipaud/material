@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import type { ParamRecord } from '@shared/schemas/project';
 import type { TechniqueContext, TechniqueRenderer } from '../types';
 import { GLSL_ADJUST, GLSL_HASH, GLSL_LUMINANCE, GLSL_SHAPES } from '@/rendering/shaders/chunks';
+import {
+  GLSL_TEMPORAL_DISTRIBUTION,
+  GLSL_TEMPORAL_SAMPLE,
+  temporalModeIndex,
+} from '@/rendering/shaders/temporal';
 import { shapeIndexForMaterial } from '@/materials/builtins';
 import { MAX_MOSAIC_INSTANCES } from '@shared/constants/app';
 
@@ -9,6 +14,7 @@ const VERTEX = /* glsl */ `
 ${GLSL_LUMINANCE}
 ${GLSL_HASH}
 ${GLSL_ADJUST}
+${GLSL_TEMPORAL_DISTRIBUTION}
 
 uniform sampler2D uSource;
 uniform float uCols;
@@ -34,13 +40,16 @@ uniform float uDepth;
 uniform vec2 uJitter;
 uniform float uSeed;
 uniform float uSquareElement;
-uniform int uOffsetMode; // 0 none, 1 radial, 2 random
-uniform float uMaxOffset;
+uniform int uOffsetMode;
+uniform float uMaxOffsetSec;
+uniform float uFalloff;
+uniform vec2 uTemporalCenter;
+uniform float uTemporalDirection;
 
 out vec2 vLocal;
 out vec3 vCellColor;
 out float vOpacity;
-out float vOffsetSlots;
+out float vOffsetSeconds;
 
 const float PI = 3.141592653589793;
 
@@ -66,7 +75,7 @@ void main() {
   float cellH = uCompH / uRows;
 
   float scaleF = clamp(uScale * mapAmount(s, uLumScale), uMinScale, uMaxScale);
-  // Texture materials keep a square element footprint; SDF shapes fill the cell.
+  // Texture/video materials keep a square element footprint; SDF shapes fill the cell.
   vec2 footprint = uSquareElement > 0.5 ? vec2(min(cellW, cellH)) : vec2(cellW, cellH);
   vec2 size = footprint * (1.0 - uSpacing) * scaleF * alive;
 
@@ -83,15 +92,13 @@ void main() {
   vCellColor = src;
   vLocal = position.xy;
 
-  // Temporal offset per cell (in ring-buffer slots).
-  float offsetSlots = 0.0;
-  if (uOffsetMode == 1) {
-    vec2 cn = vec2((col + 0.5) / uCols - 0.5, (row + 0.5) / uRows - 0.5);
-    offsetSlots = min(length(cn) / 0.7071, 1.0) * uMaxOffset;
-  } else if (uOffsetMode == 2) {
-    offsetSlots = hash11(id * 3.1 + uSeed * 2.7) * uMaxOffset;
-  }
-  vOffsetSlots = offsetSlots;
+  // Per-cell temporal offset, in SECONDS of composition time.
+  vec2 cn = vec2((col + 0.5) / uCols - 0.5, 0.5 - (row + 0.5) / uRows);
+  float w = temporalWeight(uOffsetMode, cn, id, uSeed, s, uTemporalCenter);
+  w = applyFalloff(w, uFalloff);
+  // Direction -1 inverts the distribution (center becomes oldest).
+  w = uTemporalDirection < 0.0 ? 1.0 - w : w;
+  vOffsetSeconds = w * uMaxOffsetSec;
 
   vec2 center = vec2(
     (col + 0.5) * cellW - uCompW * 0.5,
@@ -106,6 +113,7 @@ void main() {
 
 const FRAGMENT = /* glsl */ `
 ${GLSL_SHAPES}
+${GLSL_TEMPORAL_SAMPLE}
 
 uniform int uShape;
 uniform float uAspect;
@@ -114,18 +122,11 @@ uniform vec3 uMonoColor;
 uniform sampler2D uMatTex;
 uniform int uUseTex;
 uniform int uTileMode; // 0 off, 1 video tile
-uniform sampler2D uSourceFrag;
-uniform sampler2D uRingTex;
-uniform float uRingHead;
-uniform float uRingCount;
-uniform float uRingCols;
-uniform float uRingRows;
-uniform float uRingFilled;
 
 in vec2 vLocal;
 in vec3 vCellColor;
 in float vOpacity;
-in float vOffsetSlots;
+in float vOffsetSeconds;
 
 out vec4 fragColor;
 
@@ -133,18 +134,10 @@ void main() {
   float alpha;
   vec3 color;
   if (uTileMode == 1) {
-    // Each cell shows the (possibly time-offset) full source frame.
+    // Each cell shows the source frame at (anchorTime - vOffsetSeconds).
     vec2 tuv = vec2(vLocal.x / max(uAspect, 0.0001), vLocal.y) + 0.5;
     if (tuv.x < 0.0 || tuv.x > 1.0 || tuv.y < 0.0 || tuv.y > 1.0) discard;
-    vec3 frame;
-    if (uRingFilled > 0.5) {
-      float off = clamp(floor(vOffsetSlots), 0.0, uRingFilled - 1.0);
-      float slot = mod(uRingHead - 1.0 - off + uRingCount * 4.0, uRingCount);
-      vec2 slotBase = vec2(mod(slot, uRingCols), floor(slot / uRingCols));
-      frame = texture(uRingTex, (slotBase + tuv) / vec2(uRingCols, uRingRows)).rgb;
-    } else {
-      frame = texture(uSourceFrag, tuv).rgb;
-    }
+    vec3 frame = sampleTemporal(tuv, vOffsetSeconds).rgb;
     alpha = vOpacity;
     if (uColorMode == 1) color = uMonoColor * dot(frame, vec3(0.2126, 0.7152, 0.0722));
     else if (uColorMode == 3) color = frame * vCellColor;
@@ -225,15 +218,19 @@ export class MosaicRenderer implements TechniqueRenderer {
         uUseTex: { value: 0 },
         uSquareElement: { value: 0 },
         uTileMode: { value: 0 },
-        uSourceFrag: { value: null },
-        uRingTex: { value: null },
-        uRingHead: { value: 0 },
-        uRingCount: { value: 1 },
-        uRingCols: { value: 1 },
-        uRingRows: { value: 1 },
-        uRingFilled: { value: 0 },
         uOffsetMode: { value: 0 },
-        uMaxOffset: { value: 0 },
+        uMaxOffsetSec: { value: 0 },
+        uFalloff: { value: 1 },
+        uTemporalCenter: { value: new THREE.Vector2(0, 0) },
+        uTemporalDirection: { value: 1 },
+        // Temporal buffer (see rendering/shaders/temporal.ts).
+        uTemporalTex: { value: null },
+        uTemporalCols: { value: 1 },
+        uTemporalRows: { value: 1 },
+        uTemporalCount: { value: 1 },
+        uTemporalHead: { value: 0 },
+        uTemporalFilled: { value: 0 },
+        uTemporalSpacing: { value: 1 / 24 },
       },
     });
 
@@ -279,37 +276,39 @@ export class MosaicRenderer implements TechniqueRenderer {
     set('uLumOpacity', num(params, 'lumToOpacity', 0));
     set('uLumDepth', num(params, 'lumToDepth', 0));
     set('uDepth', num(params, 'depth', 0));
-    (u.uJitter?.value as THREE.Vector2).set(
-      num(params, 'jitterX', 0),
-      num(params, 'jitterY', 0),
-    );
+    (u.uJitter?.value as THREE.Vector2).set(num(params, 'jitterX', 0), num(params, 'jitterY', 0));
     set('uSeed', ctx.seed);
     set('uShape', shapeIndexForMaterial(ctx.material.materialId));
     set('uAspect', typeof ctx.material.params.aspect === 'number' ? ctx.material.params.aspect : 1);
     const useTex = ctx.material.materialId === 'custom' && ctx.materialTexture !== null;
     if (u.uMatTex) u.uMatTex.value = useTex ? ctx.materialTexture : null;
     set('uUseTex', useTex ? 1 : 0);
-    set('uSquareElement', useTex ? 1 : 0);
     const COLOR_MODES: Record<string, number> = { source: 0, mono: 1, original: 2, sourceColor: 3 };
     set('uColorMode', COLOR_MODES[ctx.material.colorMode] ?? 0);
 
-    // Video tile / temporal offset (Phase 3.5 spike).
-    const tileOn = params.tileMode === 'tile';
+    // ---- temporal ----
+    const tileOn = params.tileMode === 'tile' && ctx.temporal !== null;
     set('uTileMode', tileOn ? 1 : 0);
-    if (u.uSourceFrag) u.uSourceFrag.value = ctx.sourceTexture;
-    const OFFSET_MODES: Record<string, number> = { none: 0, radial: 1, random: 2 };
-    set('uOffsetMode', OFFSET_MODES[String(params.offsetMode ?? 'none')] ?? 0);
-    set('uMaxOffset', num(params, 'maxOffset', 0));
-    if (ctx.ring) {
-      if (u.uRingTex) u.uRingTex.value = ctx.ring.texture;
-      set('uRingHead', ctx.ring.head);
-      set('uRingCount', ctx.ring.count);
-      set('uRingCols', ctx.ring.cols);
-      set('uRingRows', ctx.ring.rows);
-      set('uRingFilled', ctx.ring.filled);
+    set('uSquareElement', tileOn || useTex ? 1 : 0);
+    set('uOffsetMode', temporalModeIndex(String(params.offsetMode ?? 'uniform')));
+    set('uMaxOffsetSec', num(params, 'maxOffsetSec', 0));
+    set('uFalloff', num(params, 'falloff', 1));
+    set('uTemporalDirection', params.temporalDirection === 'inward' ? -1 : 1);
+    (u.uTemporalCenter?.value as THREE.Vector2).set(
+      num(params, 'centerX', 0),
+      num(params, 'centerY', 0),
+    );
+    if (ctx.temporal) {
+      if (u.uTemporalTex) u.uTemporalTex.value = ctx.temporal.texture;
+      set('uTemporalCols', ctx.temporal.cols);
+      set('uTemporalRows', ctx.temporal.rows);
+      set('uTemporalCount', ctx.temporal.count);
+      set('uTemporalHead', ctx.temporal.head);
+      set('uTemporalFilled', ctx.temporal.filled);
+      set('uTemporalSpacing', ctx.temporal.spacingSec);
     } else {
-      if (u.uRingTex) u.uRingTex.value = null;
-      set('uRingFilled', 0);
+      if (u.uTemporalTex) u.uTemporalTex.value = null;
+      set('uTemporalFilled', 0);
     }
   }
 

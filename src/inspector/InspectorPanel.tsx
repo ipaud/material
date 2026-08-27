@@ -1,11 +1,13 @@
 import { useCallback } from 'react';
 import { useProjectStore } from '@/state/projectStore';
-import { getTechnique } from '@/techniques/registry';
+import { getTechnique, listTechniques } from '@/techniques/registry';
+import { defaultParams } from '@/techniques/types';
 import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
 import type { ParamDef } from '@/techniques/types';
+import { uid } from '@/utils/id';
 import type { ParamValue } from '@shared/schemas/project';
 import '@/components/parameter-slider.css';
 
@@ -56,6 +58,40 @@ export function InspectorPanel() {
         {hasSource && definition && technique && (
           <>
             <PresetBar />
+            <div className="inspector-section">
+              <div className="param-row">
+                <span className="param-label">Technique</span>
+                <div className="param-control">
+                  <select
+                    className="select"
+                    value={technique.techniqueId}
+                    onChange={(e) => {
+                      const next = getTechnique(e.target.value);
+                      if (!next) return;
+                      apply((p) => ({
+                        ...p,
+                        techniques: [
+                          {
+                            id: uid('tech'),
+                            techniqueId: next.id,
+                            enabled: true,
+                            params: defaultParams(next),
+                          },
+                        ],
+                        // Mappings target technique params; a switch invalidates them.
+                        modulations: [],
+                      }));
+                    }}
+                  >
+                    {listTechniques().map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
             <ModulationSection />
             <div className="inspector-section">
               <div className="inspector-section-header">

@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
-import { FrameRingBuffer } from './FrameRingBuffer';
+import {
+  TemporalFrameProvider,
+  type BoundaryMode,
+  type TemporalConfig,
+  type TemporalSource,
+  type TemporalStats,
+} from './temporal/TemporalFrameProvider';
 
 export interface ViewTransform {
   zoom: number; // composition px → CSS px
@@ -30,9 +36,12 @@ export class RenderEngine {
 
   private sourceTexture: THREE.Texture | null = null;
   private materialTexture: THREE.Texture | null = null;
-  private ring: FrameRingBuffer | null = null;
-  private ringEnabled = false;
-  private lastCapturedTime = -1;
+  private temporal: TemporalFrameProvider | null = null;
+  private temporalEnabled = false;
+  private temporalSource: TemporalSource | null = null;
+  private boundaryMode: BoundaryMode = 'clamp';
+  /** While true the preview capture path is disabled (export owns the buffer). */
+  private exportMode = false;
   private originalQuad: THREE.Mesh | null = null;
   private techniqueRenderer: TechniqueRenderer | null = null;
   private techniqueParams: ParamRecord = {};
@@ -80,6 +89,8 @@ export class RenderEngine {
 
   dispose(): void {
     cancelAnimationFrame(this.rafId);
+    this.temporal?.dispose();
+    this.temporal = null;
     this.techniqueRenderer?.dispose();
     this.originalQuad?.geometry.dispose();
     (this.originalQuad?.material as THREE.Material | undefined)?.dispose();
@@ -137,14 +148,60 @@ export class RenderEngine {
     this.invalidate();
   }
 
-  /** Enable the recent-frame ring buffer (video tile / time offset modes). */
-  setRingEnabled(enabled: boolean): void {
-    if (enabled && !this.ring) this.ring = new FrameRingBuffer();
-    if (!enabled && this.ring) {
-      this.ring.dispose();
-      this.ring = null;
+  /** Enable composition-time frame history (video tile / echo / slit scan). */
+  setTemporalEnabled(enabled: boolean, config?: Partial<TemporalConfig>): void {
+    if (enabled && !this.temporal) this.temporal = new TemporalFrameProvider(config);
+    if (!enabled && this.temporal) {
+      this.temporal.dispose();
+      this.temporal = null;
     }
-    this.ringEnabled = enabled;
+    this.temporalEnabled = enabled;
+    this.invalidate();
+  }
+
+  setTemporalSource(source: TemporalSource | null): void {
+    this.temporalSource = source;
+    this.temporal?.invalidate();
+    this.invalidate();
+  }
+
+  setBoundaryMode(mode: BoundaryMode): void {
+    this.boundaryMode = mode;
+  }
+
+  /** Drop temporal history — seek, loop restart, source change (§13). */
+  resetTemporal(): void {
+    this.temporal?.invalidate();
+    this.invalidate();
+  }
+
+  getTemporalStats(): TemporalStats | null {
+    return this.temporal?.getStats() ?? null;
+  }
+
+  get isTemporalActive(): boolean {
+    return this.temporalEnabled && this.temporal !== null;
+  }
+
+  /**
+   * EXPORT path (§3): rebuild the history from exact composition timestamps.
+   * Never reuses preview contents. Returns the sample schedule for tests.
+   */
+  async prepareTemporalForExport(
+    compositionTime: number,
+    isFirstFrame: boolean,
+  ): Promise<{ logicalSlot: number; sourceTime: number }[]> {
+    if (!this.temporal || !this.temporalEnabled || !this.renderer || !this.temporalSource) return [];
+    this.exportMode = true;
+    return isFirstFrame
+      ? this.temporal.primeExact(this.renderer, compositionTime, this.temporalSource, this.boundaryMode)
+      : this.temporal.advanceExact(this.renderer, compositionTime, this.temporalSource, this.boundaryMode);
+  }
+
+  /** Leave export mode and discard export-primed history (§13). */
+  endExportMode(): void {
+    this.exportMode = false;
+    this.temporal?.invalidate();
     this.invalidate();
   }
 
@@ -292,11 +349,10 @@ export class RenderEngine {
     }
     renderer.clear();
 
-    // Ring buffer capture — one slot per distinct playback time.
-    if (this.ringEnabled && this.ring && this.sourceTexture && this.timeSec !== this.lastCapturedTime) {
-      if (this.ring.maybeCapture(renderer, this.sourceTexture, performance.now())) {
-        this.lastCapturedTime = this.timeSec;
-      }
+    // PREVIEW temporal capture, addressed by composition time. Disabled during
+    // export so preview contents can never influence a render (§3).
+    if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
+      this.temporal.advancePreview(renderer, this.timeSec, this.sourceTexture);
       // Restore the on-canvas viewport state clobbered by the capture pass.
       renderer.setViewport(rectX, rectY, rectW, rectH);
       renderer.setScissor(rectX, rectY, rectW, rectH);
@@ -323,17 +379,8 @@ export class RenderEngine {
         this.techniqueRenderer.update(params, {
           sourceTexture: this.sourceTexture,
           materialTexture: this.materialTexture,
-          ring:
-            this.ringEnabled && this.ring
-              ? {
-                  texture: this.ring.target.texture,
-                  head: this.ring.head,
-                  filled: this.ring.filled,
-                  count: this.ring.count,
-                  cols: this.ring.cols,
-                  rows: this.ring.rows,
-                }
-              : null,
+          temporal:
+            this.temporalEnabled && this.temporal ? this.temporal.getUniforms() : null,
           compWidth: this.compWidth,
           compHeight: this.compHeight,
           material: this.materialState,

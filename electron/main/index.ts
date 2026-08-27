@@ -32,6 +32,10 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // A visual instrument must keep rendering while the window is occluded
+      // or unfocused (performance use, second display, exporting in the
+      // background). Chromium otherwise throttles rAF to a near halt.
+      backgroundThrottling: false,
     },
   });
 
