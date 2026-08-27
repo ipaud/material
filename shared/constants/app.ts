@@ -1,6 +1,6 @@
 export const APP_NAME = 'MATERIAL';
 export const PROJECT_EXTENSION = 'material';
-export const PROJECT_FORMAT_VERSION = 1;
+export const PROJECT_FORMAT_VERSION = 2;
 
 export const SUPPORTED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v'] as const;

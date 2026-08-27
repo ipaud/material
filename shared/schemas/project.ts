@@ -50,12 +50,22 @@ export const modulationMappingSchema = z.object({
 });
 export type ModulationMapping = z.infer<typeof modulationMappingSchema>;
 
+export const timelineMarkerSchema = z.object({
+  id: z.string(),
+  timeSec: z.number().nonnegative(),
+  label: z.string().max(40),
+});
+export type TimelineMarker = z.infer<typeof timelineMarkerSchema>;
+
 export const timelineStateSchema = z.object({
   inSec: z.number().nonnegative().nullable(),
   outSec: z.number().nonnegative().nullable(),
   loop: z.boolean(),
   bpm: z.number().positive().nullable(),
   beatOffsetSec: z.number(),
+  /** Time signature numerator (4/4 → 4). Defaults keep v2 additive. */
+  beatsPerBar: z.number().int().min(1).max(12).default(4),
+  markers: z.array(timelineMarkerSchema).default([]),
 });
 export type TimelineState = z.infer<typeof timelineStateSchema>;
 
@@ -110,23 +120,49 @@ export function createEmptyProject(name = 'Untitled'): Project {
     techniques: [],
     material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
     modulations: [],
-    timeline: { inSec: null, outSec: null, loop: true, bpm: null, beatOffsetSec: 0 },
+    timeline: {
+      inSec: null,
+      outSec: null,
+      loop: true,
+      bpm: null,
+      beatOffsetSec: 0,
+      beatsPerBar: 4,
+      markers: [],
+    },
     pinnedLooks: [],
     explore: { lockedParams: [], lastSeed: null },
   };
 }
 
+/** v1 → v2: musical-clock fields appear, everything else is unchanged. */
+function migrateV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const timeline = (raw.timeline ?? {}) as Record<string, unknown>;
+  return {
+    ...raw,
+    version: 2,
+    timeline: {
+      ...timeline,
+      beatsPerBar: timeline.beatsPerBar ?? 4,
+      markers: timeline.markers ?? [],
+    },
+  };
+}
+
 /**
  * Parse + migrate a raw project JSON object to the current version.
- * Migration table grows as PROJECT_FORMAT_VERSION increases.
+ * Older versions are upgraded in memory; the file on disk is only rewritten
+ * when the user saves. Unknown (newer) versions are refused, never guessed.
  */
 export function parseProject(raw: unknown): Project {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error('Project file is not a JSON object');
   }
-  const version = (raw as { version?: unknown }).version;
-  if (version !== PROJECT_FORMAT_VERSION) {
-    throw new Error(`Unsupported project version: ${String(version)}`);
+  let candidate = raw as Record<string, unknown>;
+  if (candidate.version === 1) {
+    candidate = migrateV1toV2(candidate);
   }
-  return projectSchema.parse(raw);
+  if (candidate.version !== PROJECT_FORMAT_VERSION) {
+    throw new Error(`Unsupported project version: ${String(candidate.version)}`);
+  }
+  return projectSchema.parse(candidate);
 }

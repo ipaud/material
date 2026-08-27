@@ -129,7 +129,7 @@ describe('applyModulations', () => {
 
 describe('sources', () => {
   test('beat sources derive phase from bpm', () => {
-    const v = evalSources(0.25, { analysis: null, durationSec: 10, bpm: 120, beatOffsetSec: 0 });
+    const v = evalSources(0.25, { analysis: null, durationSec: 10, bpm: 120, beatOffsetSec: 0, beatsPerBar: 4 });
     expect(v['beat:1/4']).toBeCloseTo(0.5);
     expect(v.time).toBeCloseTo(0.025);
     expect(v.bass).toBe(0);
@@ -140,7 +140,7 @@ describe('sources', () => {
     const sine = new Float32Array(sampleRate);
     for (let i = 0; i < sine.length; i++) sine[i] = Math.sin((2 * Math.PI * 80 * i) / sampleRate);
     const analysis = analyzeBuffer(sine, sampleRate);
-    const v = evalSources(0.5, { analysis, durationSec: 1, bpm: null, beatOffsetSec: 0 });
+    const v = evalSources(0.5, { analysis, durationSec: 1, bpm: null, beatOffsetSec: 0, beatsPerBar: 4 });
     expect(v.bass).toBeGreaterThan(0.5);
     expect(v['beat:bar']).toBe(0);
   });

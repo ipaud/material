@@ -3,7 +3,9 @@ import { usePlaybackStore } from '@/state/playbackStore';
 import { useAudioStore } from '@/state/audioStore';
 import { useProjectStore } from '@/state/projectStore';
 import { playback } from '@/playback/PlaybackController';
-import { beatTimes } from '@/audio/beatGrid';
+import { beatTimes, musicalPosition } from '@/audio/beatGrid';
+import { runTempoDetection, tapTempoTap } from '@/audio/tempoActions';
+import { useUiStore } from '@/state/uiStore';
 import { Meters } from './Meters';
 import './timeline.css';
 
@@ -22,6 +24,12 @@ export function TimelinePanel() {
   const audioLoading = useAudioStore((s) => s.loading);
   const bpm = useProjectStore((s) => s.project.timeline.bpm);
   const beatOffsetSec = useProjectStore((s) => s.project.timeline.beatOffsetSec);
+  const beatsPerBar = useProjectStore((s) => s.project.timeline.beatsPerBar);
+  const analysisReady = useAudioStore((s) => s.analysis !== null);
+  const showBeatGrid = useUiStore((s) => s.showBeatGrid);
+  const toggleBeatGrid = useUiStore((s) => s.toggleBeatGrid);
+  const showSignalMonitor = useUiStore((s) => s.showSignalMonitor);
+  const toggleSignalMonitor = useUiStore((s) => s.toggleSignalMonitor);
   const apply = useProjectStore((s) => s.apply);
   const trackRef = useRef<HTMLDivElement>(null);
   const scrubbing = useRef(false);
@@ -75,8 +83,41 @@ export function TimelinePanel() {
         </button>
         <span className="vp-readout mono">{formatTime(timeSec)}</span>
         <span className="vp-readout mono dim">/ {formatTime(durationSec)}</span>
+        {bpm && (
+          <span className="vp-readout mono musical-pos">
+            {(() => {
+              const pos = musicalPosition(timeSec, bpm, beatOffsetSec, beatsPerBar);
+              return `BAR ${pos.bar} · BEAT ${pos.beat}`;
+            })()}
+          </span>
+        )}
         {audioLoading && <span className="vp-readout">analyzing audio…</span>}
         <span className="timeline-spacer" />
+        <button
+          className="vp-btn"
+          onClick={() => runTempoDetection()}
+          disabled={!analysisReady}
+          title="Detect BPM and beat offset from the audio (advisory — you can always type over it)"
+        >
+          DETECT
+        </button>
+        <button className="vp-btn" onClick={() => tapTempoTap()} title="Tap tempo — tap on the beat">
+          TAP
+        </button>
+        <button
+          className={`vp-btn${showBeatGrid ? ' active' : ''}`}
+          onClick={toggleBeatGrid}
+          title="Toggle beat grid"
+        >
+          GRID
+        </button>
+        <button
+          className={`vp-btn${showSignalMonitor ? ' active' : ''}`}
+          onClick={toggleSignalMonitor}
+          title="Live signal monitor"
+        >
+          SIG
+        </button>
         <span className="label">BPM</span>
         <input
           className="timeline-num mono"
@@ -109,6 +150,26 @@ export function TimelinePanel() {
             }));
           }}
           title="Beat-1 offset in seconds"
+        />
+        <span className="label">/BAR</span>
+        <input
+          className="timeline-num mono timeline-num-narrow"
+          type="number"
+          min={1}
+          max={12}
+          step={1}
+          value={beatsPerBar}
+          onChange={(e) => {
+            const v = Math.round(Number(e.target.value));
+            apply((p) => ({
+              ...p,
+              timeline: {
+                ...p.timeline,
+                beatsPerBar: Number.isFinite(v) ? Math.min(Math.max(v, 1), 12) : 4,
+              },
+            }));
+          }}
+          title="Beats per bar (time signature numerator)"
         />
         <Meters />
       </div>
@@ -179,8 +240,10 @@ function WaveformCanvas() {
 function BeatGrid() {
   const bpm = useProjectStore((s) => s.project.timeline.bpm);
   const beatOffsetSec = useProjectStore((s) => s.project.timeline.beatOffsetSec);
+  const beatsPerBar = useProjectStore((s) => s.project.timeline.beatsPerBar);
+  const showBeatGrid = useUiStore((s) => s.showBeatGrid);
   const durationSec = usePlaybackStore((s) => s.durationSec);
-  if (!bpm || durationSec === 0) return null;
+  if (!bpm || durationSec === 0 || !showBeatGrid) return null;
   const beats = beatTimes(0, durationSec, bpm, beatOffsetSec);
   // Cap DOM nodes for very long tracks / high BPM.
   const step = Math.max(Math.ceil(beats.length / 400), 1);
@@ -191,7 +254,9 @@ function BeatGrid() {
         .map((t, i) => (
           <div
             key={i}
-            className={`beat-tick${Math.round((t - beatOffsetSec) / (60 / bpm)) % 4 === 0 ? ' bar' : ''}`}
+            className={`beat-tick${
+              Math.round((t - beatOffsetSec) / (60 / bpm)) % beatsPerBar === 0 ? ' bar' : ''
+            }`}
             style={{ left: `${(t / durationSec) * 100}%` }}
           />
         ))}

@@ -82,6 +82,13 @@
 .timeline-num:focus {
   border-color: var(--accent-dim);
 }
+.timeline-num-narrow {
+  width: 36px;
+}
+.musical-pos {
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
 
 .timeline-beats {
   position: absolute;

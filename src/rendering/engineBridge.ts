@@ -177,6 +177,7 @@ function configureModulation(): void {
     durationSec: usePlaybackStore.getState().durationSec,
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
+    beatsPerBar: project.timeline.beatsPerBar,
   });
   engine.invalidate();
 }

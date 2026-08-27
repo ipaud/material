@@ -11,6 +11,9 @@ import { playback } from './playback/PlaybackController';
 import { createFrameEvaluator, runAnimationExport } from './export/exportRunner';
 import { useExportStore } from './state/exportStore';
 import * as presetActions from './projects/presetActions';
+import { analyzeBuffer, sampleTrack } from './audio/analysis';
+import { detectTempo } from './audio/tempo';
+import { useAudioStore } from './state/audioStore';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -29,6 +32,10 @@ if (import.meta.env.DEV) {
       runAnimationExport,
       useExportStore,
       presetActions,
+      analyzeBuffer,
+      detectTempo,
+      sampleTrack,
+      useAudioStore,
     },
   });
 }

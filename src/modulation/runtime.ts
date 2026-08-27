@@ -15,6 +15,7 @@ class ModulationRuntime {
     durationSec: 0,
     bpm: null,
     beatOffsetSec: 0,
+    beatsPerBar: 4,
   };
   private readonly smoothing = new SmoothingState();
   private lastTime = -1;

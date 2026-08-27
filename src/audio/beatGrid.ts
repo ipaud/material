@@ -6,13 +6,21 @@
 
 export type MusicalDivision = 'bar' | '1/2' | '1/4' | '1/8' | '1/16';
 
-export const DIVISION_BEATS: Record<MusicalDivision, number> = {
-  bar: 4, // assumes 4/4 — good default until time signatures exist
-  '1/2': 2,
-  '1/4': 1,
-  '1/8': 0.5,
-  '1/16': 0.25,
-};
+/** Beats per division; 'bar' depends on the time signature. */
+export function divisionBeats(division: MusicalDivision, beatsPerBar = 4): number {
+  switch (division) {
+    case 'bar':
+      return beatsPerBar;
+    case '1/2':
+      return 2;
+    case '1/4':
+      return 1;
+    case '1/8':
+      return 0.5;
+    case '1/16':
+      return 0.25;
+  }
+}
 
 /** Beats elapsed at timeSec for a given bpm/offset (can be negative before offset). */
 export function beatsAt(timeSec: number, bpm: number, beatOffsetSec: number): number {
@@ -25,9 +33,26 @@ export function divisionPhase(
   bpm: number,
   beatOffsetSec: number,
   division: MusicalDivision,
+  beatsPerBar = 4,
 ): number {
-  const beats = beatsAt(timeSec, bpm, beatOffsetSec) / DIVISION_BEATS[division];
+  const beats = beatsAt(timeSec, bpm, beatOffsetSec) / divisionBeats(division, beatsPerBar);
   return beats - Math.floor(beats);
+}
+
+/** Musical position readout: 1-based bar and beat plus intra-beat fraction. */
+export function musicalPosition(
+  timeSec: number,
+  bpm: number,
+  beatOffsetSec: number,
+  beatsPerBar = 4,
+): { bar: number; beat: number; phase: number } {
+  const beats = beatsAt(timeSec, bpm, beatOffsetSec);
+  const whole = Math.floor(beats);
+  return {
+    bar: Math.floor(whole / beatsPerBar) + 1,
+    beat: ((whole % beatsPerBar) + beatsPerBar) % beatsPerBar + 1,
+    phase: beats - whole,
+  };
 }
 
 /** Beat timestamps within [startSec, endSec] for grid drawing. */

@@ -4,6 +4,7 @@ import { startEngineBridge } from '@/rendering/engineBridge';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { DebugOverlay } from './DebugOverlay';
+import { SignalMonitor } from './SignalMonitor';
 import './viewport.css';
 
 export function Viewport() {
@@ -12,6 +13,7 @@ export function Viewport() {
   const [checker, setChecker] = useState(false);
   const panning = useRef<{ x: number; y: number } | null>(null);
   const debugOverlay = useUiStore((s) => s.debugOverlay);
+  const showSignalMonitor = useUiStore((s) => s.showSignalMonitor);
   const setShowOriginal = useUiStore((s) => s.setShowOriginal);
   const compWidth = useProjectStore((s) => s.project.composition.width);
   const compHeight = useProjectStore((s) => s.project.composition.height);
@@ -120,6 +122,7 @@ export function Viewport() {
         </button>
       </div>
       {debugOverlay && <DebugOverlay />}
+      {showSignalMonitor && <SignalMonitor />}
     </div>
   );
 }

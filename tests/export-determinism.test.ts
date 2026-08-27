@@ -43,6 +43,7 @@ function makeContext(): SourceContext {
     durationSec: 3,
     bpm: 120,
     beatOffsetSec: 0,
+    beatsPerBar: 4,
   };
 }
 

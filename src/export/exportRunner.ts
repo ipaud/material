@@ -39,6 +39,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     durationSec: usePlaybackStore.getState().durationSec,
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
+    beatsPerBar: project.timeline.beatsPerBar,
   };
   const smoothing = new SmoothingState();
   const dt = 1 / fps;

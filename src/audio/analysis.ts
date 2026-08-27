@@ -7,7 +7,18 @@ import { magnitudeSpectrum } from './fft';
  * modulation values in preview and final render.
  */
 
-export const TRACK_IDS = ['master', 'rms', 'bass', 'mids', 'highs', 'transients'] as const;
+export const TRACK_IDS = [
+  'master',
+  'rms',
+  'peak',
+  'bass',
+  'mids',
+  'highs',
+  'centroid',
+  'flux',
+  'onset',
+  'transients',
+] as const;
 export type TrackId = (typeof TRACK_IDS)[number];
 
 export interface AudioAnalysis {
@@ -28,6 +39,16 @@ export const BANDS = {
   highs: [4000, 16000],
 } as const;
 
+/**
+ * Centroid mapping range. The centroid is normalized on a log-frequency
+ * scale between these bounds so it stays a *meaningful brightness* value
+ * (0 ≈ 100 Hz rumble, 1 ≈ 8 kHz sizzle) instead of being percentile-crushed.
+ */
+export const CENTROID_LO_HZ = 100;
+export const CENTROID_HI_HZ = 8000;
+/** Onset adaptive-mean window (seconds) — local context for "is this a hit?". */
+const ONSET_MEAN_WINDOW_SEC = 0.5;
+
 function percentileRef(track: Float32Array): number {
   // High percentile so single spikes don't crush the rest.
   const sorted = Float32Array.from(track).sort();
@@ -46,9 +67,13 @@ export function analyzeBuffer(mono: Float32Array, sampleRate: number): AudioAnal
   const tracks: Record<TrackId, Float32Array> = {
     master: new Float32Array(frameCount),
     rms: new Float32Array(frameCount),
+    peak: new Float32Array(frameCount),
     bass: new Float32Array(frameCount),
     mids: new Float32Array(frameCount),
     highs: new Float32Array(frameCount),
+    centroid: new Float32Array(frameCount),
+    flux: new Float32Array(frameCount),
+    onset: new Float32Array(frameCount),
     transients: new Float32Array(frameCount),
   };
 
@@ -70,15 +95,48 @@ export function analyzeBuffer(mono: Float32Array, sampleRate: number): AudioAnal
       frame[i] = start + i < mono.length ? (mono[start + i] as number) : 0;
     }
 
-    // Time-domain RMS.
+    // Time-domain RMS over the analysis frame, and peak over the fresh hop
+    // (peak on the hop segment keeps it crisp — a frame-wide max would smear
+    // a single hit across four frames).
     let sumSq = 0;
     for (let i = 0; i < FFT_SIZE; i++) {
       const v = frame[i] as number;
       sumSq += v * v;
     }
     tracks.rms[f] = Math.sqrt(sumSq / FFT_SIZE);
+    // Frames are timestamped by their start, so peak reads the FIRST hop
+    // segment — the samples that actually belong to this frame's timestamp.
+    let hopPeak = 0;
+    for (let i = 0; i < HOP_SIZE; i++) {
+      const v = Math.abs(frame[i] as number);
+      if (v > hopPeak) hopPeak = v;
+    }
+    tracks.peak[f] = hopPeak;
 
     const mags = magnitudeSpectrum(frame);
+
+    // Spectral centroid on a log-frequency brightness scale (absolute
+    // mapping, not percentile — see CENTROID_LO_HZ/HI_HZ). Near-silent
+    // frames hold the previous value instead of snapping to 0, which reads
+    // as "brightness persists through the gap" rather than a glitch.
+    {
+      let weighted = 0;
+      let total = 0;
+      for (let i = 1; i < mags.length; i++) {
+        const m = mags[i] as number;
+        weighted += m * i * binHz;
+        total += m;
+      }
+      if (total > 1e-6) {
+        const hz = weighted / total;
+        const norm =
+          Math.log2(Math.max(hz, CENTROID_LO_HZ) / CENTROID_LO_HZ) /
+          Math.log2(CENTROID_HI_HZ / CENTROID_LO_HZ);
+        tracks.centroid[f] = Math.min(Math.max(norm, 0), 1);
+      } else {
+        tracks.centroid[f] = f > 0 ? (tracks.centroid[f - 1] as number) : 0;
+      }
+    }
 
     const sumBins = (lo: number, hi: number): number => {
       let sum = 0;
@@ -90,16 +148,42 @@ export function analyzeBuffer(mono: Float32Array, sampleRate: number): AudioAnal
     tracks.highs[f] = sumBins(highsLo, highsHi);
     tracks.master[f] = sumBins(1, FFT_SIZE / 2 - 1);
 
-    // Spectral flux (positive changes only) → transients.
+    // Spectral flux (positive changes only). `transients` keeps the original
+    // linear flux for v0.1 compatibility; `flux` is the same measure exposed
+    // under its proper name; `onset` gets a log-compressed variant below,
+    // which is far more level-independent (a quiet intro hit and a loud drop
+    // hit land in comparable range).
     if (prevMags) {
-      let flux = 0;
+      let linearFlux = 0;
+      let logFlux = 0;
       for (let i = 1; i < mags.length; i++) {
         const diff = (mags[i] as number) - (prevMags[i] as number);
-        if (diff > 0) flux += diff;
+        if (diff > 0) {
+          linearFlux += diff;
+          logFlux += Math.log1p((mags[i] as number) * 10) - Math.log1p((prevMags[i] as number) * 10);
+        }
       }
-      tracks.transients[f] = flux;
+      tracks.transients[f] = linearFlux;
+      tracks.flux[f] = linearFlux;
+      tracks.onset[f] = logFlux;
     }
     prevMags = Float32Array.from(mags);
+  }
+
+  // Onset strength: subtract an adaptive local mean and half-wave rectify,
+  // so sustained texture cancels out and only *changes* survive. This is the
+  // envelope the tempo detector consumes.
+  {
+    const win = Math.max(Math.round(ONSET_MEAN_WINDOW_SEC / (HOP_SIZE / sampleRate)), 1);
+    const raw = Float32Array.from(tracks.onset);
+    for (let f = 0; f < frameCount; f++) {
+      const lo = Math.max(f - win, 0);
+      const hi = Math.min(f + win, frameCount - 1);
+      let mean = 0;
+      for (let i = lo; i <= hi; i++) mean += raw[i] as number;
+      mean /= hi - lo + 1;
+      tracks.onset[f] = Math.max((raw[f] as number) - mean, 0);
+    }
   }
 
   // The three bands share one reference so relative band energy is preserved
@@ -116,7 +200,12 @@ export function analyzeBuffer(mono: Float32Array, sampleRate: number): AudioAnal
   // like rms and transients.
   scaleTrack(tracks.master, percentileRef(tracks.master));
   scaleTrack(tracks.rms, percentileRef(tracks.rms));
+  scaleTrack(tracks.peak, percentileRef(tracks.peak));
+  scaleTrack(tracks.flux, percentileRef(tracks.flux));
+  scaleTrack(tracks.onset, percentileRef(tracks.onset));
   scaleTrack(tracks.transients, percentileRef(tracks.transients));
+  // Centroid is deliberately NOT percentile-normalized: its absolute
+  // log-frequency mapping (CENTROID_LO_HZ..HI_HZ) is the meaning.
 
   return {
     sampleRate,
