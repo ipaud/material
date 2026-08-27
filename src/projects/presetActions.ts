@@ -52,6 +52,65 @@ export const BUILTIN_PRESETS: Preset[] = [
     modulations: [],
     builtin: true,
   },
+  {
+    // Official system preset (Phase 5 creative review): the past reaches
+    // further from center when the low end hits. Needs a video source.
+    id: 'builtin-echo-chamber',
+    name: 'Echo Chamber',
+    techniqueId: 'mosaic',
+    params: {
+      columns: 18,
+      rows: 11,
+      scale: 1,
+      spacing: 0.08,
+      lumToScale: 0.4,
+      tileMode: 'tile',
+      offsetMode: 'radial',
+      maxOffset: 24,
+    },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [
+      {
+        id: 'echo-bass-offset',
+        enabled: true,
+        source: 'bass',
+        target: 'maxOffset',
+        amount: 0.6,
+        min: 0,
+        max: 1,
+        invert: false,
+        smoothing: 0.3,
+        curve: 'linear',
+        frozenValue: null,
+      },
+    ],
+    builtin: true,
+  },
+  {
+    // Official system preset (Phase 5 creative review): beat-quarter pump —
+    // invert + exponential gives the rise-and-snap. Needs BPM set.
+    id: 'builtin-pump',
+    name: 'Pump',
+    techniqueId: 'mosaic',
+    params: { columns: 64, rows: 36, scale: 1, spacing: 0.12, lumToScale: 0.9 },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [
+      {
+        id: 'pump-beat-scale',
+        enabled: true,
+        source: 'beat:1/4',
+        target: 'scale',
+        amount: -0.3,
+        min: 0,
+        max: 1,
+        invert: true,
+        smoothing: 0.05,
+        curve: 'exponential',
+        frozenValue: null,
+      },
+    ],
+    builtin: true,
+  },
 ];
 
 export async function listAllPresets(): Promise<Preset[]> {

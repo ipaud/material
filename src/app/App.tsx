@@ -9,6 +9,7 @@ import { Gutter } from '@/components/Gutter';
 import { EmptyState } from '@/components/EmptyState';
 import { LibraryPanel } from '@/library/LibraryPanel';
 import { Viewport } from '@/viewport/Viewport';
+import { ExplorePanel } from '@/explore/ExplorePanel';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
 import './app.css';
@@ -20,6 +21,7 @@ export function App() {
   const inspectorWidth = useUiStore((s) => s.inspectorWidth);
   const timelineHeight = useUiStore((s) => s.timelineHeight);
   const hasSources = useProjectStore((s) => s.project.sources.length > 0);
+  const workspace = useUiStore((s) => s.workspace);
 
   return (
     <div className="app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
@@ -31,6 +33,7 @@ export function App() {
         <Gutter panel="library" />
         <main className="viewport-area">
           <Viewport />
+          {workspace === 'explore' && <ExplorePanel />}
           {!hasSources && <EmptyState isDragOver={isDragOver} />}
           {isDragOver && <div className="drop-overlay" />}
         </main>

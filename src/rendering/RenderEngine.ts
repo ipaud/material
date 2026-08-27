@@ -309,15 +309,17 @@ export class RenderEngine {
     renderer.setScissorTest(false);
   }
 
-  private syncScene(): void {
+  private syncScene(paramsOverride?: ParamRecord): void {
     const showProcessed = !this.showOriginal;
     if (this.originalQuad) this.originalQuad.visible = !showProcessed;
     if (this.techniqueRenderer) {
       this.techniqueRenderer.object3d.visible = showProcessed;
       if (showProcessed && this.materialState) {
-        const params = this.paramTransform
-          ? this.paramTransform(this.techniqueParams, this.timeSec)
-          : this.techniqueParams;
+        const params =
+          paramsOverride ??
+          (this.paramTransform
+            ? this.paramTransform(this.techniqueParams, this.timeSec)
+            : this.techniqueParams);
         this.techniqueRenderer.update(params, {
           sourceTexture: this.sourceTexture,
           materialTexture: this.materialTexture,
@@ -359,10 +361,11 @@ export class RenderEngine {
   private lastLoopTs = 0;
 
   /**
-   * Deterministic offscreen render at arbitrary resolution (export path).
-   * Returns tightly packed RGBA bytes, top row first.
+   * Deterministic offscreen render at arbitrary resolution (export path,
+   * Explore thumbnails). Optional paramsOverride bypasses the live modulation
+   * transform. Returns tightly packed RGBA bytes, top row first.
    */
-  renderStill(width: number, height: number): Uint8Array {
+  renderStill(width: number, height: number, paramsOverride?: ParamRecord): Uint8Array {
     const renderer = this.renderer;
     if (!renderer) throw new Error('Engine not initialized');
     const target = new THREE.WebGLRenderTarget(width, height, {
@@ -379,7 +382,7 @@ export class RenderEngine {
       renderer.setClearColor(this.compBackground, 1);
       renderer.clear();
       this.updateCamera(width / height);
-      this.syncScene();
+      this.syncScene(paramsOverride);
       renderer.render(this.scene, this.camera);
       const pixels = new Uint8Array(width * height * 4);
       renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
