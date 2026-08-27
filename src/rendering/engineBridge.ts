@@ -99,6 +99,9 @@ function syncFromProject(): void {
   }
   if (instance) engine.setTechniqueParams(instance.params);
   engine.setMaterialState(project.material);
+  engine.setRingEnabled(
+    instance?.params.tileMode === 'tile' && instance.params.offsetMode !== 'none',
+  );
 
   // Custom material texture (SVG or raster image).
   const materialAsset = project.material.materialId === 'custom' ? project.material.assetPath : null;

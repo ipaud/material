@@ -34,10 +34,13 @@ uniform float uDepth;
 uniform vec2 uJitter;
 uniform float uSeed;
 uniform float uSquareElement;
+uniform int uOffsetMode; // 0 none, 1 radial, 2 random
+uniform float uMaxOffset;
 
 out vec2 vLocal;
 out vec3 vCellColor;
 out float vOpacity;
+out float vOffsetSlots;
 
 const float PI = 3.141592653589793;
 
@@ -80,6 +83,16 @@ void main() {
   vCellColor = src;
   vLocal = position.xy;
 
+  // Temporal offset per cell (in ring-buffer slots).
+  float offsetSlots = 0.0;
+  if (uOffsetMode == 1) {
+    vec2 cn = vec2((col + 0.5) / uCols - 0.5, (row + 0.5) / uRows - 0.5);
+    offsetSlots = min(length(cn) / 0.7071, 1.0) * uMaxOffset;
+  } else if (uOffsetMode == 2) {
+    offsetSlots = hash11(id * 3.1 + uSeed * 2.7) * uMaxOffset;
+  }
+  vOffsetSlots = offsetSlots;
+
   vec2 center = vec2(
     (col + 0.5) * cellW - uCompW * 0.5,
     uCompH * 0.5 - (row + 0.5) * cellH
@@ -100,17 +113,43 @@ uniform int uColorMode; // 0 source-fill, 1 mono, 2 original, 3 source-tint
 uniform vec3 uMonoColor;
 uniform sampler2D uMatTex;
 uniform int uUseTex;
+uniform int uTileMode; // 0 off, 1 video tile
+uniform sampler2D uSourceFrag;
+uniform sampler2D uRingTex;
+uniform float uRingHead;
+uniform float uRingCount;
+uniform float uRingCols;
+uniform float uRingRows;
+uniform float uRingFilled;
 
 in vec2 vLocal;
 in vec3 vCellColor;
 in float vOpacity;
+in float vOffsetSlots;
 
 out vec4 fragColor;
 
 void main() {
   float alpha;
   vec3 color;
-  if (uUseTex == 1) {
+  if (uTileMode == 1) {
+    // Each cell shows the (possibly time-offset) full source frame.
+    vec2 tuv = vec2(vLocal.x / max(uAspect, 0.0001), vLocal.y) + 0.5;
+    if (tuv.x < 0.0 || tuv.x > 1.0 || tuv.y < 0.0 || tuv.y > 1.0) discard;
+    vec3 frame;
+    if (uRingFilled > 0.5) {
+      float off = clamp(floor(vOffsetSlots), 0.0, uRingFilled - 1.0);
+      float slot = mod(uRingHead - 1.0 - off + uRingCount * 4.0, uRingCount);
+      vec2 slotBase = vec2(mod(slot, uRingCols), floor(slot / uRingCols));
+      frame = texture(uRingTex, (slotBase + tuv) / vec2(uRingCols, uRingRows)).rgb;
+    } else {
+      frame = texture(uSourceFrag, tuv).rgb;
+    }
+    alpha = vOpacity;
+    if (uColorMode == 1) color = uMonoColor * dot(frame, vec3(0.2126, 0.7152, 0.0722));
+    else if (uColorMode == 3) color = frame * vCellColor;
+    else color = frame;
+  } else if (uUseTex == 1) {
     vec2 tuv = vec2(vLocal.x / max(uAspect, 0.0001), vLocal.y) + 0.5;
     if (tuv.x < 0.0 || tuv.x > 1.0 || tuv.y < 0.0 || tuv.y > 1.0) discard;
     vec4 t = texture(uMatTex, tuv);
@@ -185,6 +224,16 @@ export class MosaicRenderer implements TechniqueRenderer {
         uMatTex: { value: null },
         uUseTex: { value: 0 },
         uSquareElement: { value: 0 },
+        uTileMode: { value: 0 },
+        uSourceFrag: { value: null },
+        uRingTex: { value: null },
+        uRingHead: { value: 0 },
+        uRingCount: { value: 1 },
+        uRingCols: { value: 1 },
+        uRingRows: { value: 1 },
+        uRingFilled: { value: 0 },
+        uOffsetMode: { value: 0 },
+        uMaxOffset: { value: 0 },
       },
     });
 
@@ -243,6 +292,25 @@ export class MosaicRenderer implements TechniqueRenderer {
     set('uSquareElement', useTex ? 1 : 0);
     const COLOR_MODES: Record<string, number> = { source: 0, mono: 1, original: 2, sourceColor: 3 };
     set('uColorMode', COLOR_MODES[ctx.material.colorMode] ?? 0);
+
+    // Video tile / temporal offset (Phase 3.5 spike).
+    const tileOn = params.tileMode === 'tile';
+    set('uTileMode', tileOn ? 1 : 0);
+    if (u.uSourceFrag) u.uSourceFrag.value = ctx.sourceTexture;
+    const OFFSET_MODES: Record<string, number> = { none: 0, radial: 1, random: 2 };
+    set('uOffsetMode', OFFSET_MODES[String(params.offsetMode ?? 'none')] ?? 0);
+    set('uMaxOffset', num(params, 'maxOffset', 0));
+    if (ctx.ring) {
+      if (u.uRingTex) u.uRingTex.value = ctx.ring.texture;
+      set('uRingHead', ctx.ring.head);
+      set('uRingCount', ctx.ring.count);
+      set('uRingCols', ctx.ring.cols);
+      set('uRingRows', ctx.ring.rows);
+      set('uRingFilled', ctx.ring.filled);
+    } else {
+      if (u.uRingTex) u.uRingTex.value = null;
+      set('uRingFilled', 0);
+    }
   }
 
   dispose(): void {

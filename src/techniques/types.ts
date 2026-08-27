@@ -48,11 +48,22 @@ export interface ParamSection {
   params: ParamDef[];
 }
 
+/** Recent-frame ring buffer exposed to techniques that sample time. */
+export interface RingBufferContext {
+  texture: THREE.Texture;
+  head: number;
+  filled: number;
+  count: number;
+  cols: number;
+  rows: number;
+}
+
 /** Per-frame context handed to technique renderers. */
 export interface TechniqueContext {
   sourceTexture: THREE.Texture | null;
   /** Rasterized custom material (SVG/image), when materialId is 'custom'. */
   materialTexture: THREE.Texture | null;
+  ring: RingBufferContext | null;
   compWidth: number;
   compHeight: number;
   material: MaterialState;

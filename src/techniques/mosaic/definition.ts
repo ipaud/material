@@ -52,6 +52,35 @@ export const mosaicDefinition: TechniqueDefinition = {
       ],
     },
     {
+      label: 'Video Tile',
+      params: [
+        {
+          type: 'select',
+          id: 'tileMode',
+          label: 'Tile Mode',
+          options: [
+            { value: 'off', label: 'Off' },
+            { value: 'tile', label: 'Video Tile' },
+          ],
+          default: 'off',
+          explore: { randomizable: false },
+        },
+        {
+          type: 'select',
+          id: 'offsetMode',
+          label: 'Time Offset',
+          options: [
+            { value: 'none', label: 'None' },
+            { value: 'radial', label: 'Radial' },
+            { value: 'random', label: 'Random' },
+          ],
+          default: 'none',
+          explore: { randomizable: false },
+        },
+        { type: 'number', id: 'maxOffset', label: 'Max Offset', min: 0, max: 55, step: 1, default: 20, modulatable: true, explore: { randomizable: false } },
+      ],
+    },
+    {
       label: 'Depth',
       params: [
         { type: 'number', id: 'depth', label: 'Depth', min: 0, max: 1200, step: 1, default: 0, unit: 'px', modulatable: true, explore: { randomizable: true, min: 0, max: 600 } },

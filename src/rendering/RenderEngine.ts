@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
+import { FrameRingBuffer } from './FrameRingBuffer';
 
 export interface ViewTransform {
   zoom: number; // composition px → CSS px
@@ -29,6 +30,9 @@ export class RenderEngine {
 
   private sourceTexture: THREE.Texture | null = null;
   private materialTexture: THREE.Texture | null = null;
+  private ring: FrameRingBuffer | null = null;
+  private ringEnabled = false;
+  private lastCapturedTime = -1;
   private originalQuad: THREE.Mesh | null = null;
   private techniqueRenderer: TechniqueRenderer | null = null;
   private techniqueParams: ParamRecord = {};
@@ -122,6 +126,17 @@ export class RenderEngine {
   setMaterialTexture(texture: THREE.Texture | null): void {
     if (this.materialTexture && this.materialTexture !== texture) this.materialTexture.dispose();
     this.materialTexture = texture;
+    this.invalidate();
+  }
+
+  /** Enable the recent-frame ring buffer (video tile / time offset modes). */
+  setRingEnabled(enabled: boolean): void {
+    if (enabled && !this.ring) this.ring = new FrameRingBuffer();
+    if (!enabled && this.ring) {
+      this.ring.dispose();
+      this.ring = null;
+    }
+    this.ringEnabled = enabled;
     this.invalidate();
   }
 
@@ -269,6 +284,17 @@ export class RenderEngine {
     }
     renderer.clear();
 
+    // Ring buffer capture — one slot per distinct playback time.
+    if (this.ringEnabled && this.ring && this.sourceTexture && this.timeSec !== this.lastCapturedTime) {
+      if (this.ring.maybeCapture(renderer, this.sourceTexture, performance.now())) {
+        this.lastCapturedTime = this.timeSec;
+      }
+      // Restore the on-canvas viewport state clobbered by the capture pass.
+      renderer.setViewport(rectX, rectY, rectW, rectH);
+      renderer.setScissor(rectX, rectY, rectW, rectH);
+      renderer.setScissorTest(true);
+    }
+
     this.updateCamera(this.compWidth / this.compHeight);
     this.syncScene();
     renderer.render(this.scene, this.camera);
@@ -284,6 +310,17 @@ export class RenderEngine {
         this.techniqueRenderer.update(this.techniqueParams, {
           sourceTexture: this.sourceTexture,
           materialTexture: this.materialTexture,
+          ring:
+            this.ringEnabled && this.ring
+              ? {
+                  texture: this.ring.target.texture,
+                  head: this.ring.head,
+                  filled: this.ring.filled,
+                  count: this.ring.count,
+                  cols: this.ring.cols,
+                  rows: this.ring.rows,
+                }
+              : null,
           compWidth: this.compWidth,
           compHeight: this.compHeight,
           material: this.materialState,
