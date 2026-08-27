@@ -1,0 +1,63 @@
+.mod-row-wrap {
+  border-bottom: 1px solid var(--border-0);
+}
+.mod-row-wrap.frozen {
+  box-shadow: inset 2px 0 0 var(--mod);
+}
+
+.mod-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+}
+
+.mod-enable {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--border-1);
+  flex-shrink: 0;
+}
+.mod-enable.on {
+  background: var(--mod);
+  border-color: var(--mod);
+}
+
+.mod-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.mod-arrow {
+  color: var(--text-2);
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+}
+
+.mod-amount {
+  font-size: var(--text-xs);
+  color: var(--mod);
+  min-width: 38px;
+  text-align: right;
+}
+
+.mod-detail {
+  padding-bottom: var(--sp-2);
+  background: var(--surface-0);
+}
+
+.mod-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+}
+
+.vp-btn.danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.mod-add {
+  padding: var(--sp-3) var(--sp-4);
+}

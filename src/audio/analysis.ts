@@ -102,19 +102,19 @@ export function analyzeBuffer(mono: Float32Array, sampleRate: number): AudioAnal
     prevMags = Float32Array.from(mags);
   }
 
-  // Spectral bands share one reference so relative band energy is preserved
+  // The three bands share one reference so relative band energy is preserved
   // (a pure bass tone must NOT light up the highs track via normalization).
-  const spectralRef = Math.max(
-    percentileRef(tracks.master),
+  const bandRef = Math.max(
     percentileRef(tracks.bass),
     percentileRef(tracks.mids),
     percentileRef(tracks.highs),
   );
-  scaleTrack(tracks.master, spectralRef);
-  scaleTrack(tracks.bass, spectralRef);
-  scaleTrack(tracks.mids, spectralRef);
-  scaleTrack(tracks.highs, spectralRef);
-  // Different units → own references.
+  scaleTrack(tracks.bass, bandRef);
+  scaleTrack(tracks.mids, bandRef);
+  scaleTrack(tracks.highs, bandRef);
+  // Master is "overall loudness", not a band comparison → own reference,
+  // like rms and transients.
+  scaleTrack(tracks.master, percentileRef(tracks.master));
   scaleTrack(tracks.rms, percentileRef(tracks.rms));
   scaleTrack(tracks.transients, percentileRef(tracks.transients));
 

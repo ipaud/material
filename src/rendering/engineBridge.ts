@@ -5,6 +5,9 @@ import { useUiStore, reportError } from '@/state/uiStore';
 import { getTechnique } from '@/techniques/registry';
 import { playback } from '@/playback/PlaybackController';
 import { audioEngine } from '@/audio/AudioEngine';
+import { useAudioStore } from '@/state/audioStore';
+import { usePlaybackStore } from '@/state/playbackStore';
+import { modulationRuntime } from '@/modulation/runtime';
 import type { TechniqueRenderer } from '@/techniques/types';
 
 function mediaUrl(path: string): string {
@@ -120,6 +123,8 @@ function syncFromProject(): void {
     instance?.params.tileMode === 'tile' && instance.params.offsetMode !== 'none',
   );
 
+  configureModulation();
+
   // Custom material texture (SVG or raster image).
   const materialAsset = project.material.materialId === 'custom' ? project.material.assetPath : null;
   if (materialAsset !== loadedMaterialAsset) {
@@ -149,15 +154,39 @@ function syncFromUi(): void {
   engine.setShowOriginal(ui.showOriginal);
 }
 
+function configureModulation(): void {
+  const { project } = useProjectStore.getState();
+  const instance = project.techniques.find((t) => t.enabled) ?? null;
+  modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
+    analysis: useAudioStore.getState().analysis,
+    durationSec: usePlaybackStore.getState().durationSec,
+    bpm: project.timeline.bpm,
+    beatOffsetSec: project.timeline.beatOffsetSec,
+  });
+  engine.invalidate();
+}
+
 /** Connect stores to the render engine. Returns a cleanup function. */
 export function startEngineBridge(): () => void {
   const unsubProject = useProjectStore.subscribe(syncFromProject);
   const unsubUi = useUiStore.subscribe(syncFromUi);
+  const unsubAudio = useAudioStore.subscribe(configureModulation);
+  let lastDuration = -1;
+  const unsubPlayback = usePlaybackStore.subscribe((s) => {
+    if (s.durationSec !== lastDuration) {
+      lastDuration = s.durationSec;
+      configureModulation();
+    }
+  });
+  engine.setParamTransform((base, t) => modulationRuntime.transform(base, t));
   syncFromProject();
   syncFromUi();
   return () => {
     unsubProject();
     unsubUi();
+    unsubAudio();
+    unsubPlayback();
+    engine.setParamTransform(null);
     loadedSourcePath = null;
     loadedAudioPath = null;
     loadedMaterialAsset = null;

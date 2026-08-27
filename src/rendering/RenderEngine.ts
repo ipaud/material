@@ -49,6 +49,14 @@ export class RenderEngine {
 
   view: ViewTransform = { zoom: 0.5, panX: 0, panY: 0 };
 
+  /** Optional per-frame parameter transform (modulation). */
+  private paramTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
+
+  setParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void {
+    this.paramTransform = fn;
+    this.invalidate();
+  }
+
   private dirty = true;
   private rafId = 0;
   private lastFrameTime = 0;
@@ -307,7 +315,10 @@ export class RenderEngine {
     if (this.techniqueRenderer) {
       this.techniqueRenderer.object3d.visible = showProcessed;
       if (showProcessed && this.materialState) {
-        this.techniqueRenderer.update(this.techniqueParams, {
+        const params = this.paramTransform
+          ? this.paramTransform(this.techniqueParams, this.timeSec)
+          : this.techniqueParams;
+        this.techniqueRenderer.update(params, {
           sourceTexture: this.sourceTexture,
           materialTexture: this.materialTexture,
           ring:

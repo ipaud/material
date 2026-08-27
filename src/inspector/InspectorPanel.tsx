@@ -4,6 +4,7 @@ import { getTechnique } from '@/techniques/registry';
 import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
+import { ModulationSection } from './ModulationSection';
 import type { ParamDef } from '@/techniques/types';
 import type { ParamValue } from '@shared/schemas/project';
 import '@/components/parameter-slider.css';
@@ -55,6 +56,7 @@ export function InspectorPanel() {
         {hasSource && definition && technique && (
           <>
             <PresetBar />
+            <ModulationSection />
             <div className="inspector-section">
               <div className="inspector-section-header">
                 <span className="label">Material</span>
