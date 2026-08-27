@@ -3,6 +3,7 @@ import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
 import { getTechnique } from '@/techniques/registry';
+import { playback } from '@/playback/PlaybackController';
 import type { TechniqueRenderer } from '@/techniques/types';
 
 function mediaUrl(path: string): string {
@@ -22,19 +23,20 @@ function syncFromProject(): void {
 
   engine.setComposition(composition.width, composition.height, composition.background);
 
-  // Source texture (images in Phase 1; video arrives in Phase 3).
+  // Source texture: still image or video.
   const source = project.sources.find(
     (s) => s.id === composition.sourceId && (s.kind === 'image' || s.kind === 'video'),
   );
-  const sourcePath = source && source.kind === 'image' ? source.path : null;
-  if (sourcePath !== loadedSourcePath) {
-    loadedSourcePath = sourcePath;
+  const sourceKey = source ? `${source.kind}:${source.path}` : null;
+  if (sourceKey !== loadedSourcePath) {
+    loadedSourcePath = sourceKey;
     const generation = ++loadGeneration;
-    if (!sourcePath) {
+    playback.detachVideo();
+    if (!source) {
       engine.setSource(null);
-    } else {
+    } else if (source.kind === 'image') {
       new THREE.TextureLoader().load(
-        mediaUrl(sourcePath),
+        mediaUrl(source.path),
         (texture) => {
           if (generation !== loadGeneration) {
             texture.dispose();
@@ -48,11 +50,35 @@ function syncFromProject(): void {
         undefined,
         () => {
           if (generation === loadGeneration) {
-            reportError('Load source', new Error(`Could not load ${sourcePath}`));
+            reportError('Load source', new Error(`Could not load ${source.path}`));
             engine.setSource(null);
           }
         },
       );
+    } else {
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.src = mediaUrl(source.path);
+      video.addEventListener('loadedmetadata', () => {
+        if (generation !== loadGeneration) return;
+        const texture = new THREE.VideoTexture(video);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        playback.attachVideo(video);
+        engine.setSource(texture);
+        playback.seek(0);
+      });
+      video.addEventListener('error', () => {
+        if (generation === loadGeneration) {
+          reportError(
+            'Load video',
+            new Error(`Could not decode ${source.path} (unsupported codec?)`),
+          );
+          engine.setSource(null);
+        }
+      });
     }
   }
 
