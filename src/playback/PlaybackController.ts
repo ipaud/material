@@ -68,7 +68,7 @@ class PlaybackController {
     if (!this.audioMaster && !this.video) return;
     // Keep macOS App Nap from throttling the live engine to ~1 Hz while the
     // editor window is hidden or occluded (docs/BACKGROUND_RENDERING.md).
-    void window.material.setLiveEngine(true).catch(() => undefined);
+    void window.material.setLiveness('transport', true).catch(() => undefined);
     if (this.audioMaster) {
       audioEngine.play();
       if (this.video && this.video.duration > 0) {
@@ -90,7 +90,7 @@ class PlaybackController {
   }
 
   pause(): void {
-    void window.material.setLiveEngine(false).catch(() => undefined);
+    void window.material.setLiveness('transport', false).catch(() => undefined);
     audioEngine.pause();
     this.video?.pause();
     usePlaybackStore.getState().setPlaying(false);

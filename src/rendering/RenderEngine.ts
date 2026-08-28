@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
+import { runtimeBus } from '@/runtime/RuntimeBus';
 import {
   TemporalFrameProvider,
   type BoundaryMode,
@@ -84,10 +85,29 @@ export class RenderEngine {
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    // Context loss seam (18A): preventDefault on loss allows the browser to
+    // restore the context; Three rebuilds its GL state on restore, but the
+    // temporal atlas render target's CONTENTS are gone — drop the history so
+    // techniques never sample garbage as if it were real frames.
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     this.loop();
   }
 
+  private onContextLost = (event: Event): void => {
+    event.preventDefault();
+    console.warn('[engine] WebGL context lost — awaiting restore');
+  };
+
+  private onContextRestored = (): void => {
+    console.warn('[engine] WebGL context restored — rebuilding');
+    this.temporal?.invalidate();
+    this.invalidate();
+  };
+
   dispose(): void {
+    this.canvas?.removeEventListener('webglcontextlost', this.onContextLost);
+    this.canvas?.removeEventListener('webglcontextrestored', this.onContextRestored);
     cancelAnimationFrame(this.rafId);
     this.temporal?.dispose();
     this.temporal = null;
@@ -191,11 +211,22 @@ export class RenderEngine {
     compositionTime: number,
     isFirstFrame: boolean,
   ): Promise<{ logicalSlot: number; sourceTime: number }[]> {
-    if (!this.temporal || !this.temporalEnabled || !this.renderer || !this.temporalSource) return [];
+    if (!this.temporal || !this.temporalEnabled || !this.renderer || !this.temporalSource)
+      return [];
     this.exportMode = true;
     return isFirstFrame
-      ? this.temporal.primeExact(this.renderer, compositionTime, this.temporalSource, this.boundaryMode)
-      : this.temporal.advanceExact(this.renderer, compositionTime, this.temporalSource, this.boundaryMode);
+      ? this.temporal.primeExact(
+          this.renderer,
+          compositionTime,
+          this.temporalSource,
+          this.boundaryMode,
+        )
+      : this.temporal.advanceExact(
+          this.renderer,
+          compositionTime,
+          this.temporalSource,
+          this.boundaryMode,
+        );
   }
 
   /** Enter export mode: preview rendering pauses for the whole export, not
@@ -241,7 +272,8 @@ export class RenderEngine {
     if (!this.canvas) return;
     const { clientWidth, clientHeight } = this.canvas;
     if (clientWidth === 0 || clientHeight === 0) return;
-    const zoom = Math.min(clientWidth / this.compWidth, clientHeight / this.compHeight) * FIT_MARGIN;
+    const zoom =
+      Math.min(clientWidth / this.compWidth, clientHeight / this.compHeight) * FIT_MARGIN;
     this.view = { zoom, panX: 0, panY: 0 };
     this.invalidate();
   }
@@ -382,11 +414,16 @@ export class RenderEngine {
           (this.paramTransform
             ? this.paramTransform(this.techniqueParams, this.timeSec)
             : this.techniqueParams);
+        // RuntimeBus seam (18A): the live pass publishes its evaluated frame.
+        // renderStill/export pass paramsOverride and never reach the bus —
+        // export isolation is preserved by construction.
+        if (paramsOverride === undefined && !this.exportMode) {
+          runtimeBus.emitFrame(this.timeSec, params, this.isTemporalActive);
+        }
         this.techniqueRenderer.update(params, {
           sourceTexture: this.sourceTexture,
           materialTexture: this.materialTexture,
-          temporal:
-            this.temporalEnabled && this.temporal ? this.temporal.getUniforms() : null,
+          temporal: this.temporalEnabled && this.temporal ? this.temporal.getUniforms() : null,
           compWidth: this.compWidth,
           compHeight: this.compHeight,
           material: this.materialState,
@@ -455,10 +492,7 @@ export class RenderEngine {
       const flipped = new Uint8Array(pixels.length);
       const rowBytes = width * 4;
       for (let y = 0; y < height; y++) {
-        flipped.set(
-          pixels.subarray(y * rowBytes, (y + 1) * rowBytes),
-          (height - 1 - y) * rowBytes,
-        );
+        flipped.set(pixels.subarray(y * rowBytes, (y + 1) * rowBytes), (height - 1 - y) * rowBytes);
       }
       return flipped;
     } finally {

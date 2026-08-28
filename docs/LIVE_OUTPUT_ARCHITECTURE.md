@@ -440,11 +440,18 @@ PROTECTED src/export/**, src/modulation/**, src/signals/**, src/midi/**,
 
 ## 18. Implementation phases (each with a STOP gate)
 
-- **18A — Seams, no features.** Extract SourceRuntime for file sources
-  (behavior-identical), RuntimeBus emitting FrameState locally, liveness
-  refcount replacing the boolean, RenderEngine multi-instance audit
-  (`renderStill`, dispose, context-loss handlers). Accept: 387 tests green,
-  zero visual change, FrameState observable in dev tools.
+- **18A — Seams, no features.** ✅ DONE. SourceRuntime extracted for file
+  sources (behavior-identical); RuntimeBus emits FrameState locally with
+  `techniqueId` as EXPLICIT render state and `temporalActive` riding every
+  frame (the export-hotfix invariant, now a runtime contract: active renderer
+  technique === frame state technique — a replica synchronizes renderer +
+  temporal capability from FrameState, never from previously mounted state);
+  liveness is a refcounted reason set (`transport | live-source |
+output-window`) behind validated IPC; engine gained context-loss handlers
+  and a multi-instance audit with A→B→A renderer lifecycle tests. Export
+  isolation preserved by construction: renderStill/export never reach the
+  bus. 410 tests green, zero visible change, FrameState observable via
+  `__dev.runtimeBus`.
 - **18B — Output Window spike.** Second window renders the same _static
   Mosaic file composition_ from Snapshot+FrameState (no playback, no MIDI,
   no temporal). Then add playback + ClockSync. Accept: param edit visible in

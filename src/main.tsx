@@ -4,6 +4,7 @@ import { App } from './app/App';
 import { engine } from './rendering/RenderEngine';
 import { useProjectStore } from './state/projectStore';
 import { useUiStore } from './state/uiStore';
+import { runtimeBus } from './runtime/RuntimeBus';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
 import { modulationRuntime } from './modulation/runtime';
 import * as modulationActions from './modulation/modulationActions';
@@ -31,6 +32,7 @@ if (import.meta.env.DEV) {
   Object.assign(window, {
     __dev: {
       engine,
+      runtimeBus,
       useProjectStore,
       useUiStore,
       importMediaPaths,

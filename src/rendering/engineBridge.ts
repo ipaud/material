@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
@@ -9,15 +8,15 @@ import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
 import { configureTriggers } from '@/signals/triggerRuntime';
-import { StaticTemporalSource, VideoTemporalSource } from './temporal/sources';
+import { runtimeBus } from '@/runtime/RuntimeBus';
+import { FileImageSource } from '@/sources/FileImageSource';
+import { FileVideoSource } from '@/sources/FileVideoSource';
+import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { TemporalSource } from './temporal/TemporalFrameProvider';
 import type { TechniqueRenderer } from '@/techniques/types';
 
-function mediaUrl(path: string): string {
-  return `material://media?p=${encodeURIComponent(path)}`;
-}
-
 let loadedSourcePath: string | null = null;
+let activeSourceRuntime: SourceRuntime | null = null;
 let loadedAudioPath: string | null = null;
 let loadGeneration = 0;
 let loadedMaterialAsset: string | null = null;
@@ -31,9 +30,17 @@ function syncTemporalSource(): void {
   engine.setTemporalSource(activeTemporalSource);
 }
 
+let lastProjectGeneration = -1;
+
 function syncFromProject(): void {
-  const { project } = useProjectStore.getState();
+  const { project, projectGeneration } = useProjectStore.getState();
   const { composition } = project;
+
+  // A replaced document (new/open/recover) invalidates published frame state.
+  if (projectGeneration !== lastProjectGeneration) {
+    lastProjectGeneration = projectGeneration;
+    runtimeBus.reset();
+  }
 
   engine.setComposition(composition.width, composition.height, composition.background);
 
@@ -46,70 +53,55 @@ function syncFromProject(): void {
     loadedSourcePath = sourceKey;
     const generation = ++loadGeneration;
     playback.detachVideo();
+    activeSourceRuntime?.dispose();
+    activeSourceRuntime = null;
     activeTemporalSource = null;
     engine.setTemporalSource(null);
     if (!source) {
       engine.setSource(null);
     } else if (source.kind === 'image') {
-      new THREE.TextureLoader().load(
-        mediaUrl(source.path),
-        (texture) => {
+      const runtime = new FileImageSource(source.path);
+      activeSourceRuntime = runtime;
+      void runtime.load().then(
+        () => {
           if (generation !== loadGeneration) {
-            texture.dispose();
+            runtime.dispose();
             return;
           }
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.minFilter = THREE.LinearMipmapLinearFilter;
-          texture.generateMipmaps = true;
-          engine.setSource(texture);
-          activeTemporalSource = new StaticTemporalSource(texture);
+          engine.setSource(runtime.texture());
+          activeTemporalSource = runtime.temporalSource();
           engine.setTemporalSource(activeTemporalSource);
         },
-        undefined,
-        () => {
+        (err: unknown) => {
           if (generation === loadGeneration) {
-            reportError('Load source', new Error(`Could not load ${source.path}`));
+            reportError('Load source', err);
             engine.setSource(null);
           }
         },
       );
     } else {
-      const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = 'auto';
-      video.src = mediaUrl(source.path);
-      video.addEventListener('loadedmetadata', () => {
-        if (generation !== loadGeneration) return;
-        const texture = new THREE.VideoTexture(video);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        playback.attachVideo(video);
-        engine.setSource(texture);
-        activeTemporalSource = new VideoTemporalSource(video, texture);
-        engine.setTemporalSource(activeTemporalSource);
-        playback.seek(0);
-      });
-      video.addEventListener('error', () => {
-        if (generation !== loadGeneration) return;
-        // A moved or deleted file fails exactly like an unplayable one. Ask
-        // the filesystem which it is before blaming the codec — "unsupported
-        // codec?" on a file the user simply moved sends them hunting for the
-        // wrong problem.
-        const fileName = source.path.split('/').pop() ?? source.path;
-        void window.material
-          .probeMedia(source.path)
-          .then(() => {
-            reportError('Load video', new Error(`Could not decode ${fileName} (unsupported codec?)`));
-          })
-          .catch(() => {
-            reportError(
-              'Media offline',
-              new Error(`${fileName} is missing — relink it from the Library`),
-            );
-          });
-        engine.setSource(null);
-      });
+      const runtime = new FileVideoSource(source.path);
+      activeSourceRuntime = runtime;
+      void runtime.load().then(
+        () => {
+          if (generation !== loadGeneration) {
+            runtime.dispose();
+            return;
+          }
+          playback.attachVideo(runtime.video);
+          engine.setSource(runtime.texture());
+          activeTemporalSource = runtime.temporalSource();
+          engine.setTemporalSource(activeTemporalSource);
+          playback.seek(0);
+        },
+        (err: unknown) => {
+          if (generation === loadGeneration) {
+            const message = err instanceof Error ? err.message : String(err);
+            reportError(message.includes('missing') ? 'Media offline' : 'Load video', err);
+            engine.setSource(null);
+          }
+        },
+      );
     }
   }
 
@@ -152,8 +144,20 @@ function syncFromProject(): void {
 
   configureModulation();
 
+  // RuntimeBus (18A): project-shaped render inputs, low rate. techniqueId is
+  // explicit render state — a replica synchronizes its renderer from this,
+  // never from whatever renderer happened to be mounted before.
+  runtimeBus.setRenderInputs({
+    techniqueId,
+    materialState: project.material,
+    compWidth: composition.width,
+    compHeight: composition.height,
+    background: composition.background,
+  });
+
   // Custom material texture (SVG or raster image).
-  const materialAsset = project.material.materialId === 'custom' ? project.material.assetPath : null;
+  const materialAsset =
+    project.material.materialId === 'custom' ? project.material.assetPath : null;
   if (materialAsset !== loadedMaterialAsset) {
     loadedMaterialAsset = materialAsset;
     const generation = ++materialGeneration;
@@ -223,6 +227,8 @@ export function startEngineBridge(): () => void {
     unsubAudio();
     unsubPlayback();
     engine.setParamTransform(null);
+    activeSourceRuntime?.dispose();
+    activeSourceRuntime = null;
     loadedSourcePath = null;
     loadedAudioPath = null;
     loadedMaterialAsset = null;

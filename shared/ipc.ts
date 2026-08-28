@@ -27,7 +27,7 @@ export const IPC = {
   recoveryClear: 'recovery:clear',
   recoveryDiscard: 'recovery:discard',
   menuEvent: 'menu:event',
-  setLiveEngine: 'power:live-engine',
+  setLiveness: 'power:liveness',
 } as const;
 
 export interface RecoveryEntry {
@@ -110,7 +110,7 @@ export interface MaterialApi {
   onExportProgress(callback: (event: ExportProgressEvent) => void): () => void;
   /** Stable id for this app run; scopes the autosave file. */
   /** Hold/release the macOS App Nap inhibitor while the live engine runs. */
-  setLiveEngine(active: boolean): Promise<boolean>;
+  setLiveness(reason: string, active: boolean): Promise<boolean>;
   getSessionId(): Promise<string>;
   /** Autosave — writes to userData/recovery, never to the user's project. */
   writeRecovery(projectPath: string | null, project: Project): Promise<void>;

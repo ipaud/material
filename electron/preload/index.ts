@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { IPC, type ExportProgressEvent, type MaterialApi, type MenuEventId } from '../../shared/ipc';
+import {
+  IPC,
+  type ExportProgressEvent,
+  type MaterialApi,
+  type MenuEventId,
+} from '../../shared/ipc';
 
 const api: MaterialApi & { getPathForFile(file: File): string } = {
   getAppInfo: () => ipcRenderer.invoke(IPC.appInfo),
@@ -27,7 +32,7 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
     ipcRenderer.on(IPC.exportProgress, listener);
     return () => ipcRenderer.removeListener(IPC.exportProgress, listener);
   },
-  setLiveEngine: (active) => ipcRenderer.invoke(IPC.setLiveEngine, active),
+  setLiveness: (reason, active) => ipcRenderer.invoke(IPC.setLiveness, reason, active),
   getSessionId: () => ipcRenderer.invoke(IPC.sessionId),
   writeRecovery: (projectPath, project) =>
     ipcRenderer.invoke(IPC.recoveryWrite, projectPath, project),

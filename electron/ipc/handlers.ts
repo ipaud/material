@@ -1,4 +1,5 @@
 import { app, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
+import { isLivenessReason, reduceLiveness, type LivenessReason } from '../../shared/liveness';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -38,6 +39,7 @@ function sanitizeDefaultName(name: string): string {
 
 /** Held while the live engine must not be suspended by macOS App Nap. */
 let liveEngineBlockerId: number | null = null;
+const livenessReasons = new Set<LivenessReason>();
 
 export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(IPC.appInfo, async (): Promise<AppInfo> => {
@@ -122,7 +124,9 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
   });
 
-  ipcMain.handle(IPC.exportStart, (_event, rawConfig: unknown) => startExport(rawConfig, getWindow));
+  ipcMain.handle(IPC.exportStart, (_event, rawConfig: unknown) =>
+    startExport(rawConfig, getWindow),
+  );
   ipcMain.handle(IPC.exportFrame, (_event, sessionId: unknown, frame: unknown) =>
     writeExportFrame(sessionId, frame, getWindow),
   );
@@ -143,9 +147,12 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
    * `prevent-app-suspension` is the documented inhibitor. It is held only
    * while playback runs, so an idle editor still naps normally.
    */
-  ipcMain.handle(IPC.setLiveEngine, (_event, rawActive: unknown) => {
-    const active = rawActive === true;
-    if (active) {
+  ipcMain.handle(IPC.setLiveness, (_event, rawReason: unknown, rawActive: unknown) => {
+    // Refcounted reason set (Phase 18A): transport is one of several
+    // realtime requirements in v0.3 — see shared/liveness.ts.
+    if (!isLivenessReason(rawReason)) return liveEngineBlockerId !== null;
+    const shouldBlock = reduceLiveness(livenessReasons, rawReason, rawActive === true);
+    if (shouldBlock) {
       if (liveEngineBlockerId === null || !powerSaveBlocker.isStarted(liveEngineBlockerId)) {
         liveEngineBlockerId = powerSaveBlocker.start('prevent-app-suspension');
       }
@@ -194,17 +201,20 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
   });
 
-  ipcMain.handle(IPC.saveProjectDialog, async (_event, rawName: unknown): Promise<string | null> => {
-    const win = getWindow();
-    if (!win) return null;
-    const defaultName = sanitizeDefaultName(nameArgSchema.parse(rawName));
-    const result = await dialog.showSaveDialog(win, {
-      title: 'Save Project',
-      defaultPath: `${defaultName}.${PROJECT_EXTENSION}`,
-      filters: [{ name: 'MATERIAL Project', extensions: [PROJECT_EXTENSION] }],
-    });
-    return result.canceled || !result.filePath ? null : result.filePath;
-  });
+  ipcMain.handle(
+    IPC.saveProjectDialog,
+    async (_event, rawName: unknown): Promise<string | null> => {
+      const win = getWindow();
+      if (!win) return null;
+      const defaultName = sanitizeDefaultName(nameArgSchema.parse(rawName));
+      const result = await dialog.showSaveDialog(win, {
+        title: 'Save Project',
+        defaultPath: `${defaultName}.${PROJECT_EXTENSION}`,
+        filters: [{ name: 'MATERIAL Project', extensions: [PROJECT_EXTENSION] }],
+      });
+      return result.canceled || !result.filePath ? null : result.filePath;
+    },
+  );
 
   ipcMain.handle(
     IPC.savePngDialog,
