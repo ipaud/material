@@ -9,6 +9,7 @@ import { patternClockAt, timingFromTimeline } from './pattern/patternClock';
 import { compilePattern } from './pattern/compilePattern';
 import { evaluatePattern } from './pattern/evaluatePattern';
 import { patternRandom01 } from './pattern/patternRandom';
+import { formatSequencePattern, parsePattern } from './pattern/miniNotation';
 import { getPatternCompileCount, getPatternDiagnostics } from './pattern/patternSourceRuntime';
 import { useOutputStore } from './state/outputStore';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
@@ -48,6 +49,9 @@ if (import.meta.env.DEV) {
         /** P4: last-evaluated state of each live pattern source. */
         sources: getPatternDiagnostics,
         compileCount: getPatternCompileCount,
+        /** P7: mini-notation (read-only helpers, no project mutation). */
+        parse: parsePattern,
+        format: formatSequencePattern,
       },
       /** Pattern Engine P1: inspect the pure clock at any composition time. */
       patternClock: {

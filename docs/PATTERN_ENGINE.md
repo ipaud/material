@@ -8,8 +8,8 @@ playback, seek, the Output replica, offline export and project reload.
 
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
 probability / Degrade) + P4 (modulation integration) + P5 (parity
-hardening) + P6 (persistence contract) shipped.** P7+ (mini-notation, UI)
-land in later phases.
+hardening) + P6 (persistence contract) + P7 (mini-notation) shipped.**
+P8 (BUILD UI) lands next. There is still no pattern UI.
 
 ## Architectural position
 
@@ -332,12 +332,93 @@ Save/load cost stays linear: 250 sources = 93.9 KB JSON, 1.8 ms serialize,
 1.5 ms parse, 1.2 ms first-evaluation compile of all 250, 0.057 ms/frame
 steady state.
 
+## Mini-notation (P7)
+
+`src/pattern/miniNotation.ts` — a text INPUT layer for Sequence patterns:
+
+```
+editor text → parsePattern → PatternDefinition → compilePattern → evaluation
+```
+
+**Raw text is never persisted.** The structured definition stays the single
+source of truth; opening an editor formats it back to canonical text. That
+keeps one truth in the file, keeps projects diffable, and means a future
+grammar change cannot invalidate saved work.
+
+### Grammar (closed on purpose)
+
+```
+sequence := number ( whitespace number )*
+number   := '-'? ( digits ( '.' digits? )? | '.' digits )
+```
+
+Accepted: `0` · `1` · `-1` · `12` · `0.5` · `.25` · `-.25` · `12.` ·
+`-12.75` · `00.50`. Any whitespace run separates steps (space, tab,
+newline); leading and trailing whitespace is ignored.
+
+Rejected — locked by test: empty/whitespace-only input, `.` `-` `+` `+1`
+`-.` `1..2` `--1` `+-1`, `NaN`, `Infinity`, exponent notation (`1e3`,
+`1E-2`), hex (`0x10`), comma decimals (`0,25` — the parser is
+locale-independent by construction), and everything code- or
+Tidal-shaped: `[]` `<1 2>` `0*2` `5/16` `fast 2` `${1+1}` `alert(1)`
+`__proto__`. Parsing is an explicit character scanner: **no `eval`, no
+`new Function`**, no regex backtracking, no dynamic evaluation of any kind.
+
+Euclidean (`5/16`) and transforms (`fast 2`, `degrade .5`) deliberately
+have NO text syntax — they already have structured models and get real
+controls in P8. Keeping them out of the text box is what stops a tiny
+grammar from becoming a language. Booleans have no text form either;
+`canFormatSequence` reports when a definition (booleans, or values large
+enough to need exponent notation) cannot be edited as text, so P8 can fall
+back to read-only instead of lying.
+
+### Errors
+
+`{ message, index, length, token }` — e.g. `Unexpected token "nope" at
+position 5`, with offsets that slice exactly the offending token so P8 can
+underline it. Syntax belongs to the parser; semantic validity still belongs
+to `compilePattern` (no duplicated rule set).
+
+### Formatter
+
+`String(n)` shortest round-trip decimals with a conventional leading zero:
+`.25` in → `0.25` out, `-.25` → `-0.25`, `2.0` → `2`, `12.500` → `12.5`,
+`-0` → `0` (negative zero is normalized at parse, not treated as creative
+meaning). `parse(format(d))` returns the exact same values for every
+formattable definition — test-locked. `format(parse(text))` is canonical,
+not the user's original whitespace, because the text was never the truth.
+
+### Live-edit semantics (locked for P8)
+
+While a draft is invalid, the runtime keeps the LAST VALID pattern —
+visuals must not blink out because someone typed `0 .5 1 .` on the way to
+`0 .5 1 .25`. Concretely:
+
+- `updatePatternDraft` returns `{ text, lastValid, error, changed }`; only
+  `changed: true` is worth committing.
+- `updatePatternSourceFromText(id, text)` commits ONLY on a successful
+  parse: invalid text produces no project update, no history entry and no
+  dirty flag, so undo history holds creative changes rather than parser
+  garbage. P8 owns debouncing and keystroke grouping.
+- A commit replaces the `pattern` field ONLY. The id survives — and with it
+  the deterministic probability lane — along with transforms,
+  `beatsPerCycle`, `enabled` and every mapping referencing `pattern:<id>`.
+  Changing step COUNT naturally changes step keys, so Degrade decisions
+  shift deterministically; that is correct, not a regression.
+- Export only ever sees committed structured definitions. There is no
+  parser anywhere in the export or Output path.
+
+Parsing runs on edit, never per frame: linear, ~107 ns per step (1 step
+0.18 µs, 64 steps 6.8 µs, 1024 steps 110 µs; formatting is about half
+that), and 10 000 evaluation passes invoke it zero times.
+
 ## DevTools
 
 `__dev.patternEngine` — `compilePattern` / `evaluatePattern` /
 `patternRandom01` (pure, read-only) plus `sources()` (last-evaluated state of
 each live pattern source: compiled/error/cycle/active/event/value) and
-`compileCount()` (cache effectiveness). `__dev.patternClock.at(timeSec?, beatsPerCycle?)` — inspects the clock at any
+`compileCount()` (cache effectiveness), plus `parse(text)` / `format(def)`
+for the P7 mini-notation (read-only, no project mutation). `__dev.patternClock.at(timeSec?, beatsPerCycle?)` — inspects the clock at any
 composition time (defaults to the live playhead) against the current
 project's grid. Dev-only, read-only.
 

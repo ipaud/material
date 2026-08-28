@@ -1,6 +1,7 @@
 import type { PatternSource, Project } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { uid } from '@/utils/id';
+import { parsePattern, type PatternParseError } from './miniNotation';
 import { parsePatternSourceKey, patternSourceKey } from './patternSourceRuntime';
 
 /**
@@ -74,6 +75,26 @@ export function removePatternSource(id: string): void {
     patternSources: p.patternSources.filter((s) => s.id !== id),
     modulations: p.modulations.filter((m) => m.source !== key),
   }));
+}
+
+/**
+ * P7 — commit mini-notation text to an existing source. Only the `pattern`
+ * field is replaced: the id (and therefore the deterministic probability
+ * lane), transforms, beatsPerCycle, enabled state and every mapping
+ * referencing `pattern:<id>` survive untouched.
+ *
+ * Invalid text returns the parse error and touches NOTHING — no project
+ * update, no history entry, no dirty flag. The runtime keeps rendering the
+ * definition already in the project, which is what makes typing safe.
+ */
+export function updatePatternSourceFromText(
+  id: string,
+  text: string,
+): { ok: true } | { ok: false; error: PatternParseError } {
+  const result = parsePattern(text);
+  if (!result.ok) return { ok: false, error: result.error };
+  updatePatternSource(id, { pattern: result.definition });
+  return { ok: true };
 }
 
 /** Mapping sources pointing at a pattern that no longer exists (diagnostics). */
