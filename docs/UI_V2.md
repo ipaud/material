@@ -61,18 +61,58 @@ Also: 2px/4px radii, hairline separators instead of cards, no gradients, no
 shadows (small popovers excepted), 4/8/12/16/24 spacing, animation limited to
 120ms hover/focus and semantically meaningful pulses.
 
-## OUTPUT and v0.3
+## OUTPUT (Phase E)
 
-Phase A OUTPUT exposes only what v0.2 supports: the render preview, real project
-output settings (resolution, background, source, audio), and the existing export
-pipeline via `ExportDialog` — there is no second export engine.
+OUTPUT is the delivery workspace: what MATERIAL is producing, where it can go,
+how it is delivered.
 
-Live destinations (Fullscreen, Second Display, Syphon, NDI, Camera Input, Screen
-Input) are rendered as disabled, `aria-disabled`, `NOT AVAILABLE · v0.3` rows
-with **no handlers at all**. Nothing is faked. The v0.3 work attaches at the
-component seams in `src/output/OutputWorkspace.tsx`: `OutputDestinationList`
-(inputs and destinations), `OutputPreview` (what a destination shows),
-`OutputSettingsPanel` (per-destination settings).
+```
+DESTINATIONS         OUTPUT PREVIEW (the one live engine)       PROJECT / SOURCE /
+● EDITOR PREVIEW                                                AUDIO / EXPORT
+  FILE EXPORT                                                   DEFAULT / STATUS
+LIVE OUTPUT — v0.3
+○ FULLSCREEN  ○ SECOND DISPLAY
+INTEROP — FUTURE
+○ SYPHON
+──────────────────────────────────────────────────────────────
+FILE EXPORT · name · W×H · duration · trust note        EXPORT
+```
+
+### Destination model
+
+`EDITOR PREVIEW` (● ACTIVE — it is the live engine) and `FILE EXPORT` (ON
+DEMAND) are the only real v0.2 destinations. Future rows are capped at three,
+grouped and disabled with no handlers: `LIVE OUTPUT — v0.3` (FULLSCREEN,
+SECOND DISPLAY · NOT AVAILABLE) and `INTEROP — FUTURE` (SYPHON · RESEARCH —
+deliberately not promised for v0.3).
+
+**Sources are not destinations.** Camera and screen capture were removed from
+this rail entirely — they are inputs and belong to BUILD/SOURCE in v0.3. The
+taxonomy the UI teaches is `SOURCE → system → OUTPUT`.
+
+### Honest settings
+
+Everything in the right rail is read from real state: project resolution
+(plus `SOURCE RES` only when it differs), background, duration, source file +
+real probed FPS, audio file + BPM (or NONE). Export resolution/fps/format are
+configured per export in the one ExportDialog — the rail labels them `EXPORT
+DEFAULT` and offers `CONFIGURE EXPORT` instead of a second settings state
+that could diverge. ALPHA lists the two formats that genuinely support it
+(PNG sequence, ProRes 4444). STATUS mirrors the real export store
+(IDLE / RENDERING n% FRAME x/y / COMPLETE / ERROR / CANCELLED).
+
+### States
+
+Empty project: `NOTHING TO OUTPUT → GO TO BUILD`, EXPORT disabled with a
+stated `NO MEDIA` reason, rails stay structurally present. Offline source:
+red `MEDIA OFFLINE` chip on the preview header; export eligibility unchanged.
+
+### v0.3 expansion points
+
+`OutputDestinations` / `OutputPreviewPane` / `OutputSettings` /
+`OutputStatus` / `OutputExportBar` in `src/output/OutputWorkspace.tsx`. A new
+destination is one row in the rail plus its surface in the preview pane; the
+shell does not change.
 
 ## BUILD (Phase B)
 

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { normalizeWorkspace, useUiStore } from '@/state/uiStore';
 import { WorkspaceNav } from '@/app/WorkspaceNav';
-import { OutputDestinationList } from '@/output/OutputWorkspace';
+import { OutputDestinations } from '@/output/OutputWorkspace';
 
 afterEach(() => {
   cleanup();
@@ -56,16 +56,9 @@ describe('WorkspaceNav', () => {
 });
 
 describe('OUTPUT future destinations', () => {
-  it('renders unsupported v0.3 destinations as inert, labelled controls', () => {
-    render(<OutputDestinationList />);
-    const future = [
-      'Fullscreen',
-      'Second Display',
-      'Syphon',
-      'NDI',
-      'Camera Input',
-      'Screen Input',
-    ];
+  it('renders unsupported destinations as inert, labelled controls', () => {
+    render(<OutputDestinations selected="editor" onSelect={() => {}} />);
+    const future = ['FULLSCREEN', 'SECOND DISPLAY', 'SYPHON'];
     for (const name of future) {
       const button = screen.getByText(name).closest('button');
       expect(button).toBeDisabled();
@@ -73,7 +66,7 @@ describe('OUTPUT future destinations', () => {
       // Clicking must do nothing at all — no handler, no state change.
       fireEvent.click(button!);
     }
-    expect(screen.getAllByText('NOT AVAILABLE · v0.3')).toHaveLength(future.length);
+    expect(screen.getAllByText('NOT AVAILABLE · v0.3')).toHaveLength(2);
     expect(useUiStore.getState().workspace).toBe('build');
   });
 });
