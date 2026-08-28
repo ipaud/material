@@ -39,6 +39,7 @@ export const IPC = {
   outputSetMode: 'output:set-mode',
   outputTarget: 'output:target',
   outputEscape: 'output:escape',
+  brandDockIcon: 'brand:dock-icon',
 } as const;
 
 export interface RecoveryEntry {
@@ -137,6 +138,8 @@ export interface MaterialApi {
   outputSetMode(mode: OutputMode): Promise<boolean>;
   /** Remembered target (app preference, not project state). */
   outputTarget(): Promise<{ displayId: number | null; mode: OutputMode }>;
+  /** Dock icon signal position (0-8) — the project's brand fingerprint. */
+  setDockIcon(position: number): Promise<void>;
 
   getSessionId(): Promise<string>;
   /** Autosave — writes to userData/recovery, never to the user's project. */

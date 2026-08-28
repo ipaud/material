@@ -40,6 +40,16 @@
 .titlebar input {
   -webkit-app-region: no-drag;
 }
+.material-mark {
+  flex-shrink: 0;
+  display: block;
+}
+.material-mark-module {
+  fill: var(--text-1);
+}
+.material-mark-signal {
+  fill: var(--accent);
+}
 .titlebar-brand {
   font-size: 16px;
   font-weight: 700;

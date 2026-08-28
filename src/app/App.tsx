@@ -12,6 +12,7 @@ import { WorkspaceRouter } from '@/workspaces/WorkspaceRouter';
 import { ExportDialog } from '@/export/ExportDialog';
 import { startAutosave } from '@/projects/autosave';
 import { startOutputBridge } from '@/output/outputBridge';
+import { startDockIconSync } from '@/brand/dockIcon';
 import { midiEngine } from '@/midi/midiEngine';
 import { WebMidiTransport } from '@/midi/transport';
 import './app.css';
@@ -22,6 +23,7 @@ export function App() {
   useWorkspaceKeys();
   useEffect(() => startAutosave(), []);
   useEffect(() => startOutputBridge(), []);
+  useEffect(() => startDockIconSync(), []);
   // §25: request MIDI only when needed — a project that ships MIDI mappings
   // needs the controller live; otherwise the user opts in from the panel.
   useEffect(() => {

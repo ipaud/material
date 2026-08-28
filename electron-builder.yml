@@ -5,6 +5,9 @@ directories:
 files:
   - out/**
   - package.json
+extraResources:
+  - from: build/dock
+    to: dock
 mac:
   category: public.app-category.graphics-design
   target:

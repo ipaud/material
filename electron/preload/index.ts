@@ -55,6 +55,7 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
     ipcRenderer.invoke(IPC.outputMove, displayId, mode),
   outputSetMode: (mode: unknown) => ipcRenderer.invoke(IPC.outputSetMode, mode),
   outputTarget: () => ipcRenderer.invoke(IPC.outputTarget),
+  setDockIcon: (position: number) => ipcRenderer.invoke(IPC.brandDockIcon, position),
   onOutputStatus: (callback) => {
     ipcRenderer.on(IPC.outputStatus, (_event, status) => callback(status));
   },
