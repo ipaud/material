@@ -1,10 +1,16 @@
-import type { PatternSource } from '@shared/schemas/project';
+import type { PatternSource, Project } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { uid } from '@/utils/id';
+import { parsePatternSourceKey, patternSourceKey } from './patternSourceRuntime';
 
 /**
- * P4 — pattern source CRUD over the standard immutable project update path
- * (undo/redo compatible by construction; no UI yet — dev/test surface).
+ * P4/P6 — pattern source CRUD over the standard immutable project update
+ * path. Every operation is ONE `store.apply` call, so it is one history
+ * entry and one dirty transition, exactly like any other project edit.
+ *
+ * Pattern sources are PROJECT-GLOBAL resources (see docs/DECISIONS.md):
+ * looks capture MAPPINGS, never pattern definitions, so these actions are
+ * the only thing that creates, edits or destroys a pattern's identity.
  */
 
 export function addPatternSource(
@@ -18,6 +24,7 @@ export function addPatternSource(
   return full;
 }
 
+/** Edit a definition in place — the id, and therefore the probability lane, survives. */
 export function updatePatternSource(id: string, patch: Partial<Omit<PatternSource, 'id'>>): void {
   useProjectStore.getState().apply((p) => ({
     ...p,
@@ -25,12 +32,59 @@ export function updatePatternSource(id: string, patch: Partial<Omit<PatternSourc
   }));
 }
 
+export function setPatternSourceEnabled(id: string, enabled: boolean): void {
+  updatePatternSource(id, { enabled });
+}
+
+/**
+ * Copy a source under a NEW id. The definition is identical but the
+ * deterministic probability lane is not — a duplicated Degrade pattern makes
+ * its own independent decisions, which is the point of duplicating it.
+ * Mappings are deliberately not cloned (P6 §18): the copy starts unassigned.
+ */
+export function duplicatePatternSource(id: string): PatternSource | null {
+  const original = useProjectStore.getState().project.patternSources.find((s) => s.id === id);
+  if (!original) return null;
+  const copy: PatternSource = {
+    ...original,
+    id: uid('pat'),
+    pattern: structuredClone(original.pattern),
+    transforms: structuredClone(original.transforms),
+  };
+  useProjectStore.getState().apply((p) => ({
+    ...p,
+    patternSources: [...p.patternSources, copy],
+  }));
+  return copy;
+}
+
+/**
+ * Remove a source and every mapping that referenced it, atomically — a
+ * mapping pointing at a dead pattern is invisible in the UI but would sit in
+ * the file forever. One apply → one undo restores the source AND its
+ * mappings, with the same ids and therefore the same random decisions.
+ *
+ * Note this is an ACTION, never part of parsing: a hand-edited project that
+ * arrives with orphan mappings still loads (they resolve neutral at runtime).
+ */
 export function removePatternSource(id: string): void {
+  const key = patternSourceKey(id);
   useProjectStore.getState().apply((p) => ({
     ...p,
     patternSources: p.patternSources.filter((s) => s.id !== id),
-    // A mapping pointing at a removed pattern would be silently neutral
-    // forever — drop it with the source, like other entity removals do.
-    modulations: p.modulations.filter((m) => m.source !== `pattern:${id}`),
+    modulations: p.modulations.filter((m) => m.source !== key),
   }));
+}
+
+/** Mapping sources pointing at a pattern that no longer exists (diagnostics). */
+export function orphanPatternMappings(project: Project): { mappingId: string; patternId: string }[] {
+  const known = new Set(project.patternSources.map((s) => s.id));
+  const orphans: { mappingId: string; patternId: string }[] = [];
+  for (const mapping of project.modulations) {
+    const patternId = parsePatternSourceKey(mapping.source);
+    if (patternId !== null && !known.has(patternId)) {
+      orphans.push({ mappingId: mapping.id, patternId });
+    }
+  }
+  return orphans;
 }

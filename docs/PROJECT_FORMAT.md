@@ -34,6 +34,22 @@ They are meant to be readable and diffable.
       "frozenValue": null
     }
   ],
+  "patternSources": [
+    {
+      "id": "pat_9f31c2ab",       // stable creative identity — seeds probability
+      "enabled": true,
+      "beatsPerCycle": 4,          // cycle length in BEATS (independent of beatsPerBar)
+      "pattern": { "type": "sequence", "values": [0, 1, 0.25, 0.8] },
+      "transforms": [{ "type": "fast", "factor": 2 }, { "type": "degrade", "probability": 0.63 }]
+    },
+    {
+      "id": "pat_4c07de55",
+      "enabled": true,
+      "beatsPerCycle": 4,
+      "pattern": { "type": "euclidean", "pulses": 5, "steps": 16, "rotation": 0, "activeValue": 1, "inactiveValue": 0 },
+      "transforms": []
+    }
+  ],
   "triggers": [
     {
       "id": "trig_1", "enabled": true,
@@ -104,6 +120,45 @@ They are meant to be readable and diffable.
   `performanceQuantize` were added inside v2 without a version bump.
 - Locked exploration parameters use bare param ids, and `mod:<id>` for
   modulation mappings.
+
+## Pattern sources
+
+`patternSources[]` holds project-global temporal signals; a modulation
+mapping consumes one by setting `source: "pattern:<id>"`, exactly like
+`"bass"` or `"beat:1/4"`. Only creative definitions persist — compiled
+patterns, the clock, diagnostics and probability samples are runtime-only
+and can never reach the file (the writer re-validates with the schema, which
+strips anything unknown).
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable identity. Also the deterministic probability lane — see below. |
+| `enabled` | Disabled sources persist and contribute nothing. |
+| `beatsPerCycle` | Cycle length in beats. Independent of `beatsPerBar`. |
+| `pattern` | `constant` · `sequence` · `euclidean` (see PATTERN_ENGINE). |
+| `transforms` | Ordered chain: `fast`/`slow`/`reverse`/`rotate`/`every`/`degrade`. |
+
+Format rules specific to patterns:
+
+- **Ids are never rewritten.** They feed the deterministic hash, so a
+  renamed id would change what a saved project renders. Duplicate ids are
+  therefore REFUSED at parse and write time
+  (`Duplicate Pattern source id: pat-a`) rather than silently deduplicated.
+- **Transform order is creative meaning.** `fast → reverse` and
+  `reverse → fast` are different patterns; serialization never sorts them.
+- **Structure vs semantics.** The schema validates shape; `compilePattern`
+  remains the authority on semantics (`pulses > steps`, nested `every`). A
+  structurally valid but uncompilable pattern still OPENS — it simply
+  contributes nothing, and the diagnostic names the error.
+- **Orphan mappings are safe.** A mapping pointing at a missing pattern
+  loads and resolves neutral; removing a source through the app removes its
+  mappings in the same undoable step, so the app never creates orphans
+  itself.
+- **Pattern sources are project-global** and are NOT captured by looks — see
+  [DECISIONS](DECISIONS.md). Looks capture mappings, so two looks can use one
+  pattern for different targets and amounts.
+- `patternSources` is an additive v2 field: a project written before it
+  existed parses with `[]`, exactly like `macros` and `performancePads`.
 
 ## Presets
 

@@ -161,3 +161,25 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   textures (`TEXTURE_3D/2D_ARRAY` defaults created while `UNPACK_FLIP_Y`
   persists from flipped 2D uploads). Harmless to output; not a v0.3
   blocker; track upstream, no local workaround.
+- **ADR — Pattern sources are project-global**: `patternSources[]` lives on
+  the project; `LookCore` captures MAPPINGS only, never pattern definitions.
+  A look can reference `pattern:<id>` with its own target/amount/curve, but
+  applying or morphing a look never clones, edits or interpolates the
+  pattern itself. Rationale: a pattern is a signal resource (like the audio
+  analyser), not look state; interpolating `E(5,16) → E(7,12)` has no
+  defined meaning in `interpolateLookCore`; and keeping the definition
+  global keeps `patternId` — and therefore the deterministic probability
+  lane — stable across look applies. Consequences: one `E(5,16)` can drive
+  Scale in look A and Feedback in look B while both see the same signal;
+  editing the pattern changes every mapping that references it (shared
+  resource semantics, no silent per-look fork); pattern morph semantics stay
+  undefined until there is a reason to define them.
+- **ADR — Pattern persistence without a schema bump**: patterns ship as an
+  additive defaulted v2 field, following the `macros` / `performancePads`
+  precedent, so v1 and pre-pattern v2 projects keep opening unchanged and
+  the next real format break (Live Sources) can own v3 alone. Pattern ids
+  and the deterministic hash are treated as project-compatibility
+  semantics: duplicates are refused rather than renamed, and the persisted
+  golden fixture (`tests/fixtures/project-v2-pattern.json`) locks the
+  evaluated result so a future PRNG/clock/transform change cannot silently
+  alter saved compositions.

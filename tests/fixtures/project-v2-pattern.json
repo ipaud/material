@@ -1,0 +1,138 @@
+{
+  "version": 2,
+  "name": "Pattern Compatibility Fixture",
+  "sources": [],
+  "composition": {
+    "sourceId": null,
+    "audioSourceId": null,
+    "width": 1920,
+    "height": 1080,
+    "background": "#000000"
+  },
+  "techniques": [
+    {
+      "id": "tech_fixture",
+      "techniqueId": "mosaic",
+      "enabled": true,
+      "params": { "scale": 1, "spacing": 0.1, "rotation": 0 }
+    }
+  ],
+  "material": { "materialId": "square", "colorMode": "source", "params": {}, "assetPath": null },
+  "patternSources": [
+    {
+      "id": "pat_fixture_a",
+      "enabled": true,
+      "beatsPerCycle": 4,
+      "pattern": { "type": "sequence", "values": [0, 1, 0.25, 0.8] },
+      "transforms": []
+    },
+    {
+      "id": "pat_fixture_b",
+      "enabled": true,
+      "beatsPerCycle": 7,
+      "pattern": {
+        "type": "euclidean",
+        "pulses": 5,
+        "steps": 16,
+        "rotation": 2,
+        "activeValue": 1,
+        "inactiveValue": 0
+      },
+      "transforms": [
+        { "type": "fast", "factor": 2 },
+        { "type": "reverse" }
+      ]
+    },
+    {
+      "id": "pat_fixture_c",
+      "enabled": false,
+      "beatsPerCycle": 8,
+      "pattern": { "type": "constant", "value": 0.5 },
+      "transforms": [
+        { "type": "every", "cycles": 4, "transform": { "type": "rotate", "steps": 1 } },
+        { "type": "degrade", "probability": 0.63 }
+      ]
+    }
+  ],
+  "modulations": [
+    {
+      "id": "mod_fixture_a",
+      "enabled": true,
+      "source": "pattern:pat_fixture_a",
+      "target": "scale",
+      "amount": 0.5,
+      "min": 0,
+      "max": 1,
+      "invert": false,
+      "smoothing": 0,
+      "curve": "linear",
+      "frozenValue": null
+    },
+    {
+      "id": "mod_fixture_b",
+      "enabled": true,
+      "source": "pattern:pat_fixture_b",
+      "target": "spacing",
+      "amount": 0.4,
+      "min": 0,
+      "max": 1,
+      "invert": false,
+      "smoothing": 0,
+      "curve": "linear",
+      "frozenValue": null
+    }
+  ],
+  "triggers": [],
+  "timeline": {
+    "inSec": null,
+    "outSec": null,
+    "loop": true,
+    "bpm": 96,
+    "beatOffsetSec": 0.375,
+    "beatsPerBar": 4,
+    "markers": []
+  },
+  "pinnedLooks": [
+    {
+      "id": "look_fixture",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "label": "Pattern Look",
+      "note": "",
+      "slot": 1,
+      "seed": 12345,
+      "thumbnail": null,
+      "techniques": [
+        {
+          "id": "tech_fixture",
+          "techniqueId": "mosaic",
+          "enabled": true,
+          "params": { "scale": 1, "spacing": 0.1, "rotation": 0 }
+        }
+      ],
+      "material": { "materialId": "square", "colorMode": "source", "params": {}, "assetPath": null },
+      "modulations": [
+        {
+          "id": "mod_fixture_a",
+          "enabled": true,
+          "source": "pattern:pat_fixture_a",
+          "target": "scale",
+          "amount": 0.8,
+          "min": 0,
+          "max": 1,
+          "invert": false,
+          "smoothing": 0,
+          "curve": "linear",
+          "frozenValue": null
+        }
+      ],
+      "triggers": []
+    }
+  ],
+  "activeLookId": null,
+  "morphEvents": [],
+  "midiMappings": [],
+  "macros": [],
+  "performancePads": [],
+  "performanceQuantize": "bar",
+  "explore": { "lockedParams": [], "lastSeed": 12345 }
+}

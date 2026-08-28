@@ -68,9 +68,26 @@ function contentKeyOf(source: PatternSource): string {
   return key;
 }
 
-/** Modulation source id for a pattern (the taxonomy: `pattern:<id>`). */
+/**
+ * The persisted mapping-source format for patterns: `pattern:<id>`.
+ *
+ * These two helpers are the ONLY place that knows the prefix — nothing else
+ * should test `source.startsWith('pattern:')`. Ids from `uid('pat')` are
+ * `pat_` + 8 hex characters, so they can never contain a separator; the
+ * parser still splits on the FIRST colon only, so an id from a hand-edited
+ * project file survives round-tripping unchanged.
+ */
+const PATTERN_SOURCE_PREFIX = 'pattern:';
+
 export function patternSourceKey(id: string): string {
-  return `pattern:${id}`;
+  return `${PATTERN_SOURCE_PREFIX}${id}`;
+}
+
+/** The pattern id behind a mapping source, or null for any other source. */
+export function parsePatternSourceKey(source: string): string | null {
+  if (!source.startsWith(PATTERN_SOURCE_PREFIX)) return null;
+  const id = source.slice(PATTERN_SOURCE_PREFIX.length);
+  return id.length > 0 ? id : null;
 }
 
 /**

@@ -8,8 +8,8 @@ playback, seek, the Output replica, offline export and project reload.
 
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
 probability / Degrade) + P4 (modulation integration) + P5 (parity
-hardening) shipped.** P6+ (persistence policy, mini-notation, UI) land in
-later phases.
+hardening) + P6 (persistence contract) shipped.** P7+ (mini-notation, UI)
+land in later phases.
 
 ## Architectural position
 
@@ -289,6 +289,48 @@ fingerprints, 0 compiles. Live and export share the cache safely because
 `CompiledPattern` is immutable and evaluation is pure; an export evaluator
 keeps the handle array it resolved at construction, so later live edits
 cannot mutate a running export.
+
+## Persistence contract (P6)
+
+Patterns persist as `project.patternSources[]` — an **additive v2 field**,
+no schema bump (the `macros` / `performancePads` precedent; the next real
+break belongs to Live Sources). Full field reference in
+[PROJECT_FORMAT](PROJECT_FORMAT.md); the ownership decision and its
+rationale are recorded in [DECISIONS](DECISIONS.md).
+
+**Pattern ids and hash semantics are project compatibility.** An id feeds
+`patternRandom01`, so it must survive save, reload, undo, redo, reorder and
+Save As untouched — and duplicates are refused at parse/write time rather
+than renamed, because renaming would change what a saved project renders.
+`tests/fixtures/project-v2-pattern.json` plus its locked evaluated values
+guard this: any future change to the PRNG, the clock, transform order or id
+semantics breaks that test instead of a user's composition.
+
+Semantics worth knowing:
+
+- **Looks capture mappings, not patterns.** One `E(5,16)` can drive Scale in
+  look A and Feedback in look B; both observe the same signal at the same
+  time. Editing the pattern changes every mapping referencing it — shared
+  resource semantics, never a silent per-look fork.
+- **Editing preserves identity, duplicating does not.** `updatePatternSource`
+  keeps the id, so the probability lane survives an edit (though changing
+  step structure naturally changes step keys). `duplicatePatternSource`
+  assigns a NEW id, so a duplicated Degrade pattern makes its own
+  independent decisions — that is the point of duplicating it. Duplicates do
+  not clone mappings.
+- **Removal is atomic.** Removing a source removes the mappings that
+  referenced it in one `store.apply`, so one undo restores the source, the
+  mappings and the exact random decisions. Parsing never does this cleanup:
+  a hand-edited file with orphan mappings still opens, and those mappings
+  resolve neutral.
+- **Seed.** Probability follows the currently evaluated project seed
+  (`explore.lastSeed ?? 1`). Changing the Explore seed intentionally changes
+  probabilistic outcomes; a look apply that carries its own seed changes
+  them deterministically too. No `patternSeed` exists.
+
+Save/load cost stays linear: 250 sources = 93.9 KB JSON, 1.8 ms serialize,
+1.5 ms parse, 1.2 ms first-evaluation compile of all 250, 0.057 ms/frame
+steady state.
 
 ## DevTools
 

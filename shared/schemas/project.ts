@@ -329,8 +329,28 @@ export const projectSchema = z.object({
   morphEvents: z.array(morphEventSchema).default([]),
   /** Optional (defaulted) — v2 projects without it stay valid. */
   midiMappings: z.array(midiMappingSchema).default([]),
-  /** Optional (defaulted) — additive like midiMappings, no version bump. */
-  patternSources: z.array(patternSourceSchema).default([]),
+  /**
+   * Optional (defaulted) — additive inside v2 like `macros` and
+   * `performancePads`. Pattern ids are creative identity (they seed
+   * deterministic probability), so duplicates are REFUSED rather than
+   * silently renamed: renaming would change what a saved project renders.
+   */
+  patternSources: z
+    .array(patternSourceSchema)
+    .default([])
+    .superRefine((sources, ctx) => {
+      const seen = new Set<string>();
+      for (const [index, source] of sources.entries()) {
+        if (seen.has(source.id)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [index, 'id'],
+            message: `Duplicate Pattern source id: ${source.id}`,
+          });
+        }
+        seen.add(source.id);
+      }
+    }),
   macros: z.array(macroSchema).default([]),
   performancePads: z.array(performancePadSchema).default([]),
   /** Global quantization for performance actions (look apply, morph, pads). */
@@ -409,5 +429,26 @@ export function parseProject(raw: unknown): Project {
   if (candidate.version !== PROJECT_FORMAT_VERSION) {
     throw new Error(`Unsupported project version: ${String(candidate.version)}`);
   }
-  return projectSchema.parse(candidate);
+  const result = projectSchema.safeParse(candidate);
+  if (!result.success) throw new Error(formatProjectIssues(result.error));
+  return result.data;
+}
+
+/**
+ * Zod's default message is a multi-KB JSON dump — useless in a toast. Report
+ * the first few issues as `path: message` lines instead, so a bad file names
+ * the field that broke it (e.g. `patternSources.0.id: Duplicate Pattern
+ * source id: pat-a`).
+ */
+function formatProjectIssues(error: z.ZodError): string {
+  const MAX_SHOWN = 4;
+  const lines = error.issues
+    .slice(0, MAX_SHOWN)
+    .map((issue) => {
+      const path = issue.path.join('.');
+      return path ? `${path}: ${issue.message}` : issue.message;
+    });
+  const extra = error.issues.length - lines.length;
+  if (extra > 0) lines.push(`…and ${extra} more problem${extra === 1 ? '' : 's'}`);
+  return `Invalid project file — ${lines.join('; ')}`;
 }
