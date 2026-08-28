@@ -51,7 +51,7 @@
 .lock-chip.locked {
   color: var(--accent);
   border-color: var(--accent-dim);
-  background: rgba(232, 151, 63, 0.06);
+  background: rgba(255, 216, 0, 0.06);
 }
 .lock-chip.mod {
   font-family: var(--font-mono);

@@ -7,7 +7,7 @@ import { addMacro, deleteMacro, renameMacro, setMacroValue } from '@/performance
 import type { Macro, MacroMapping } from '@shared/schemas/project';
 
 /**
- * Macro design surface (CREATE). Performance shows the big controls; here
+ * Macro design surface (BUILD). Perform shows the big controls; here
  * the fan-out is defined: which parameters, how much, which shape.
  */
 export function MacrosSection() {

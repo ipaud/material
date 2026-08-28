@@ -1,6 +1,25 @@
 import { create } from 'zustand';
 
-export type WorkspaceId = 'create' | 'explore' | 'techniques' | 'modulation' | 'performance';
+export type WorkspaceId = 'build' | 'explore' | 'perform' | 'output';
+
+/**
+ * UI v2 renamed the workspaces. Old ids can still arrive from a stale dev
+ * reload or a caller that was not updated; map them instead of rendering a
+ * blank shell. Techniques and Modulation are sections of BUILD now.
+ */
+const LEGACY_WORKSPACES: Record<string, WorkspaceId> = {
+  create: 'build',
+  techniques: 'build',
+  modulation: 'build',
+  performance: 'perform',
+};
+
+const WORKSPACES: readonly WorkspaceId[] = ['build', 'explore', 'perform', 'output'];
+
+export function normalizeWorkspace(id: string): WorkspaceId {
+  if ((WORKSPACES as readonly string[]).includes(id)) return id as WorkspaceId;
+  return LEGACY_WORKSPACES[id] ?? 'build';
+}
 
 export interface AppToast {
   id: string;
@@ -10,6 +29,8 @@ export interface AppToast {
 
 interface UiStore {
   workspace: WorkspaceId;
+  /** BUILD: the technique browser overlay (it is no longer a workspace). */
+  techniquesOpen: boolean;
   debugOverlay: boolean;
   showOriginal: boolean; // A/B compare: hold to view source
   toasts: AppToast[];
@@ -27,7 +48,8 @@ interface UiStore {
   perfMorphTargetId: string | null;
   perfMorphDuration: '1beat' | '2beats' | '1bar' | '2bars' | '4bars';
 
-  setWorkspace: (workspace: WorkspaceId) => void;
+  setWorkspace: (workspace: WorkspaceId | string) => void;
+  toggleTechniques: () => void;
   toggleDebugOverlay: () => void;
   setShowOriginal: (show: boolean) => void;
   pushToast: (kind: AppToast['kind'], message: string) => void;
@@ -45,7 +67,8 @@ interface UiStore {
 let toastCounter = 0;
 
 export const useUiStore = create<UiStore>((set) => ({
-  workspace: 'create',
+  workspace: 'build',
+  techniquesOpen: false,
   debugOverlay: false,
   showOriginal: false,
   toasts: [],
@@ -67,7 +90,8 @@ export const useUiStore = create<UiStore>((set) => ({
   toggleBeatGrid: () => set((s) => ({ showBeatGrid: !s.showBeatGrid })),
   toggleSignalMonitor: () => set((s) => ({ showSignalMonitor: !s.showSignalMonitor })),
 
-  setWorkspace: (workspace) => set({ workspace }),
+  setWorkspace: (workspace) => set({ workspace: normalizeWorkspace(workspace) }),
+  toggleTechniques: () => set((s) => ({ techniquesOpen: !s.techniquesOpen })),
   setPanelSize: (panel, size) =>
     set(() => {
       if (panel === 'library') return { libraryWidth: Math.min(Math.max(size, 160), 400) };
@@ -82,10 +106,7 @@ export const useUiStore = create<UiStore>((set) => ({
       // should not build a wall of identical cards over the controls.
       const withoutDuplicate = s.toasts.filter((t) => t.message !== message);
       return {
-        toasts: [
-          ...withoutDuplicate.slice(-2),
-          { id: `toast_${toastCounter++}`, kind, message },
-        ],
+        toasts: [...withoutDuplicate.slice(-2), { id: `toast_${toastCounter++}`, kind, message }],
       };
     }),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),

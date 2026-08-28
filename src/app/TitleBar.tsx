@@ -3,6 +3,7 @@ import { useExportStore } from '@/state/exportStore';
 import { useUiStore } from '@/state/uiStore';
 import { saveProject } from '@/projects/projectActions';
 import { pinCurrentLook } from '@/projects/lookActions';
+import { WorkspaceNav } from './WorkspaceNav';
 
 export function TitleBar() {
   const name = useProjectStore((s) => s.project.name);
@@ -11,11 +12,14 @@ export function TitleBar() {
   return (
     <header className="titlebar">
       <span className="titlebar-brand">MATERIAL</span>
-      <span className="titlebar-project">
-        {name}
-        {dirty && <span className="titlebar-dirty"> ●</span>}
-      </span>
+      {dirty && (
+        <span className="titlebar-dirty" title="Unsaved changes" aria-label="Unsaved changes">
+          ●
+        </span>
+      )}
+      <WorkspaceNav />
       <span className="titlebar-spacer" />
+      <span className="titlebar-project mono">{name}</span>
       <button
         className="titlebar-action"
         onClick={() => useUiStore.getState().toggleShortcuts()}
@@ -24,8 +28,12 @@ export function TitleBar() {
       >
         ?
       </button>
-      <button className="titlebar-action" onClick={() => pinCurrentLook()} title="Pin current look (instant snapshot)">
-        ◆ Pin
+      <button
+        className="titlebar-action"
+        onClick={() => pinCurrentLook()}
+        title="Pin current look (instant snapshot)"
+      >
+        Pin
       </button>
       <button className="titlebar-action" onClick={() => void saveProject()}>
         Save

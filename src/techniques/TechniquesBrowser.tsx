@@ -62,7 +62,7 @@ export function TechniquesBrowser() {
   const [generating, setGenerating] = useState(true);
   const apply = useProjectStore((s) => s.apply);
   const activeId = useProjectStore((s) => s.project.techniques.find((t) => t.enabled)?.techniqueId);
-  const setWorkspace = useUiStore((s) => s.setWorkspace);
+  const closeTechniques = useUiStore((s) => s.toggleTechniques);
   const pushToast = useUiStore((s) => s.pushToast);
 
   useEffect(() => {
@@ -108,7 +108,7 @@ export function TechniquesBrowser() {
       // Mappings target technique params, so a technique swap invalidates them.
       modulations: [],
     }));
-    setWorkspace('create');
+    closeTechniques();
     pushToast('info', `${card.name} applied`);
   };
 

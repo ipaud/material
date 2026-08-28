@@ -24,11 +24,11 @@ const DURATION_VALUES: Record<string, MorphDuration> = {
 
 /**
  * Performance keys (Phases 13/15/16):
- *   1–9        apply look (quantized in PERFORMANCE workspace)
+ *   1–9        apply look (quantized in PERFORM workspace)
  *   Shift+1–9  overwrite that slot with the current state
  *   P          pin current look
  *   F          freeze all / clear all (toggle)
- * PERFORMANCE workspace only:
+ * PERFORM workspace only:
  *   Q          cycle quantization
  *   M          morph to the selected target look
  *   Z X C V    trigger pads 1–4
@@ -48,7 +48,7 @@ export function usePerformanceKeys(): void {
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.isContentEditable)
         return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const isPerf = useUiStore.getState().workspace === 'performance';
+      const isPerf = useUiStore.getState().workspace === 'perform';
 
       if (e.code.startsWith('Digit')) {
         const digit = Number(e.code.slice(5));

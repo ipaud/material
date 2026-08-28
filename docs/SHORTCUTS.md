@@ -3,6 +3,15 @@
 Everything MATERIAL binds, grouped by what you are doing. Bare keys work
 anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 
+## Workspaces
+
+| Key | Action |
+| --- | --- |
+| `⌘⌥1` | BUILD — construct the visual system |
+| `⌘⌥2` | EXPLORE — discover variations |
+| `⌘⌥3` | PERFORM — play the system |
+| `⌘⌥4` | OUTPUT — prepare and deliver |
+
 ## Transport
 
 | Key | Action |
@@ -33,10 +42,10 @@ anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 | `P` | Pin the current state as a new Look |
 | `F` | Freeze all modulated values / release them |
 
-In the PERFORMANCE workspace, `1`–`9` obey the global quantization: the Look
+In the PERFORM workspace, `1`–`9` obey the global quantization: the Look
 arrives on the next beat or bar rather than instantly.
 
-## Performance workspace only
+## PERFORM workspace only
 
 | Key | Action |
 | --- | --- |

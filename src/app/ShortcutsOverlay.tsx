@@ -8,6 +8,15 @@ import { useUiStore } from '@/state/uiStore';
 
 const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
+    title: 'Workspaces',
+    rows: [
+      ['⌘⌥1', 'BUILD'],
+      ['⌘⌥2', 'EXPLORE'],
+      ['⌘⌥3', 'PERFORM'],
+      ['⌘⌥4', 'OUTPUT'],
+    ],
+  },
+  {
     title: 'Transport',
     rows: [
       ['Space', 'Play / pause'],
@@ -24,7 +33,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
-    title: 'Performance',
+    title: 'Perform',
     rows: [
       ['Q', 'Cycle quantization'],
       ['M', 'Morph to the selected target'],

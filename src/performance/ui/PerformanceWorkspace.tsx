@@ -145,7 +145,7 @@ function MacrosRow() {
   if (macros.length === 0) {
     return (
       <div className="perf-macros empty-row">
-        <span className="perf-hint">No macros — define them in CREATE (Inspector → Macros)</span>
+        <span className="perf-hint">No macros — define them in BUILD (Inspector → Macros)</span>
       </div>
     );
   }
@@ -308,7 +308,7 @@ function ActionsRow() {
             className="perf-pad"
             disabled={!pad.trigger}
             onClick={() => firePad(pad.id)}
-            title={pad.trigger ? `${pad.label} (${PAD_KEYS[i]})` : 'Unassigned — set in CREATE'}
+            title={pad.trigger ? `${pad.label} (${PAD_KEYS[i]})` : 'Unassigned — set in BUILD'}
           >
             <span className="perf-pad-key mono">{PAD_KEYS[i]}</span>
             {pad.label}

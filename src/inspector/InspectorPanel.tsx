@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
+import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
 import { ParameterSlider } from '@/components/ParameterSlider';
@@ -55,8 +56,15 @@ export function InspectorPanel() {
 
   return (
     <>
-      <div className="panel-header">
+      <div className="panel-header inspector-header">
         <span className="label">{definition ? definition.name : 'Inspector'}</span>
+        <button
+          className="inspector-browse"
+          onClick={() => useUiStore.getState().toggleTechniques()}
+          title="Browse techniques"
+        >
+          BROWSE
+        </button>
       </div>
       <div className="panel-body">
         {!hasSource && (
