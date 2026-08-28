@@ -1,5 +1,11 @@
 import type { CompiledPattern, CompiledSimpleTransform } from './compilePattern';
-import { PATTERN_INACTIVE, type PatternEvaluation, type PatternPosition } from './patternTypes';
+import { LANE_DEGRADE, hashPatternId, patternRandom01 } from './patternRandom';
+import {
+  PATTERN_INACTIVE,
+  type PatternEvaluation,
+  type PatternEvaluationContext,
+  type PatternPosition,
+} from './patternTypes';
 
 /**
  * Pure pattern evaluation at an absolute musical position (P2).
@@ -27,9 +33,25 @@ import { PATTERN_INACTIVE, type PatternEvaluation, type PatternPosition } from '
  * `floor(phase·N)` to N-1 so a phase of exactly 0.999…9 cannot index out.
  *
  * Evaluation is O(transform count) per call — independent of elapsed time.
+ *
+ * P3 — Degrade is a POST-VALUE probabilistic gate, deliberately outside the
+ * coordinate chain: its identity is the final discrete event (TRANSFORMED
+ * cycle + PRESENTED step), not a coordinate mapping. So `fast 2` yields two
+ * independently degradable event cycles per source cycle, `slow 4` holds one
+ * sample across the whole stretched event, and reverse/rotate key on the
+ * step the listener actually perceives. Only EVENT steps are gated —
+ * Euclidean rests stay active with inactiveValue. Sampling is a stateless
+ * hash (see patternRandom.ts); `sample < probability` keeps the event.
+ *
+ * Context is optional for degrade-free patterns. A degraded pattern
+ * evaluated without context still behaves deterministically (zero context),
+ * but every such pattern shares one lane — callers must pass the real
+ * project seed + stable pattern id.
  */
 
 const PHASE_EPSILON = 1e-9;
+
+const ZERO_CONTEXT: PatternEvaluationContext = Object.freeze({ projectSeed: 0, patternId: '' });
 
 function mod(n: number, m: number): number {
   return ((n % m) + m) % m;
@@ -38,6 +60,7 @@ function mod(n: number, m: number): number {
 export function evaluatePattern(
   compiled: CompiledPattern,
   position: PatternPosition,
+  context?: PatternEvaluationContext,
 ): PatternEvaluation {
   const n = compiled.values.length;
   if (n === 0) return PATTERN_INACTIVE;
@@ -94,5 +117,18 @@ export function evaluatePattern(
   const value = compiled.values[stepIndex];
   if (value === undefined) return PATTERN_INACTIVE;
 
-  return { active: true, value, stepIndex, cycleIndex: cycle };
+  const event = compiled.events === null ? true : compiled.events[stepIndex] === true;
+
+  if (event && compiled.degrades.length > 0) {
+    const ctx = context ?? ZERO_CONTEXT;
+    const idHash = hashPatternId(ctx.patternId);
+    for (let gi = 0; gi < compiled.degrades.length; gi++) {
+      const probability = compiled.degrades[gi]!;
+      // Locked rule: sample < probability keeps the event (0 → never, 1 → always).
+      const sample = patternRandom01(ctx.projectSeed, idHash, LANE_DEGRADE, cycle, stepIndex, gi);
+      if (!(sample < probability)) return PATTERN_INACTIVE;
+    }
+  }
+
+  return { active: true, value, stepIndex, cycleIndex: cycle, event };
 }

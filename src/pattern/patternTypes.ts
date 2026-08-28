@@ -51,9 +51,24 @@ export interface EveryTransform {
   cycles: number;
   transform: FastTransform | SlowTransform | ReverseTransform | RotateTransform;
 }
+/**
+ * P3: probabilistic event gate. NOT a coordinate transform — it gates the
+ * final evaluated event (post-value), keyed on the transformed cycle and
+ * presented step. `sample < probability` keeps the event: 0 → never active,
+ * 1 → always active.
+ */
+export interface DegradeTransform {
+  type: 'degrade';
+  probability: number;
+}
 
 export type PatternTransform =
-  FastTransform | SlowTransform | ReverseTransform | RotateTransform | EveryTransform;
+  | FastTransform
+  | SlowTransform
+  | ReverseTransform
+  | RotateTransform
+  | EveryTransform
+  | DegradeTransform;
 
 // ---- Evaluation ---------------------------------------------------------
 
@@ -63,9 +78,32 @@ export type PatternTransform =
  * P3 Degrade will gate events through the same shape.
  */
 export type PatternEvaluation =
-  { active: true; value: PatternValue; stepIndex: number; cycleIndex: number } | { active: false };
+  | {
+      active: true;
+      value: PatternValue;
+      stepIndex: number;
+      cycleIndex: number;
+      /**
+       * P3: whether this step is a discrete EVENT (a Euclidean pulse; every
+       * step of a sequence/constant). Degrade gates events only — Euclidean
+       * rest steps stay active with their inactiveValue, ungated. Also the
+       * seam future trigger integration will read.
+       */
+      event: boolean;
+    }
+  | { active: false };
 
 export const PATTERN_INACTIVE: PatternEvaluation = Object.freeze({ active: false });
+
+/**
+ * P3: deterministic identity the CALLER supplies for probabilistic patterns.
+ * The pure engine never reads stores — `projectSeed` is
+ * `project.explore.lastSeed ?? 1`, `patternId` a stable per-instance id.
+ */
+export interface PatternEvaluationContext {
+  projectSeed: number;
+  patternId: string;
+}
 
 /** Minimal musical position — PatternClockState is assignable to this. */
 export interface PatternPosition {

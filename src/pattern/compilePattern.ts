@@ -29,6 +29,14 @@ export interface CompiledPattern {
   /** Unified step values — constant compiles to length 1, Euclidean to `steps`. */
   values: PatternValue[];
   transforms: CompiledTransform[];
+  /**
+   * P3: which steps are discrete EVENTS. `null` = every step (sequence,
+   * constant). Euclidean marks pulse steps only — derived from the mask, not
+   * from values (activeValue may equal inactiveValue).
+   */
+  events: boolean[] | null;
+  /** P3: degrade gate probabilities in serialized order (post-value gates). */
+  degrades: number[];
 }
 
 export type CompileResult = { ok: true; pattern: CompiledPattern } | { ok: false; error: string };
@@ -54,6 +62,10 @@ function compileSimpleTransform(t: PatternTransform): CompiledSimpleTransform | 
       return { type: 'rotate', steps: t.steps };
     case 'every':
       return 'EVERY cannot nest another EVERY';
+    case 'degrade':
+      // Degrade is a post-value event gate, not a coordinate transform —
+      // "every 4 degrade" has no cycle-coordinate meaning in this model.
+      return 'EVERY cannot wrap DEGRADE';
   }
 }
 
@@ -75,6 +87,7 @@ export function compilePattern(
   transforms: PatternTransform[] = [],
 ): CompileResult {
   let values: PatternValue[];
+  let events: boolean[] | null = null;
 
   switch (definition.type) {
     case 'constant': {
@@ -109,20 +122,35 @@ export function compilePattern(
       // pattern forward — what was at step 0 appears at step r. Normalized
       // with true mathematical modulo (negative / oversized rotations).
       values = new Array<PatternValue>(steps);
+      // Event metadata follows the mask through the same rotation — a pulse
+      // is an event wherever it lands, regardless of value equality.
+      events = new Array<boolean>(steps);
       for (let i = 0; i < steps; i++) {
         const src = (((i - rotation) % steps) + steps) % steps;
-        values[i] = mask[src] ? activeValue : inactiveValue;
+        const isPulse = mask[src] === true;
+        values[i] = isPulse ? activeValue : inactiveValue;
+        events[i] = isPulse;
       }
       break;
     }
   }
 
   const compiled: CompiledTransform[] = [];
+  const degrades: number[] = [];
   for (const t of transforms) {
+    if (t.type === 'degrade') {
+      // Post-value gate: validated here, sampled at evaluation. Not part of
+      // the coordinate transform chain (documented in evaluatePattern).
+      if (!Number.isFinite(t.probability) || t.probability < 0 || t.probability > 1) {
+        return err('DEGRADE probability must be within 0..1');
+      }
+      degrades.push(t.probability);
+      continue;
+    }
     const c = compileTransform(t);
     if (typeof c === 'string') return err(c);
     compiled.push(c);
   }
 
-  return { ok: true, pattern: { values, transforms: compiled } };
+  return { ok: true, pattern: { values, transforms: compiled, events, degrades } };
 }

@@ -6,8 +6,9 @@ never "executes" a pattern — it asks _what value does this pattern have at
 exactly this composition time?_ Same inputs → same output, for preview,
 playback, seek, the Output replica, offline export and project reload.
 
-Status: **P1 (PatternClock) + P2 (pure engine) shipped.** P3+ (probability,
-modulation integration, persistence, mini-notation, UI) land in later phases.
+Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
+probability / Degrade) shipped.** P4+ (modulation integration, persistence,
+mini-notation, UI) land in later phases.
 
 ## Architectural position
 
@@ -108,18 +109,83 @@ of the next cycle; float creep `>1−1e−9` inside the evaluator rolls forward
 the same way, and step sampling clamps `floor(phase·N)` to `N−1`. Reverse at
 phase 0 therefore yields the LAST step — never a stale phase-1.0.
 
-## Determinism inputs reserved for P3
+## Deterministic probability (P3)
 
-Project seed: `project.explore.lastSeed` already exists and is the stable
-project-level seed (looks/candidates carry their own). Hash/PRNG:
-`src/utils/prng.ts` (`mulberry32`, `deriveSeed`) is the sanctioned
-deterministic source — `Math.random` remains banned from visual paths
-(`freshSeed` is its only home). Pattern probability will derive
-`deriveSeed(projectSeed ^ patternId, cycleIndex/stepIndex)`-style lanes.
+`src/pattern/patternRandom.ts` — every probabilistic decision is a
+**stateless hash of the event's identity**. There is no mutable PRNG stream
+anywhere: no cursor to advance means evaluation order, direct seeks, reloads
+and export renders all see the exact same sample for the same event.
+
+### Sample key
+
+```
+projectSeed → patternIdHash → lane → zigzagLo(cycle) → zigzagHi(cycle) → step → salt
+```
+
+Each `→` is one `deriveSeed` step (bit-exact with `src/utils/prng.ts`,
+re-expressed allocation-free as `mulberry32Once` — locked by test); the final
+seed produces one mulberry32 output in `[0,1)`.
+
+- **projectSeed** — `project.explore.lastSeed ?? 1`, supplied by the CALLER
+  in `PatternEvaluationContext`; the pure engine never reads stores.
+- **patternIdHash** — FNV-1a of the stable pattern id (`hashPatternId`,
+  memoized). Same project seed + different id → independent lanes. Ids must
+  be stable identities — never array index, render order or object identity
+  (P4/P6 decide persistence).
+- **lane** — semantic separation: `LANE_DEGRADE = 0`; `1`/`2` reserved for
+  future CHOICE/HUMANIZE so adding a random feature never shifts Degrade.
+- **cycle/step** — the **transformed event coordinate**: the final evaluated
+  cycle and PRESENTED step, after fast/slow/every/rotate/reverse. Zigzag
+  encoding keeps pre-roll (negative cycles) collision-free; deriving both
+  32-bit words keeps identities distinct across the float-exact range
+  (|cycle| < 2^52).
+- **salt** — sub-index inside a lane (position of a degrade gate in a chain
+  with several).
+
+### Degrade
+
+`{ type: 'degrade', probability }` (0..1, validated at compile — NaN/∞/out of
+range rejected). It is a **post-value event gate**, deliberately outside the
+coordinate transform chain: its semantics depend on final discrete event
+identity, not coordinate mapping. Locked rule: `sample < probability` keeps
+the event — `0` never active, `1` always active. A gated event returns the
+same `{active:false}` P2 already defined; **`value:false` is an active
+boolean event, never inactive** (test-locked).
+
+Transformed-coordinate identity (all test-locked):
+
+- `fast 2` → two independently degradable event cycles per source cycle.
+- `slow 4` → ONE sample across the whole stretched event; no mid-event
+  resample (frames inside a step share `cycle+step`, never phase or time).
+- `reverse`/`rotate` → keyed on the step the listener actually perceives.
+- `every 4 reverse + degrade .5` → direct seek ≡ playback-through.
+
+### Events
+
+`CompiledPattern.events` (`null` = every step): sequence/constant steps are
+all events (value `0` is still a gateable event); Euclidean marks **pulses
+only**, derived from the mask through the same rotation — never inferred from
+values (`activeValue` may equal `inactiveValue`). Degrade gates events only:
+Euclidean rests stay active with `inactiveValue` at any probability. The
+active evaluation now carries `event: boolean` — the seam future trigger
+integration reads.
+
+### Golden compatibility warning
+
+`tests/pattern-degrade.test.ts` locks exact samples (e.g. seed 12345,
+`pattern-a`, lane 0, cycle 0, step 0 → `0.45305717131122947`). Once patterns
+persist in projects (P6), these hashes are **project compatibility
+semantics**: changing FNV-1a, the derivation chain or mulberry32 would
+visually alter saved projects. Do not "fix" the numbers.
+
+Measured: degrade adds ~37 ns/eval (same-run: 50 ns/eval for a
+fast+every+reverse chain without degrade, 87 ns/eval with; 1M-eval probe,
+heap delta negative — zero sustained allocation).
 
 ## DevTools
 
-`__dev.patternClock.at(timeSec?, beatsPerCycle?)` — inspects the clock at any
+`__dev.patternEngine` — `compilePattern` / `evaluatePattern` / `patternRandom01`
+(pure, read-only). `__dev.patternClock.at(timeSec?, beatsPerCycle?)` — inspects the clock at any
 composition time (defaults to the live playhead) against the current
 project's grid. Dev-only, read-only.
 
