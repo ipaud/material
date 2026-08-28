@@ -32,12 +32,24 @@ export function SignalMonitor() {
       const t = playback.getTime();
       for (const row of CONTINUOUS) {
         const el = rowRefs.current[row.id];
-        if (!el || !analysis) continue;
-        const v = sampleTrack(analysis, row.id, t);
+        if (!el) continue;
+        // With no analysis loaded the bars must read zero, not freeze at the
+        // previous track's last values.
+        const v = analysis ? sampleTrack(analysis, row.id, t) : 0;
         const bar = el.querySelector('.sig-bar-fill') as HTMLElement | null;
         const num = el.querySelector('.sig-value') as HTMLElement | null;
         if (bar) bar.style.transform = `scaleX(${Math.max(v, 0.01)})`;
         if (num) num.textContent = v.toFixed(2);
+      }
+      if (!bpm) {
+        // Clear imperative writes when the grid disappears — React never
+        // re-commits these nodes, so stale dots/phase would stick forever.
+        rowRefs.current.beat?.classList.remove('on');
+        rowRefs.current.bar?.classList.remove('on');
+        const phaseEl = rowRefs.current.phase;
+        if (phaseEl) phaseEl.textContent = '—';
+        const posEl = rowRefs.current.position;
+        if (posEl) posEl.textContent = 'SET BPM FOR BEAT SIGNALS';
       }
       if (bpm) {
         const beatEl = rowRefs.current.beat;

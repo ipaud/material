@@ -2,7 +2,7 @@ import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { projectSchema, type Project } from '../../shared/schemas/project';
+import { parseProject, projectSchema, type Project } from '../../shared/schemas/project';
 
 /**
  * Crash recovery.
@@ -16,15 +16,27 @@ import { projectSchema, type Project } from '../../shared/schemas/project';
  * means the previous session ended abnormally.
  */
 
-const recoveryEntrySchema = z.object({
+/**
+ * The envelope validates strictly, but the embedded project is read as
+ * `unknown` and then run through parseProject — which MIGRATES old project
+ * versions instead of rejecting them. A crash on v0.1 followed by an upgrade
+ * to v0.2 must still offer the autosave, never delete it as "corrupt".
+ */
+const recoveryEnvelopeSchema = z.object({
   version: z.literal(1),
   sessionId: z.string(),
   savedAt: z.string(),
   projectPath: z.string().nullable(),
-  project: projectSchema,
+  project: z.unknown(),
 });
 
-export type RecoveryEntry = z.infer<typeof recoveryEntrySchema>;
+export interface RecoveryEntry {
+  version: 1;
+  sessionId: string;
+  savedAt: string;
+  projectPath: string | null;
+  project: Project;
+}
 
 function recoveryDir(): string {
   return path.join(app.getPath('userData'), 'recovery');
@@ -71,13 +83,23 @@ export async function listRecoveries(currentSessionId: string): Promise<Recovery
   for (const file of files) {
     if (!file.endsWith('.json')) continue;
     if (file === `${currentSessionId}.json`) continue;
+    const filePath = path.join(recoveryDir(), file);
+    let envelope: z.infer<typeof recoveryEnvelopeSchema>;
     try {
-      const text = await fs.readFile(path.join(recoveryDir(), file), 'utf8');
-      entries.push(recoveryEntrySchema.parse(JSON.parse(text)));
+      envelope = recoveryEnvelopeSchema.parse(JSON.parse(await fs.readFile(filePath, 'utf8')));
     } catch {
-      // A corrupt or half-written entry is not recoverable; drop it rather
-      // than blocking startup.
-      await fs.rm(path.join(recoveryDir(), file), { force: true });
+      // Unreadable JSON or a broken envelope is genuinely unrecoverable;
+      // drop it rather than blocking startup.
+      await fs.rm(filePath, { force: true });
+      continue;
+    }
+    try {
+      // parseProject migrates older project versions (v1 → v2 …).
+      entries.push({ ...envelope, project: parseProject(envelope.project) });
+    } catch {
+      // Envelope is fine but the project does not parse even after migration
+      // (e.g. written by a NEWER version). Keep the file — a downgrade must
+      // not destroy a future version's autosave — just don't offer it.
     }
   }
   return entries.sort((a, b) => b.savedAt.localeCompare(a.savedAt));

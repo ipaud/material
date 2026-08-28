@@ -188,6 +188,47 @@ describe('tap tempo', () => {
   });
 });
 
+describe('review-found regressions', () => {
+  test('silent audio returns null, never a fabricated out-of-range BPM', () => {
+    const silence = new Float32Array(SR * 10);
+    expect(detectTempo(analyzeBuffer(silence, SR))).toBeNull();
+  });
+
+  test('detected BPM always inside the declared 60–200 range', () => {
+    for (const bpm of [61, 120, 199]) {
+      const est = detectTempo(analyzeBuffer(clickTrack(bpm, 12), SR));
+      expect(est).not.toBeNull();
+      if (!est) continue;
+      expect(est.bpm).toBeGreaterThanOrEqual(60);
+      expect(est.bpm).toBeLessThanOrEqual(200);
+    }
+  });
+
+  test('bestPhase comb never NaN-poisons (fractional period, adversarial lengths)', () => {
+    // Envelope lengths chosen so the last comb tooth lands in [len-0.5, len)
+    // for a fractional period — the exact OOB case found in review.
+    for (const extraFrames of [0, 3, 7, 11, 17]) {
+      const mono = clickTrack(120, 12);
+      const trimmed = mono.slice(0, mono.length - extraFrames * 512);
+      const est = detectTempo(analyzeBuffer(trimmed, SR));
+      expect(est).not.toBeNull();
+      if (!est) continue;
+      expect(Number.isFinite(est.beatOffsetSec)).toBe(true);
+      // Grid must still lock: offset within the beat period.
+      expect(est.beatOffsetSec).toBeGreaterThanOrEqual(0);
+      expect(est.beatOffsetSec).toBeLessThan(60 / est.bpm + 0.05);
+    }
+  });
+
+  test('musicalPosition clamps pre-roll to BAR 1 · BEAT 1 (never bar 0/negative)', () => {
+    expect(musicalPosition(0, 120, 1.0, 4)).toEqual({ bar: 1, beat: 1, phase: 0 });
+    expect(musicalPosition(0, 120, 10, 4).bar).toBe(1);
+    // Just after the offset it counts normally.
+    expect(musicalPosition(1.0, 120, 1.0, 4)).toMatchObject({ bar: 1, beat: 1 });
+    expect(musicalPosition(3.0, 120, 1.0, 4)).toMatchObject({ bar: 2, beat: 1 });
+  });
+});
+
 describe('musical clock', () => {
   test('bar phase respects beatsPerBar', () => {
     // 120 BPM, 3/4 time: a bar is 1.5 s.

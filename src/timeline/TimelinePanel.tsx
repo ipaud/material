@@ -83,14 +83,7 @@ export function TimelinePanel() {
         </button>
         <span className="vp-readout mono">{formatTime(timeSec)}</span>
         <span className="vp-readout mono dim">/ {formatTime(durationSec)}</span>
-        {bpm && (
-          <span className="vp-readout mono musical-pos">
-            {(() => {
-              const pos = musicalPosition(timeSec, bpm, beatOffsetSec, beatsPerBar);
-              return `BAR ${pos.bar} · BEAT ${pos.beat}`;
-            })()}
-          </span>
-        )}
+        {bpm && <MusicalReadout bpm={bpm} beatOffsetSec={beatOffsetSec} beatsPerBar={beatsPerBar} />}
         {audioLoading && <span className="vp-readout">analyzing audio…</span>}
         <span className="timeline-spacer" />
         <button
@@ -160,13 +153,14 @@ export function TimelinePanel() {
           step={1}
           value={beatsPerBar}
           onChange={(e) => {
+            // Empty / partial input is a no-op — committing a coerced value
+            // would fight the user mid-edit (Number('') is 0, not invalid).
+            if (e.target.value === '') return;
             const v = Math.round(Number(e.target.value));
+            if (!Number.isFinite(v) || v < 1) return;
             apply((p) => ({
               ...p,
-              timeline: {
-                ...p.timeline,
-                beatsPerBar: Number.isFinite(v) ? Math.min(Math.max(v, 1), 12) : 4,
-              },
+              timeline: { ...p.timeline, beatsPerBar: Math.min(v, 12) },
             }));
           }}
           title="Beats per bar (time signature numerator)"
@@ -195,6 +189,36 @@ export function TimelinePanel() {
       </div>
     </div>
   );
+}
+
+/**
+ * BAR · BEAT readout driven per-frame from the live clock, not the 100 ms
+ * store tick — otherwise it visibly disagrees with the signal monitor around
+ * every beat boundary.
+ */
+function MusicalReadout({
+  bpm,
+  beatOffsetSec,
+  beatsPerBar,
+}: {
+  bpm: number;
+  beatOffsetSec: number;
+  beatsPerBar: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (!ref.current) return;
+      const pos = musicalPosition(playback.getTime(), bpm, beatOffsetSec, beatsPerBar);
+      const text = `BAR ${pos.bar} · BEAT ${pos.beat}`;
+      if (ref.current.textContent !== text) ref.current.textContent = text;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [bpm, beatOffsetSec, beatsPerBar]);
+  return <span ref={ref} className="vp-readout mono musical-pos" />;
 }
 
 function WaveformCanvas() {

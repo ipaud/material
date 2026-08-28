@@ -60,7 +60,10 @@ function bestPhase(env: Float32Array, periodFrames: number): number {
   for (let offset = 0; offset < steps; offset++) {
     let score = 0;
     for (let t = offset; t < env.length; t += periodFrames) {
-      score += env[Math.round(t)] as number;
+      // Round can land exactly on env.length for t in [len-0.5, len);
+      // an unclamped read returns undefined and NaN-poisons the whole comb.
+      const idx = Math.min(Math.round(t), env.length - 1);
+      score += env[idx] as number;
     }
     if (score > bestScore) {
       bestScore = score;
@@ -75,9 +78,17 @@ export function detectTempo(analysis: AudioAnalysis): TempoEstimate | null {
   if (!env || env.length < 64) return null;
   const hop = analysis.hopSec;
 
-  const minLag = Math.max(Math.floor(60 / TEMPO_MAX_BPM / hop), 2);
-  const maxLag = Math.min(Math.ceil(60 / TEMPO_MIN_BPM / hop), Math.floor(env.length / 2));
+  // Ceil/floor so every lag in range maps to a BPM inside the declared range.
+  const minLag = Math.max(Math.ceil(60 / TEMPO_MAX_BPM / hop), 2);
+  const maxLag = Math.min(Math.floor(60 / TEMPO_MIN_BPM / hop), Math.floor(env.length / 2));
   if (maxLag <= minLag + 2) return null;
+
+  // Degenerate envelope (silence, or a beatless drone whose onsets are flat):
+  // detection has nothing to lock to — return null rather than a fabricated
+  // tempo at zero confidence.
+  let envEnergy = 0;
+  for (let i = 0; i < env.length; i++) envEnergy += env[i] as number;
+  if (envEnergy < 1e-6) return null;
 
   // Autocorrelation over the whole lag range (raw, for stats + interpolation).
   const raw = new Float32Array(maxLag + 1);
@@ -113,6 +124,8 @@ export function detectTempo(analysis: AudioAnalysis): TempoEstimate | null {
   }
 
   // Parabolic interpolation around the raw peak for sub-lag precision.
+  // The correction is clamped to ±0.5 lag: outside that the three points do
+  // not describe a local maximum and the fit would extrapolate nonsense.
   let refinedLag = bestLag;
   if (bestLag > minLag && bestLag < maxLag) {
     const y0 = raw[bestLag - 1] as number;
@@ -120,7 +133,8 @@ export function detectTempo(analysis: AudioAnalysis): TempoEstimate | null {
     const y2 = raw[bestLag + 1] as number;
     const denom = y0 - 2 * y1 + y2;
     if (Math.abs(denom) > 1e-12) {
-      refinedLag = bestLag + (0.5 * (y0 - y2)) / denom;
+      const delta = Math.min(Math.max((0.5 * (y0 - y2)) / denom, -0.5), 0.5);
+      refinedLag = bestLag + delta;
     }
   }
   const bpm = 60 / (refinedLag * hop);

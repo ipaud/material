@@ -39,7 +39,11 @@ export function divisionPhase(
   return beats - Math.floor(beats);
 }
 
-/** Musical position readout: 1-based bar and beat plus intra-beat fraction. */
+/**
+ * Musical position readout: 1-based bar and beat plus intra-beat fraction.
+ * Times before the grid start (t < beatOffsetSec) clamp to BAR 1 · BEAT 1 —
+ * a pre-roll region, not negative bars.
+ */
 export function musicalPosition(
   timeSec: number,
   bpm: number,
@@ -47,10 +51,11 @@ export function musicalPosition(
   beatsPerBar = 4,
 ): { bar: number; beat: number; phase: number } {
   const beats = beatsAt(timeSec, bpm, beatOffsetSec);
+  if (beats < 0) return { bar: 1, beat: 1, phase: 0 };
   const whole = Math.floor(beats);
   return {
     bar: Math.floor(whole / beatsPerBar) + 1,
-    beat: ((whole % beatsPerBar) + beatsPerBar) % beatsPerBar + 1,
+    beat: (whole % beatsPerBar) + 1,
     phase: beats - whole,
   };
 }
