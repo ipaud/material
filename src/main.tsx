@@ -6,6 +6,8 @@ import { useProjectStore } from './state/projectStore';
 import { useUiStore } from './state/uiStore';
 import { runtimeBus } from './runtime/RuntimeBus';
 import { patternClockAt, timingFromTimeline } from './pattern/patternClock';
+import { compilePattern } from './pattern/compilePattern';
+import { evaluatePattern } from './pattern/evaluatePattern';
 import { useOutputStore } from './state/outputStore';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
 import { modulationRuntime } from './modulation/runtime';
@@ -36,6 +38,8 @@ if (import.meta.env.DEV) {
       engine,
       runtimeBus,
       useOutputStore,
+      /** Pattern Engine P2: pure compile/evaluate surface (read-only, dev). */
+      patternEngine: { compilePattern, evaluatePattern },
       /** Pattern Engine P1: inspect the pure clock at any composition time. */
       patternClock: {
         at(timeSec?: number, beatsPerCycle?: number) {
