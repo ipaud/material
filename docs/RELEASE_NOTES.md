@@ -1,5 +1,14 @@
 # Release Notes
 
+## Unreleased
+
+- **Fixed**: offline animation export now switches the technique renderer when
+  a Morph crosses a technique boundary mid-export. Previously the frames after
+  the switch point rendered the old technique with the new technique's
+  parameters (falling back to defaults). Preview and PERFORM were never
+  affected; same-technique morphs were never affected. Export determinism is
+  unchanged (verified byte-identical PNG sequences across the boundary).
+
 ## v0.2.0 — MUSIC / PERFORMANCE
 
 v0.1 proved MATERIAL could construct visual systems. v0.2 makes those systems
@@ -16,7 +25,7 @@ balance is real; the centroid is absolute (100 Hz – 8 kHz log scale) so
 
 **Tempo and beat grid.** Offline tempo detection (autocorrelation over the
 onset envelope, 60–200 BPM, log-normal prior at 120) with confidence and a
-half/double-time alternative, plus tap tempo. Detection is *advisory* — your
+half/double-time alternative, plus tap tempo. Detection is _advisory_ — your
 manual BPM always wins, and silence returns nothing rather than a
 confident-looking number. The grid drives bar/beat readouts, divisions and
 every quantized action.
@@ -75,23 +84,23 @@ the audience sees.
 
 ### Measured performance
 
-| | |
-| --- | --- |
-| Mosaic, 1080p | 120 fps |
-| Temporal (Echo Chamber), 1080p | 119 fps |
-| Mosaic / Echo / Fracture, **4K** (3840×2160) | 117–120 fps |
-| Performance workspace, active macros | 120 fps |
-| Macro input → store | 0.013 ms |
-| Macro input → pixels | 16.4 ms (one frame) |
-| MIDI event → parameter | 0.17 ms mean, 0.5 ms worst |
-| Look apply | 0.1–0.3 ms |
-| Trigger pad fire | < 0.1 ms |
-| Candidate generate (incl. thumbnail) | 14.7 ms |
-| Candidate preview → pixels | 5.8 ms |
-| Morph overlay evaluation | 4.8 µs |
-| Export, 960×540 @ 24 fps, 4 s | 4.8–6.9 s per format |
-| Renderer heap, heavy session | ~85 MB, flat |
-| Project with 20 Looks | 331 KB |
+|                                              |                            |
+| -------------------------------------------- | -------------------------- |
+| Mosaic, 1080p                                | 120 fps                    |
+| Temporal (Echo Chamber), 1080p               | 119 fps                    |
+| Mosaic / Echo / Fracture, **4K** (3840×2160) | 117–120 fps                |
+| Performance workspace, active macros         | 120 fps                    |
+| Macro input → store                          | 0.013 ms                   |
+| Macro input → pixels                         | 16.4 ms (one frame)        |
+| MIDI event → parameter                       | 0.17 ms mean, 0.5 ms worst |
+| Look apply                                   | 0.1–0.3 ms                 |
+| Trigger pad fire                             | < 0.1 ms                   |
+| Candidate generate (incl. thumbnail)         | 14.7 ms                    |
+| Candidate preview → pixels                   | 5.8 ms                     |
+| Morph overlay evaluation                     | 4.8 µs                     |
+| Export, 960×540 @ 24 fps, 4 s                | 4.8–6.9 s per format       |
+| Renderer heap, heavy session                 | ~85 MB, flat               |
+| Project with 20 Looks                        | 331 KB                     |
 
 4K needs no proxy media — measured, not assumed.
 
@@ -109,14 +118,14 @@ quantized switches, macro sweeps, trigger pads, freeze/unfreeze, morphs,
 mutations, candidate previews and applies, pins, undo/redo, workspace and HUD
 toggling, seeks and transport stops:
 
-| | |
-| --- | --- |
-| Errors | 0 |
-| Frame rate | 119–120 fps sustained (avg 116.9 across 40 samples) |
-| Renderer heap | 87.8 MB → 21.6 MB (peak 90 MB) — no growth |
-| Queued actions left pending | 0 |
-| Stale candidate / preview / morph | none |
-| Morph events recorded | 20 |
+|                                   |                                                     |
+| --------------------------------- | --------------------------------------------------- |
+| Errors                            | 0                                                   |
+| Frame rate                        | 119–120 fps sustained (avg 116.9 across 40 samples) |
+| Renderer heap                     | 87.8 MB → 21.6 MB (peak 90 MB) — no growth          |
+| Queued actions left pending       | 0                                                   |
+| Stale candidate / preview / morph | none                                                |
+| Morph events recorded             | 20                                                  |
 
 ### Tested
 
@@ -153,7 +162,7 @@ toggling, seeks and transport stops:
 
 - **Physical MIDI hardware is untested.** All MIDI validation used a virtual
   CoreMIDI device. The architecture, latency and pickup behaviour are verified;
-  the *feel* under a real controller (smoothing defaults, pickup epsilon) has
+  the _feel_ under a real controller (smoothing defaults, pickup epsilon) has
   not been tuned. See the checklist in MIDI.md.
 - One global BPM. Music that drifts or slows will drift off the grid.
 - One Candidate at a time; full populations stay in the Explore workspace.
@@ -231,19 +240,19 @@ accounts, no telemetry, no uploads.
 
 ### Verified baseline numbers (M5 Pro, macOS 26.5)
 
-| Measurement | Result |
-|---|---|
-| Preview, 1080p mosaic 48×27 during playback | 120–140 fps |
-| Preview, 4K H.264 source, 80×45 mosaic | 120 fps, 0.3 ms/frame |
-| Preview, 4K + temporal (Video Tile radial) | 365–578 fps engine loop |
-| Preview, 4K HEVC source | 261 fps |
-| Temporal cache | 56 slots, 7.9 MB, constant w.r.t. source resolution |
-| Export, 720p 7 s / 175 frames with temporal | 6.8 s wall (≈ realtime) |
-| Export, 4K 3 s / 90 frames with temporal | 46.9 s (≈ 0.52 s/frame) |
-| A/V drift during playback | 0.0 ms |
-| Preview↔export modulation agreement | ≤ 4.2 × 10⁻¹³ |
-| Export independence from preview state | byte-identical MD5 |
-| Test suite | 95 tests, all green |
+| Measurement                                 | Result                                              |
+| ------------------------------------------- | --------------------------------------------------- |
+| Preview, 1080p mosaic 48×27 during playback | 120–140 fps                                         |
+| Preview, 4K H.264 source, 80×45 mosaic      | 120 fps, 0.3 ms/frame                               |
+| Preview, 4K + temporal (Video Tile radial)  | 365–578 fps engine loop                             |
+| Preview, 4K HEVC source                     | 261 fps                                             |
+| Temporal cache                              | 56 slots, 7.9 MB, constant w.r.t. source resolution |
+| Export, 720p 7 s / 175 frames with temporal | 6.8 s wall (≈ realtime)                             |
+| Export, 4K 3 s / 90 frames with temporal    | 46.9 s (≈ 0.52 s/frame)                             |
+| A/V drift during playback                   | 0.0 ms                                              |
+| Preview↔export modulation agreement         | ≤ 4.2 × 10⁻¹³                                       |
+| Export independence from preview state      | byte-identical MD5                                  |
+| Test suite                                  | 95 tests, all green                                 |
 
 ### Known limitations
 

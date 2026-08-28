@@ -5,8 +5,8 @@ import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { useExportStore } from '@/state/exportStore';
 import { reportError, useUiStore } from '@/state/uiStore';
-import { getTechnique } from '@/techniques/registry';
-import { allParams } from '@/techniques/types';
+import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
+import { allParams, type TechniqueRenderer } from '@/techniques/types';
 import { evalSources, type SourceContext } from '@/modulation/sources';
 import { applyModulations, SmoothingState, shapeMappingValue } from '@/modulation/evaluator';
 import { applyPulses } from '@/signals/pulseEngine';
@@ -165,7 +165,8 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     toggleFreeze: (mappingId) => {
       for (const m of working.modulations) {
         if (mappingId && mappingId !== '*' && m.id !== mappingId) continue;
-        m.frozenValue = m.frozenValue === null ? shapeMappingValue(m, lastSources, smoothing, 0) : null;
+        m.frozenValue =
+          m.frozenValue === null ? shapeMappingValue(m, lastSources, smoothing, 0) : null;
       }
     },
     pinLook: () => undefined, // pinning mutates the project; no-op in export replay
@@ -215,7 +216,9 @@ export function createFrameEvaluator(startSec: number, fps: number) {
   const scheduler = new TriggerScheduler(virtualTarget);
   scheduler.reset(startSec);
 
-  return (frameIndex: number): { timeSec: number; params: ParamRecord } => {
+  return (
+    frameIndex: number,
+  ): { timeSec: number; params: ParamRecord; techniqueId: string | null } => {
     const timeSec = startSec + frameIndex / fps;
     scheduler.advanceTo(timeSec, working.triggers, triggerCtx);
 
@@ -235,7 +238,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
 
     const techniqueId = overlay?.techniqueId ?? working.techniqueId;
     const definition = techniqueId ? getTechnique(techniqueId) : null;
-    if (!definition) return { timeSec, params: working.params };
+    if (!definition) return { timeSec, params: working.params, techniqueId };
     const sources = evalSources(timeSec, sourceCtx);
     lastSources = sources;
     // Macro values are project state (deterministic snapshot); live macro
@@ -251,7 +254,69 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     return {
       timeSec,
       params: applyPulses(modulated, activeTriggers, timeSec, triggerCtx, definition),
+      techniqueId,
     };
+  };
+}
+
+/**
+ * Export-side technique renderer selection (pre-v0.3 hotfix).
+ *
+ * The evaluator's working copy switches techniqueId when a morph crosses a
+ * technique boundary, but the engine kept whatever renderer the live bridge
+ * installed before the export began — frames after the boundary rendered the
+ * OLD technique with the NEW technique's params. This seam keeps the engine's
+ * renderer in lockstep with the evaluated frame state, entirely inside the
+ * export context: the live editor's authority (stores, bridge) is untouched,
+ * and restore() puts the engine back exactly as the bridge expects.
+ *
+ * The host is the minimal engine surface, so the switching rules are unit
+ * testable without WebGL.
+ */
+export interface ExportRendererHost {
+  setTechniqueRenderer(renderer: TechniqueRenderer | null): void;
+  setTemporalEnabled(enabled: boolean): void;
+  readonly isTemporalActive: boolean;
+}
+
+export function createExportRendererSync(
+  host: ExportRendererHost,
+  initialTechniqueId: string | null,
+) {
+  let activeId = initialTechniqueId;
+  let switched = false;
+
+  return {
+    /**
+     * Align the renderer with the evaluated frame. Returns true when the
+     * temporal buffer became active and must be re-primed from exact seeks
+     * (switching INTO a temporal technique mid-export).
+     */
+    sync(techniqueId: string | null, params: ParamRecord): boolean {
+      if (!techniqueId || techniqueId === activeId) return false;
+      const definition = getTechnique(techniqueId);
+      if (!definition) return false;
+      const wasTemporal = host.isTemporalActive;
+      // setTechniqueRenderer disposes the previous renderer (including the
+      // bridge's pre-export one — restore() rebuilds it afterwards).
+      host.setTechniqueRenderer(definition.createRenderer());
+      host.setTemporalEnabled(techniqueNeedsTemporal(techniqueId, params));
+      activeId = techniqueId;
+      switched = true;
+      return host.isTemporalActive && !wasTemporal;
+    },
+
+    /** Rebuild the live technique's renderer so the editor resumes untouched. */
+    restore(liveTechniqueId: string | null, liveParams: ParamRecord): void {
+      if (!switched) return;
+      const definition = liveTechniqueId ? getTechnique(liveTechniqueId) : null;
+      host.setTechniqueRenderer(definition ? definition.createRenderer() : null);
+      host.setTemporalEnabled(
+        liveTechniqueId ? techniqueNeedsTemporal(liveTechniqueId, liveParams) : false,
+      );
+      switched = false;
+      activeId = liveTechniqueId;
+    },
   };
 }
 
@@ -344,6 +409,8 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
   playback.pause();
   engine.beginExportMode();
   const video = playback.currentVideo;
+  const liveInstance = project.techniques.find((t) => t.enabled) ?? null;
+  const rendererSync = createExportRendererSync(engine, liveInstance?.techniqueId ?? null);
 
   store.begin(totalFrames);
   let sessionId: string | null = null;
@@ -361,6 +428,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     });
     sessionId = started.sessionId;
     const evaluate = createFrameEvaluator(request.startSec, request.fps);
+    let primeTemporal = true;
 
     for (let i = 0; i < totalFrames; i++) {
       if (useExportStore.getState().cancelRequested) {
@@ -369,11 +437,16 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         store.finish('cancelled', 'Export cancelled');
         return;
       }
-      const { timeSec, params } = evaluate(i);
+      const { timeSec, params, techniqueId } = evaluate(i);
+      // Cross-technique morph: the renderer must match the evaluated frame's
+      // technique before drawing it (see createExportRendererSync).
+      if (rendererSync.sync(techniqueId, params)) primeTemporal = true;
       // Temporal history is rebuilt from exact composition timestamps —
-      // the first frame primes the whole buffer, later frames advance it (§3).
+      // the first temporal frame primes the whole buffer, later frames
+      // advance it (§3). A switch INTO a temporal technique re-primes.
       if (engine.isTemporalActive) {
-        await engine.prepareTemporalForExport(timeSec, i === 0);
+        await engine.prepareTemporalForExport(timeSec, primeTemporal);
+        primeTemporal = false;
       }
       if (video) await seekVideoExact(video, timeSec, i === 0);
       const rgba = engine.renderStill(request.width, request.height, params, alpha);
@@ -396,5 +469,11 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     }
     store.finish('error', err instanceof Error ? err.message : String(err));
     reportError('Export', err);
+  } finally {
+    // Rebuild the live technique's renderer if the export switched away from
+    // it; the store/bridge were never touched, so this is the only state to
+    // hand back.
+    rendererSync.restore(liveInstance?.techniqueId ?? null, liveInstance?.params ?? {});
+    engine.invalidate();
   }
 }
