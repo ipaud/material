@@ -3,6 +3,7 @@ import { divisionPhase, type MusicalDivision } from '@/audio/beatGrid';
 import { evaluatePattern } from '@/pattern/evaluatePattern';
 import { patternClockAt } from '@/pattern/patternClock';
 import { recordPatternDiagnostic, type PatternSourceHandle } from '@/pattern/patternSourceRuntime';
+import { PATTERN_INACTIVE } from '@/pattern/patternTypes';
 
 export interface ModSourceDef {
   id: string;
@@ -83,9 +84,14 @@ export function evalSources(timeSec: number, ctx: SourceContext): Record<string,
   if (ctx.patterns && ctx.patterns.length > 0) {
     const projectSeed = ctx.projectSeed ?? 1;
     for (const handle of ctx.patterns) {
-      if (!handle.compiled) continue;
-      const clock = patternClockAt(timeSec, ctx, handle.beatsPerCycle);
-      if (!clock) continue;
+      // Every handle reports its state every pass, including the ones that
+      // cannot produce a value — otherwise a source that turns invalid (or
+      // loses its grid) would keep showing its last healthy diagnostic.
+      const clock = handle.compiled ? patternClockAt(timeSec, ctx, handle.beatsPerCycle) : null;
+      if (!handle.compiled || !clock) {
+        recordPatternDiagnostic(handle, 0, PATTERN_INACTIVE);
+        continue;
+      }
       const result = evaluatePattern(handle.compiled, clock, {
         projectSeed,
         patternId: handle.id,

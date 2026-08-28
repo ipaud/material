@@ -7,8 +7,9 @@ exactly this composition time?_ Same inputs → same output, for preview,
 playback, seek, the Output replica, offline export and project reload.
 
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
-probability / Degrade) + P4 (modulation integration) shipped.** P5+ (parity
-hardening, persistence, mini-notation, UI) land in later phases.
+probability / Degrade) + P4 (modulation integration) + P5 (parity
+hardening) shipped.** P6+ (persistence policy, mini-notation, UI) land in
+later phases.
 
 ## Architectural position
 
@@ -237,6 +238,57 @@ final params → FrameState → Editor pixels → passive Output replica
 Measured (full `evalSources`+`applyModulations`, mosaic): 0 patterns
 0.0007 ms/frame · 10 → 0.005 · 100 → 0.021 · 250 → **0.052 ms/frame**.
 Final-params payload bytes identical with/without pattern modulation.
+
+## Parity guarantees (P5)
+
+`PREVIEW === OUTPUT === EXPORT` is enforced by construction and locked by
+tests that drive the production seams (`modulationRuntime.transform` and
+`createFrameEvaluator`), not a parallel harness:
+
+- **One interpretation of time.** Both paths call the same
+  `evalSources(timeSec, ctx)`; patterns read the same resolved grid as beat
+  sources. Export frame *i* is `startSec + i/fps` in GLOBAL composition
+  time — a 22s→28s range evaluates its frame 0 at 22s, and an unaligned
+  start (17.381s) resolves like any other instant.
+- **Frame-rate independence.** 24/25/30/60 fps agree at matching timestamps;
+  nothing in the pattern path reads a frame number.
+- **Seek/loop.** Direct seek, backward seek and 100-cycle jumps equal
+  playback-through, because evaluation has no history. Loop wrap resolves
+  from absolute time — nothing survives the discontinuity.
+- **Output.** The replica evaluates nothing: `runtimeBus.emitFrame` publishes
+  exactly the params `transform()` returned, so live parity IS Output
+  parity. Verified live: `JSON.stringify(finalParams)` byte-identical on both
+  sides, including float tails.
+- **Freeze** is serialized project state (`mapping.frozenValue`), so export
+  replays it; releasing resumes at absolute time, never where it froze.
+- **Morph** interpolates mappings (amount included) — pattern contribution
+  rides the interpolated mapping and the evaluated technique's parameter
+  filter, so a mosaic-only pattern target is dropped on slit-scan frames and
+  returns when mosaic is evaluated again.
+- **Candidate** overlays params/mappings/technique; pattern SOURCES live in
+  project state (outside LookCore), so they keep being evaluated by the one
+  authority while the overlay decides which mappings are valid.
+- **Diagnostics never affect determinism** and never reach FrameState.
+
+Live measurements (3 patterns, 78.03 BPM, Output open): editor 120 fps,
+authority→replica transit 0–1 ms (same class as any other param — patterns
+add no latency), FrameState 201 bytes. Hostile case (100 patterns, mixed
+Euclidean/Sequence, fast+degrade, slit-scan temporal, Output open): editor
+119 fps, one authority evaluation pass 0.0168 ms, FrameState 253 bytes,
+100 compiles total (one per definition), zero page errors.
+
+### Cache architecture (audited in P5)
+
+`resolvePatternHandles` runs at CONFIGURE time only — `evalSources` never
+compiles and never serializes. Content fingerprints are memoized in a
+`WeakMap` keyed by the `PatternSource` OBJECT: the store is immutable, so an
+unchanged source keeps its identity and is serialized exactly once, while an
+edit produces a new object → one fingerprint → one compile. Verified live:
+40 unrelated project edits → 0 extra compiles; 5000 evaluation passes → 0
+fingerprints, 0 compiles. Live and export share the cache safely because
+`CompiledPattern` is immutable and evaluation is pure; an export evaluator
+keeps the handle array it resolved at construction, so later live edits
+cannot mutate a running export.
 
 ## DevTools
 

@@ -47,6 +47,27 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 let compileCount = 0;
 
+/**
+ * Content fingerprints are memoized by OBJECT IDENTITY (P5 §52 audit): the
+ * project store is immutable, so an unchanged PatternSource keeps its object
+ * between updates and its fingerprint is computed exactly once. JSON
+ * serialization therefore happens only when a source object is actually new
+ * (project load, definition edit) — never per configure call, and never
+ * anywhere near the frame loop (evalSources does no resolving at all).
+ */
+const fingerprints = new WeakMap<PatternSource, string>();
+let fingerprintCount = 0;
+
+function contentKeyOf(source: PatternSource): string {
+  let key = fingerprints.get(source);
+  if (key === undefined) {
+    fingerprintCount++;
+    key = JSON.stringify({ pattern: source.pattern, transforms: source.transforms });
+    fingerprints.set(source, key);
+  }
+  return key;
+}
+
 /** Modulation source id for a pattern (the taxonomy: `pattern:<id>`). */
 export function patternSourceKey(id: string): string {
   return `pattern:${id}`;
@@ -64,7 +85,7 @@ export function resolvePatternHandles(sources: PatternSource[]): PatternSourceHa
   for (const source of sources) {
     if (!source.enabled) continue;
     seen.add(source.id);
-    const contentKey = JSON.stringify({ pattern: source.pattern, transforms: source.transforms });
+    const contentKey = contentKeyOf(source);
     const cached = cache.get(source.id);
     let handle: PatternSourceHandle;
     if (cached && cached.contentKey === contentKey) {
@@ -106,6 +127,10 @@ export function getPatternCompileCount(): number {
 }
 export function getPatternCacheSize(): number {
   return cache.size;
+}
+/** How many times a content fingerprint was actually serialized (P5 §52). */
+export function getPatternFingerprintCount(): number {
+  return fingerprintCount;
 }
 export function resetPatternRuntime(): void {
   cache.clear();
