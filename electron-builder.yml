@@ -10,5 +10,11 @@ mac:
   target:
     - target: dir
       arch: [arm64]
-  identity: '-' # ad-hoc signature: arm64 refuses to load an unsigned/stale bundle
+  # Ad-hoc signing: leaving this null keeps Electron's own linker signature
+  # on the renamed bundle (Identifier=Electron, Sealed Resources=none), which
+  # fails `codesign --verify --strict`. Hardened runtime stays off because
+  # ad-hoc + hardened trips macOS library validation; it is only needed for
+  # notarized distribution.
+  identity: '-'
+  hardenedRuntime: false
 npmRebuild: false

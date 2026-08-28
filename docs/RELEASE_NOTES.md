@@ -32,21 +32,35 @@ and has no dependency on it.
   composition to its source snapshot when you seek or loop backwards past
   it (the "zombie morph"). A morph now simply waits for its start time,
   matching what offline export already did.
-- **Fixed**: the packaged app never started. The main process was bundled as
-  ESM while Electron's own module is CommonJS, so a packaged build died with
-  `The requested module 'electron' does not provide an export named
-  'BrowserWindow'` before creating a window. Main is now bundled as CommonJS
-  like the preloads, the app bundle is ad-hoc signed (an unsigned bundle
-  keeps Electron's stale linker signature and macOS refuses to load its
-  resources), and a renderer that fails to load now reports the error and
-  shows the window instead of leaving an invisible running app.
+- **Changed**: local packaged builds are ad-hoc signed. Leaving them
+  unsigned kept Electron's own linker signature on the renamed bundle
+  (`Identifier=Electron`, no sealed resources), which failed
+  `codesign --verify --strict`. Hardened runtime stays off for these builds:
+  ad-hoc plus hardened runtime trips macOS library validation, and hardened
+  runtime is only needed for notarized distribution.
+- **Added**: the main process now reports a renderer that fails to load and
+  shows the window anyway. Previously the window waited for `ready-to-show`
+  forever, so a load failure would have left a running app with no visible
+  window and no diagnostic.
 
-- **Fixed**: offline animation export now switches the technique renderer when
-  a Morph crosses a technique boundary mid-export. Previously the frames after
-  the switch point rendered the old technique with the new technique's
-  parameters (falling back to defaults). Preview and PERFORM were never
-  affected; same-technique morphs were never affected. Export determinism is
-  unchanged (verified byte-identical PNG sequences across the boundary).
+### Compatibility
+
+Projects containing Pattern sources should be edited with a Pattern-aware
+build. `patternSources` is an additive v2 field, so an older v0.2 build will
+open such a project — but it strips the field on save, silently discarding
+every pattern.
+
+### Not in Pattern v1
+
+Pattern triggers, Choice, Alternate, Mask, Stack, the full Tidal grammar,
+OSC, MIDI clock, a live-coding editor, and Tidal/Strudel integration are all
+deliberately out of scope.
+
+### Distribution status
+
+Local checkpoint builds are ad-hoc signed and **not** notarized: Gatekeeper
+will refuse them on another machine. Developer ID signing and notarization
+are prerequisites for public distribution and are not set up yet.
 
 ## v0.2.0 — MUSIC / PERFORMANCE
 
