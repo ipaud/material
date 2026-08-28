@@ -42,7 +42,7 @@ Other scripts: `npm test`, `npm run typecheck`, `npm run lint`, `npm run format`
 4. Add a mapping: **+ ADD MAPPING**, choose `Bass → Scale`, press **Space**.
 5. Hit **DETECT** or **TAP** in the timeline to get on the beat grid.
 6. Press **P** a few times to pin Looks, then **1**–**9** to play them.
-7. Switch to the **PERFORMANCE** tab, set **QUANT** to `BAR`, and change Looks
+7. Switch to the **PERFORM** workspace (⌘⌥3), set **SYNC** to `BAR`, and change Looks
    on the downbeat.
 8. Press **G** to mutate what is playing, hold **B** to audition it.
 9. **Export** — still, PNG sequence, H.264, or ProRes.
@@ -51,42 +51,42 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
 ## What MATERIAL does
 
-| Area | Status |
-|---|---|
-| Sources | PNG/JPEG/WebP, MP4/MOV (H.264, HEVC), WAV/MP3/AAC/M4A, SVG |
-| Techniques | Mosaic, Temporal Mosaic, Echo, Step Print, Slit Scan |
-| Materials | Square, Circle, Line, Dot, Rectangle, Triangle, custom SVG, raster image |
-| Audio | Offline analysis — master, RMS, peak, bass, mids, highs, centroid, flux, onset; tempo detection and tap tempo |
-| Beat grid | Bars, beats, divisions and markers from BPM + offset + time signature |
-| Modulation | Any signal → any modulatable parameter, with amount, range, curve, smoothing, freeze |
-| Triggers | Beat / bar / division / onset / marker → pulses, freeze, Look and morph actions, all quantizable |
-| Looks | Nine slots with thumbnails, keyboard recall, and morphs over seconds, beats or bars |
-| MIDI | Web MIDI, MIDI Learn for parameters, macros and actions, pickup / soft takeover |
-| Performance | Dedicated workspace: Look grid, macros, trigger pads, quantized actions, minimal HUD |
-| Mutate | CURRENT / CANDIDATE — generate, audition, apply or pin without disturbing the output |
-| Explore | Seeded variations, parameter locks, MUTATE around a pick |
-| Export | PNG still, PNG sequence (alpha), H.264 MP4, ProRes 422 HQ, ProRes 4444 (alpha) |
-| Projects | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v2 migration |
+| Area       | Status                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| Sources    | PNG/JPEG/WebP, MP4/MOV (H.264, HEVC), WAV/MP3/AAC/M4A, SVG                                                    |
+| Techniques | Mosaic, Temporal Mosaic, Echo, Step Print, Slit Scan                                                          |
+| Materials  | Square, Circle, Line, Dot, Rectangle, Triangle, custom SVG, raster image                                      |
+| Audio      | Offline analysis — master, RMS, peak, bass, mids, highs, centroid, flux, onset; tempo detection and tap tempo |
+| Beat grid  | Bars, beats, divisions and markers from BPM + offset + time signature                                         |
+| Modulation | Any signal → any modulatable parameter, with amount, range, curve, smoothing, freeze                          |
+| Triggers   | Beat / bar / division / onset / marker → pulses, freeze, Look and morph actions, all quantizable              |
+| Looks      | Nine slots with thumbnails, keyboard recall, and morphs over seconds, beats or bars                           |
+| MIDI       | Web MIDI, MIDI Learn for parameters, macros and actions, pickup / soft takeover                               |
+| Perform    | Dedicated workspace: Look strip, macros, trigger pads, quantized actions, minimal HUD                         |
+| Mutate     | CURRENT / CANDIDATE — generate, audition, apply or pin without disturbing the output                          |
+| Explore    | Seeded variations, parameter locks, MUTATE around a pick                                                      |
+| Export     | PNG still, PNG sequence (alpha), H.264 MP4, ProRes 422 HQ, ProRes 4444 (alpha)                                |
+| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v2 migration                      |
 
 ## Keyboard
 
-| | |
-|---|---|
-| `Space` | play / pause |
-| `` ` `` (hold) | show the original |
-| `⌘N` `⌘O` `⌘S` `⇧⌘S` | new / open / save / save as |
-| `⌘I` | import media |
-| `⌘E` | export |
-| `⌘Z` `⇧⌘Z` | undo / redo |
-| `⌘D` | debug overlay |
-| double-click viewport | fit |
-| `shift` + slider drag | fine control |
-| double-click a slider | reset to default |
-| `1`–`9`, `⇧1`–`⇧9` | apply / overwrite Look slots |
-| `P`, `F` | pin Look, freeze all |
-| `Q`, `M`, `Tab`, `Esc` | quantization, morph, HUD, cancel (Performance) |
-| `Z X C V` | trigger pads (Performance) |
-| `G`, `⇧G`, `B` (hold), `Enter` | mutate, mutate again, audition, apply |
+|                                |                                                |
+| ------------------------------ | ---------------------------------------------- |
+| `Space`                        | play / pause                                   |
+| `` ` `` (hold)                 | show the original                              |
+| `⌘N` `⌘O` `⌘S` `⇧⌘S`           | new / open / save / save as                    |
+| `⌘I`                           | import media                                   |
+| `⌘E`                           | export                                         |
+| `⌘Z` `⇧⌘Z`                     | undo / redo                                    |
+| `⌘D`                           | debug overlay                                  |
+| double-click viewport          | fit                                            |
+| `shift` + slider drag          | fine control                                   |
+| double-click a slider          | reset to default                               |
+| `1`–`9`, `⇧1`–`⇧9`             | apply / overwrite Look slots                   |
+| `P`, `F`                       | pin Look, freeze all                           |
+| `Q`, `M`, `Tab`, `Esc`         | quantization, morph, HUD, cancel (Performance) |
+| `Z X C V`                      | trigger pads (Performance)                     |
+| `G`, `⇧G`, `B` (hold), `Enter` | mutate, mutate again, audition, apply          |
 
 Full reference: [docs/SHORTCUTS.md](docs/SHORTCUTS.md), or press **?** in the
 title bar.

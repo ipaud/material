@@ -287,6 +287,23 @@ and pad flash are CSS animations restarted imperatively; MIDI and macro
 engine paths untouched. Toasts shift left of the rail in PERFORM so they
 never cover the BAR readout.
 
+## Shared viewport strategy
+
+There is exactly one RenderEngine and one canvas. Each workspace mounts the
+same `Viewport` component into its own stage; switching workspaces remounts
+the canvas surface but the engine, textures and playback survive. Candidate
+audition and morph render through the pure overlay path on this single
+engine. v0.3 output windows must extend this model, never duplicate it.
+
+## Global surfaces
+
+Dialogs (Export, Recovery), the shortcuts overlay and toasts share the modal
+language: graphite surface, hairline border, 4px radius, one subtle elevation
+shadow (the only sanctioned shadows besides popover menus). Empty states
+share one component (`WorkspaceEmpty`): short technical title, one hint line,
+GO TO BUILD. Toasts anchor top-right and shift left of the status rail in
+PERFORM so they never cover BAR/BEAT.
+
 ## Phase status
 
 | Phase | Scope                                                                      | State         |

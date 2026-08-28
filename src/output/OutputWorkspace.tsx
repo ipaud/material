@@ -4,6 +4,7 @@ import { useExportStore } from '@/state/exportStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { useUiStore } from '@/state/uiStore';
 import { Viewport } from '@/viewport/Viewport';
+import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import './output.css';
 
 /**
@@ -115,16 +116,7 @@ export function OutputPreviewPane({ hasSource }: { hasSource: boolean }) {
   if (!hasSource) {
     return (
       <main className="output-stage empty" aria-label="Output preview">
-        <div className="output-none">
-          <span className="output-none-title">NOTHING TO OUTPUT</span>
-          <span className="output-none-hint">Import media and build a system first</span>
-          <button
-            className="output-goto"
-            onClick={() => useUiStore.getState().setWorkspace('build')}
-          >
-            GO TO BUILD
-          </button>
-        </div>
+        <WorkspaceEmpty title="NOTHING TO OUTPUT" hint="Import media and build a system first" />
       </main>
     );
   }

@@ -31,19 +31,35 @@ export function RecoveryPrompt() {
 
   return (
     <div className="export-overlay">
-      <div className="export-dialog recovery-dialog">
+      <div
+        className="export-dialog recovery-dialog"
+        role="alertdialog"
+        aria-label="Recovery available"
+      >
         <div className="export-header">
-          <span className="label">Recover Project</span>
+          <span className="label">Recovery Available</span>
         </div>
-        <p className="recovery-text">
-          MATERIAL closed unexpectedly. An autosave of{' '}
-          <strong>{entry.project.name || 'Untitled'}</strong> from{' '}
-          {relativeTime(entry.savedAt)} is available.
-        </p>
+        <p className="recovery-text">MATERIAL closed unexpectedly. An autosave is available.</p>
+        <div className="recovery-facts">
+          <div className="recovery-fact">
+            <span className="recovery-fact-label">PROJECT</span>
+            <span className="recovery-fact-value mono">{entry.project.name || 'Untitled'}</span>
+          </div>
+          <div className="recovery-fact">
+            <span className="recovery-fact-label">SAVED</span>
+            <span className="recovery-fact-value mono">{relativeTime(entry.savedAt)}</span>
+          </div>
+          <div className="recovery-fact">
+            <span className="recovery-fact-label">ON DISK</span>
+            <span className="recovery-fact-value mono">
+              {entry.projectPath ? (entry.projectPath.split('/').pop() ?? '—') : 'NEVER SAVED'}
+            </span>
+          </div>
+        </div>
         <p className="recovery-note">
           {entry.projectPath
-            ? `Recovering loads it into the editor only — ${entry.projectPath.split('/').pop()} on disk is untouched until you save.`
-            : 'This project was never saved to disk. Recovering loads it into the editor; use Save As to keep it.'}
+            ? 'Recovering loads it into the editor only — the file on disk is untouched until you save.'
+            : 'Recovering loads it into the editor; use Save As to keep it.'}
         </p>
         <div className="export-actions recovery-actions">
           <button className="titlebar-action" onClick={() => void dismiss(true)}>

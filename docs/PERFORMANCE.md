@@ -1,6 +1,6 @@
 # Performance Workspace
 
-Phase 15. CREATE builds systems; PERFORMANCE plays them. The workspace is a
+Phase 15. BUILD builds systems; PERFORM plays them. The workspace is a
 strip under a dominant output: LOOKS (9 slots) → MACROS (up to 8) → ACTIONS
 (freeze / pin / morph / pads / quantize) → STATUS (bar·beat, BPM+tap, queue
 line, signal dots, MIDI). Tab toggles a minimal HUD (output + looks +
@@ -9,7 +9,7 @@ macros + compact status; a FROZEN chip stays visible).
 ## Macros
 
 One 0–1 control fanned out to several parameters — depth for designing,
-simplicity for playing. Definition lives in CREATE (Inspector → Macros):
+simplicity for playing. Definition lives in BUILD (Inspector → Macros):
 per-target `amount / min / max / invert / curve / enabled`. Evaluation is
 pure and stateless (`applyMacros`), sharing the modulation arithmetic
 (`amount × shaped × span`, additive, clamped to the parameter range):
@@ -32,7 +32,7 @@ Key properties:
   export as a history (§41) — the reserved PerformanceEvent shape covers it
   later.
 - MIDI CC → macro uses the Phase 14 engine unchanged (`targetType:
-  'macro'`): pickup/soft-takeover against the macro's current value,
+'macro'`): pickup/soft-takeover against the macro's current value,
   smoothing/curves/device handling shared. External macro changes re-arm
   pickup exactly like look switches do for parameters.
 - Slider gestures and MIDI gestures both coalesce into one undo entry via
@@ -60,23 +60,23 @@ scaling (future).
 
 ## Keyboard
 
-| Key | Action |
-| --- | --- |
-| Space | play/pause |
-| 1–9 | apply look (quantized in PERFORMANCE) |
-| Shift+1–9 | overwrite slot with current state |
-| P | pin current look |
-| F | freeze all / release all |
-| Q | cycle quantization |
-| M | morph to selected target (right-click a tile to select) |
-| Z X C V | trigger pads |
-| Tab | minimal HUD |
-| Esc | cancel queued actions / cancel-and-keep morph |
-| G | mutate: generate a candidate from CURRENT |
-| Shift+G | mutate again, using the candidate as parent |
-| B (hold) | audition the candidate; release returns to CURRENT |
-| Enter | apply the candidate (quantized) |
-| Backspace | discard the candidate |
+| Key       | Action                                                  |
+| --------- | ------------------------------------------------------- |
+| Space     | play/pause                                              |
+| 1–9       | apply look (quantized in PERFORM)                   |
+| Shift+1–9 | overwrite slot with current state                       |
+| P         | pin current look                                        |
+| F         | freeze all / release all                                |
+| Q         | cycle quantization                                      |
+| M         | morph to selected target (right-click a tile to select) |
+| Z X C V   | trigger pads                                            |
+| Tab       | minimal HUD                                             |
+| Esc       | cancel queued actions / cancel-and-keep morph           |
+| G         | mutate: generate a candidate from CURRENT               |
+| Shift+G   | mutate again, using the candidate as parent             |
+| B (hold)  | audition the candidate; release returns to CURRENT      |
+| Enter     | apply the candidate (quantized)                         |
+| Backspace | discard the candidate                                   |
 
 ## State safety
 
@@ -91,14 +91,14 @@ look apply, morph completion as before; pad pulses create no history.
 Everything the surface does is already funnelled through singular,
 timestampable chokepoints, so future recording is a tap, not a redesign:
 
-| Live gesture | Chokepoint today | Event shape later |
-| --- | --- | --- |
-| Macro movement | `setMacroValue(id, v)` | `{time, source:'macro:id', target, value}` |
-| Look switch | scheduler `execute('applyLook')` | `{time, 'look', slot}` |
-| Trigger pads / MIDI notes | `TriggerScheduler.fireLive` | `{time, 'trigger', mappingId, velocity}` |
-| Freeze | `freezeAll`/`freezeMapping` | `{time, 'freeze', mappingId}` |
-| Morph | already recorded as `MorphEvent` | unchanged |
-| MIDI CC | `midiEngine.writeParam`/`handleMacroCc` | `{time, 'cc', mappingId, value}` |
+| Live gesture              | Chokepoint today                        | Event shape later                          |
+| ------------------------- | --------------------------------------- | ------------------------------------------ |
+| Macro movement            | `setMacroValue(id, v)`                  | `{time, source:'macro:id', target, value}` |
+| Look switch               | scheduler `execute('applyLook')`        | `{time, 'look', slot}`                     |
+| Trigger pads / MIDI notes | `TriggerScheduler.fireLive`             | `{time, 'trigger', mappingId, velocity}`   |
+| Freeze                    | `freezeAll`/`freezeMapping`             | `{time, 'freeze', mappingId}`              |
+| Morph                     | already recorded as `MorphEvent`        | unchanged                                  |
+| MIDI CC                   | `midiEngine.writeParam`/`handleMacroCc` | `{time, 'cc', mappingId, value}`           |
 
 Required future change: a recorder subscribing at those chokepoints plus a
 replay path feeding the export evaluator (the deterministic scheduler

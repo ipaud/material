@@ -25,6 +25,9 @@
   min-height: 0;
   background: var(--surface-0);
 }
+.perf-stage.empty-stage {
+  display: flex;
+}
 
 /* ---- Stage overlays ---- */
 .stage-look-chip {

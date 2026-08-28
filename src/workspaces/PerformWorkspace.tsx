@@ -1,5 +1,7 @@
 import { useUiStore } from '@/state/uiStore';
+import { useProjectStore } from '@/state/projectStore';
 import { Viewport } from '@/viewport/Viewport';
+import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import { StageOverlay } from '@/performance/ui/StageOverlay';
 import { StatusRail } from '@/performance/ui/StatusRail';
 import { HudLine } from '@/performance/ui/HudLine';
@@ -13,6 +15,20 @@ import { ActionsStrip, LooksStrip, MacrosStrip } from '@/performance/ui/Performa
  */
 export function PerformWorkspace() {
   const hud = useUiStore((s) => s.perfHud);
+  const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
+
+  if (!hasSource) {
+    return (
+      <div className="workspace workspace-perform">
+        <main className="perf-stage empty-stage">
+          <WorkspaceEmpty
+            title="BUILD A SYSTEM FIRST"
+            hint="PERFORM plays pinned Looks and Macros — there is nothing to play yet"
+          />
+        </main>
+      </div>
+    );
+  }
 
   if (hud) {
     return (

@@ -8,23 +8,21 @@ import { useUiStore } from '@/state/uiStore';
 
 const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
-    title: 'Workspaces',
+    title: 'Global',
     rows: [
-      ['⌘⌥1', 'BUILD'],
-      ['⌘⌥2', 'EXPLORE'],
-      ['⌘⌥3', 'PERFORM'],
-      ['⌘⌥4', 'OUTPUT'],
-    ],
-  },
-  {
-    title: 'Transport',
-    rows: [
+      ['⌘⌥1 – ⌘⌥4', 'BUILD · EXPLORE · PERFORM · OUTPUT'],
       ['Space', 'Play / pause'],
       ['`  (hold)', 'A/B — show the untouched source'],
+      ['⌘S / ⌘⇧S', 'Save / Save as'],
+      ['⌘O / ⌘I', 'Open project / Import media'],
+      ['⌘E', 'Export'],
+      ['⌘Z / ⌘⇧Z', 'Undo / Redo'],
+      ['⌘D', 'Debug overlay'],
+      ['?', 'This overlay'],
     ],
   },
   {
-    title: 'Looks',
+    title: 'Looks (everywhere)',
     rows: [
       ['1 – 9', 'Apply the Look in that slot'],
       ['⇧1 – ⇧9', 'Overwrite that slot with the current state'],
@@ -33,33 +31,23 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
-    title: 'Perform',
+    title: 'Candidate (Explore + Perform)',
+    rows: [
+      ['G', 'Mutate from CURRENT'],
+      ['⇧G', 'Mutate again from the candidate'],
+      ['B  (hold)', 'Audition — release returns to CURRENT'],
+      ['Enter', 'Apply the candidate'],
+      ['⌫', 'Discard the candidate'],
+    ],
+  },
+  {
+    title: 'Perform only',
     rows: [
       ['Q', 'Cycle quantization'],
       ['M', 'Morph to the selected target'],
       ['Z X C V', 'Trigger pads 1–4'],
       ['Tab', 'Minimal HUD'],
       ['Esc', 'Cancel queued actions / keep a morph'],
-    ],
-  },
-  {
-    title: 'Candidate (Explore / Perform)',
-    rows: [
-      ['G', 'Mutate from CURRENT'],
-      ['⇧G', 'Mutate again from the candidate'],
-      ['B  (hold)', 'Audition — release returns to CURRENT'],
-      ['Enter', 'Apply the candidate'],
-      ['Backspace', 'Discard the candidate'],
-    ],
-  },
-  {
-    title: 'File',
-    rows: [
-      ['⌘S / ⌘⇧S', 'Save / Save as'],
-      ['⌘I', 'Import media'],
-      ['⌘E', 'Export'],
-      ['⌘Z / ⌘⇧Z', 'Undo / Redo'],
-      ['⌘D', 'Debug overlay'],
     ],
   },
 ];

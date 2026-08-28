@@ -47,7 +47,7 @@ With a grid you unlock everything musical: quantized changes, bar-length
 morphs, beat pulses.
 
 Add a beat pulse in **Triggers → + ADD TRIGGER**: source `Beat`, action
-`Pulse Parameter`, target `Scale`. Pulses ride *on top* of modulation, so the
+`Pulse Parameter`, target `Scale`. Pulses ride _on top_ of modulation, so the
 image can breathe with the bass and still snap on the beat.
 
 ## 5. Pin some Looks
@@ -90,7 +90,7 @@ Look switching safe with fixed controllers.
 
 ## 9. Perform
 
-Switch to the **PERFORMANCE** tab. The output takes over; below it sit the
+Switch to the **PERFORM** workspace (⌘⌥3). The output takes over; below it sit the
 nine Look slots, your macros, the actions and the musical readout.
 
 Set **QUANT** to `BAR`. Now pressing `1`–`9` queues the Look and it lands on
@@ -103,10 +103,10 @@ interface back to output, Looks and macros.
 ### Macros
 
 A macro is one 0–1 control wired to several parameters at once. Build them in
-CREATE (**Inspector → Macros → + ADD**, then **+ TARGET** per parameter);
+BUILD (**Inspector → Macros → + ADD**, then **+ TARGET** per parameter);
 play them in PERFORMANCE.
 
-This is where MATERIAL's depth folds into something playable. In CREATE you
+This is where MATERIAL's depth folds into something playable. In BUILD you
 might have five separate relationships; in PERFORMANCE you have `MEMORY 0.73`,
 and behind it four parameters move by different amounts.
 

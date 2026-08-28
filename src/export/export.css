@@ -17,6 +17,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+  /* Modal surface — subtle separation only. */
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
 }
 
 .export-header {
@@ -101,4 +103,30 @@
 }
 .recovery-actions {
   gap: var(--sp-2);
+}
+.recovery-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  border-top: 1px solid var(--border-0);
+  border-bottom: 1px solid var(--border-0);
+  padding: var(--sp-3) 0;
+}
+.recovery-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.recovery-fact-label {
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: var(--text-2);
+}
+.recovery-fact-value {
+  font-size: 10px;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

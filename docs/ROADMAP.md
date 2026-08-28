@@ -52,7 +52,7 @@ Distortion, Typography, Collage. The temporal ones now cost a definition plus a
 renderer.
 
 **Technique chains.** The data model holds an array of technique instances but
-only the first enabled one renders. Real composition (Mosaic *then* Echo) needs
+only the first enabled one renders. Real composition (Mosaic _then_ Echo) needs
 render-target ping-pong.
 
 ## Considered, deliberately not done

@@ -1,5 +1,5 @@
 import { useProjectStore } from '@/state/projectStore';
-import { useUiStore } from '@/state/uiStore';
+import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import { Viewport } from '@/viewport/Viewport';
 import { StageHeader } from '@/explore/StageHeader';
 import { CandidatePane } from '@/explore/CandidatePane';
@@ -54,17 +54,9 @@ export function ExploreWorkspace({ isDragOver }: Props) {
 /** No source or no technique: nothing real to explore — say so, offer BUILD. */
 export function ExploreEmpty() {
   return (
-    <div className="explore-none">
-      <span className="explore-none-title">BUILD A SYSTEM FIRST</span>
-      <span className="explore-none-hint">
-        EXPLORE mutates the current source + technique — there is nothing to vary yet
-      </span>
-      <button
-        className="explore-btn strong"
-        onClick={() => useUiStore.getState().setWorkspace('build')}
-      >
-        GO TO BUILD
-      </button>
-    </div>
+    <WorkspaceEmpty
+      title="BUILD A SYSTEM FIRST"
+      hint="EXPLORE mutates the current source + technique — there is nothing to vary yet"
+    />
   );
 }
