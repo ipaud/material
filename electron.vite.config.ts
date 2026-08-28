@@ -9,6 +9,13 @@ export default defineConfig({
       lib: {
         entry: resolve(__dirname, 'electron/main/index.ts'),
       },
+      rollupOptions: {
+        // The package is "type": "module", so an .js main would be loaded as
+        // ESM — and Electron's own module is CommonJS, so `import { app }`
+        // throws "does not provide an export named 'app'" in a PACKAGED app
+        // (electron-vite's dev loader hides this). Main is CJS like preload.
+        output: { format: 'cjs', entryFileNames: '[name].cjs' },
+      },
     },
     resolve: {
       alias: {

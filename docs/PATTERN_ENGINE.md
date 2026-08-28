@@ -9,7 +9,7 @@ playback, seek, the Output replica, offline export and project reload.
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
 probability / Degrade) + P4 (modulation integration) + P5 (parity
 hardening) + P6 (persistence contract) + P7 (mini-notation) shipped.**
-P8 (BUILD UI) shipped. P9 (final QA) closes Pattern Engine v1.
+**Pattern Engine v1 is complete** (P1–P9).
 
 ## Architectural position
 
@@ -459,6 +459,20 @@ PATTERNS                                   + ADD
   against 120 fps of rendering, and **0 store writes**.
 - **The System Path collapses patterns to one `PATTERN` segment**; listing
   PAT 01 / PAT 02 / PAT 03 would drown the path in instances of one idea.
+
+## v1 scope
+
+**In v1**: Constant · Sequence · Euclidean · Fast · Slow · Reverse · Rotate ·
+Every · deterministic Probability · mini-notation for numeric sequences ·
+project persistence · BUILD editor · modulation mapping · preview/Output/
+export parity.
+
+**Not v1** (deliberately): pattern triggers, Choice, Alternate, Mask, Stack,
+full Tidal grammar, OSC, MIDI clock, a live-coding editor, external
+Tidal/Strudel integration, generated patterns.
+
+MATERIAL's Pattern Engine is *inspired by* pattern-based live-coding systems.
+It is not TidalCycles, does not depend on it, and is not compatible with it.
 
 ## DevTools
 

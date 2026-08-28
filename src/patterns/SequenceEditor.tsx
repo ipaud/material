@@ -44,8 +44,14 @@ export function SequenceEditor({
     const text = pending.current;
     pending.current = null;
     if (text === null) return;
+    // `changed` is false when the text re-states the committed values (only
+    // the whitespace differs, or an edit was typed and undone). Committing
+    // that would mark the project dirty and add a history entry for no
+    // creative change.
     const parsed = updatePatternDraft(createPatternDraft(definition), text);
-    if (parsed.error === null) updatePatternSource(sourceId, { pattern: parsed.lastValid });
+    if (parsed.error === null && parsed.changed) {
+      updatePatternSource(sourceId, { pattern: parsed.lastValid });
+    }
   };
 
   // A valid pending edit must survive unmount (workspace switch, selecting

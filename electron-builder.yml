@@ -10,5 +10,5 @@ mac:
   target:
     - target: dir
       arch: [arm64]
-  identity: null # unsigned local builds for now
+  identity: '-' # ad-hoc signature: arm64 refuses to load an unsigned/stale bundle
 npmRebuild: false

@@ -101,12 +101,24 @@ class MorphRuntime {
     return true;
   }
 
-  /** Progress 0..1 (pre-curve) at composition time t; null when idle. */
+  /**
+   * Progress 0..1 (pre-curve) at composition time t; null when idle OR when
+   * the playhead has not reached the morph yet.
+   *
+   * The "not yet" case matters: a morph is a timeline event at absolute
+   * times. Clamping `t < startTime` to progress 0 meant that seeking or
+   * looping backwards past an armed morph pinned the composition to the
+   * morph's SOURCE snapshot forever — the zombie morph. Returning null
+   * instead shows the document until the playhead reaches the morph again,
+   * which is exactly what the export evaluator already does (it overlays
+   * only inside [startTime, endTime)).
+   */
   progressAt(t: number): number | null {
     if (!this.active) return null;
     const { startTime, endTime } = this.active;
+    if (t < startTime) return null;
     if (endTime <= startTime) return 1;
-    return Math.min(Math.max((t - startTime) / (endTime - startTime), 0), 1);
+    return Math.min((t - startTime) / (endTime - startTime), 1);
   }
 
   /**

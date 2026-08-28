@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+### Pattern Engine v1
+
+Native deterministic temporal patterns, authored in **BUILD → SIGNALS**. A
+pattern is a signal source like Bass or Beat: you map it onto a parameter
+through the existing modulation system, and the project's tempo gives it a
+grid. Inspired by pattern-based live-coding systems; it is not TidalCycles
+and has no dependency on it.
+
+- **Types**: Sequence (`0 0.25 1 0.25` in a text field), Euclidean
+  (pulses/steps/rotation with a live step readout), Constant.
+- **Transforms**, applied as an explicit ORDERED list: Fast, Slow, Reverse,
+  Rotate, Every, Probability. Order is creative meaning —
+  `Fast → Reverse` and `Reverse → Fast` are different patterns, and the
+  editor shows and preserves that order.
+- **Probability is deterministic**: the same project seed, pattern and step
+  always make the same decision. Exports, reloads and restarts reproduce it
+  exactly.
+- **Cycle length** is set per pattern in beats, independent of the bar.
+- **No BPM → patterns are neutral.** They contribute nothing until the
+  project has a tempo; there is no invented fallback and no pattern-local
+  clock.
+- Preview, the Output window and offline export resolve identical
+  parameters; repeated exports of a pattern composition are byte-identical.
+- Patterns persist inside the existing v2 project format (no version bump);
+  older projects keep opening unchanged.
+
+- **Fixed**: a Morph armed ahead of the playhead no longer pins the
+  composition to its source snapshot when you seek or loop backwards past
+  it (the "zombie morph"). A morph now simply waits for its start time,
+  matching what offline export already did.
+- **Fixed**: the packaged app never started. The main process was bundled as
+  ESM while Electron's own module is CommonJS, so a packaged build died with
+  `The requested module 'electron' does not provide an export named
+  'BrowserWindow'` before creating a window. Main is now bundled as CommonJS
+  like the preloads, the app bundle is ad-hoc signed (an unsigned bundle
+  keeps Electron's stale linker signature and macOS refuses to load its
+  resources), and a renderer that fails to load now reports the error and
+  shows the window instead of leaving an invisible running app.
+
 - **Fixed**: offline animation export now switches the technique renderer when
   a Morph crosses a technique boundary mid-export. Previously the frames after
   the switch point rendered the old technique with the new technique's

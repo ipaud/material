@@ -2,7 +2,7 @@
   "name": "material",
   "version": "0.2.0",
   "description": "MATERIAL — experimental moving-image design instrument",
-  "main": "out/main/index.js",
+  "main": "out/main/index.cjs",
   "type": "module",
   "private": true,
   "author": "Pau Avila",

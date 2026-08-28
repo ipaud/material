@@ -8,6 +8,7 @@ import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from '.
 
 const isDev = !app.isPackaged;
 
+
 // Dev-only: allow CDP-based QA tooling to drive the app.
 if (isDev) app.commandLine.appendSwitch('remote-debugging-port', '9223');
 
@@ -42,6 +43,21 @@ function createWindow(): void {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
+
+  // A renderer that fails to load must never leave an invisible-but-running
+  // app: `show: false` waits for 'ready-to-show', which never fires if the
+  // load failed. Report the reason and show the window anyway so the failure
+  // is visible instead of silent.
+  mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, url) => {
+    console.error(`[main] renderer failed to load (${errorCode} ${errorDescription}): ${url}`);
+    mainWindow?.show();
+  });
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.error('[main] renderer never became ready — showing the window anyway');
+      mainWindow.show();
+    }
+  }, 10_000);
 
   // No external navigation, no popups.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

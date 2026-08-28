@@ -280,6 +280,23 @@ describe('sequence editor', () => {
     vi.useRealTimers();
   });
 
+  it('re-committing identical values does not dirty the project or add history', () => {
+    loadProject({ patternSources: [pattern({ pattern: { type: 'sequence', values: [0, 0.5] } })] });
+    render(<PatternsSection />);
+    openFirst();
+    const input = screen.getByLabelText('Pattern steps') as HTMLInputElement;
+    // Same values, different whitespace and notation.
+    fireEvent.change(input, { target: { value: '  0    .5  ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(store().dirty).toBe(false);
+    expect(store().past).toHaveLength(0);
+    // A real change still commits.
+    fireEvent.change(input, { target: { value: '0 .6' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(store().dirty).toBe(true);
+    expect(store().past).toHaveLength(1);
+  });
+
   it('Enter flushes immediately and Escape reverts the draft', () => {
     loadProject({ patternSources: [pattern()] });
     render(<PatternsSection />);
