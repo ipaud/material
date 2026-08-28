@@ -34,7 +34,9 @@ export interface ActionTarget {
 }
 
 interface PendingAction {
-  mappingId: string;
+  /** The mapping object itself — live-fired (e.g. MIDI) mappings are
+   * synthesized and absent from the configured trigger list. */
+  mapping: TriggerMapping;
   executeAt: number;
 }
 
@@ -114,8 +116,11 @@ export class TriggerScheduler {
     const stillPending: PendingAction[] = [];
     for (const p of this.pending) {
       if (p.executeAt <= now + 1e-9) {
-        const mapping = triggers.find((m) => m.id === p.mappingId);
-        if (mapping && mapping.enabled) this.execute(mapping, p.executeAt);
+        // Deterministic mappings re-resolve against the configured list (they
+        // may have been edited/disabled); synthesized live mappings execute
+        // as fired.
+        const mapping = triggers.find((m) => m.id === p.mapping.id) ?? p.mapping;
+        if (mapping.enabled) this.execute(mapping, p.executeAt);
       } else {
         stillPending.push(p);
       }
@@ -158,7 +163,7 @@ export class TriggerScheduler {
       ctx.beatsPerBar,
     );
     if (executeAt > eventTime + 1e-9) {
-      this.pending.push({ mappingId: mapping.id, executeAt });
+      this.pending.push({ mapping, executeAt });
       this.diag = { ...this.diag, pendingCount: this.pending.length };
       return;
     }

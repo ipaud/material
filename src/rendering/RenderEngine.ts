@@ -198,6 +198,12 @@ export class RenderEngine {
       : this.temporal.advanceExact(this.renderer, compositionTime, this.temporalSource, this.boundaryMode);
   }
 
+  /** Enter export mode: preview rendering pauses for the whole export, not
+   * just temporal-active ones (see loop()). */
+  beginExportMode(): void {
+    this.exportMode = true;
+  }
+
   /** Leave export mode and discard export-primed history (§13). */
   endExportMode(): void {
     this.exportMode = false;
@@ -393,6 +399,11 @@ export class RenderEngine {
 
   private loop = (): void => {
     this.rafId = requestAnimationFrame(this.loop);
+    // No preview renders during export: an interleaved render re-uploads the
+    // video texture and hardware decode is not bit-stable, so live input
+    // (e.g. MIDI) invalidating the preview could perturb export frames at
+    // the LSB level. The dirty flag survives — preview repaints on finish.
+    if (this.exportMode) return;
     if (!this.dirty) return;
     this.dirty = false;
     const start = performance.now();

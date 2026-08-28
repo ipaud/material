@@ -163,6 +163,49 @@ export const morphEventSchema = z.object({
 });
 export type MorphEvent = z.infer<typeof morphEventSchema>;
 
+/**
+ * MIDI mapping (Phase 14). Live-class input: never part of export.
+ *
+ * CC mappings drive a parameter in ABSOLUTE mode (the knob IS the base
+ * value, with pickup/soft-takeover); `mode` reserves the future MODULATE
+ * option (CC as a Signal-system source). Note mappings fire trigger actions
+ * through the existing scheduler — quantization included, no second
+ * quantizer.
+ *
+ * `deviceId` is the platform id (may change across reconnects);
+ * `deviceLabel` = "manufacturer · name" is the fallback matcher. Mappings
+ * persist offline and re-attach on hot-plug.
+ */
+export const midiMappingSchema = z.object({
+  id: z.string(),
+  enabled: z.boolean().default(true),
+  deviceId: z.string(),
+  deviceLabel: z.string(),
+  /** 0–15; null = omni (any channel). */
+  channel: z.number().int().min(0).max(15).nullable().default(null),
+  messageType: z.enum(['cc', 'note']),
+  /** CC number or note number, 0–127. */
+  control: z.number().int().min(0).max(127),
+  targetType: z.enum(['param', 'triggerAction']),
+  /** param target: technique parameter id. */
+  targetParam: z.string().nullable().default(null),
+  /** triggerAction target: reuses the trigger-engine action vocabulary. */
+  action: triggerActionSchema.nullable().default(null),
+  lookSlot: z.number().int().min(1).max(9).nullable().default(null),
+  targetMappingId: z.string().nullable().default(null),
+  quantize: quantizeModeSchema.default('off'),
+  /** CC shaping — same vocabulary as modulation mappings. */
+  min: z.number().min(0).max(1).default(0),
+  max: z.number().min(0).max(1).default(1),
+  invert: z.boolean().default(false),
+  smoothing: z.number().min(0).max(1).default(0),
+  curve: z.enum(['linear', 'exponential', 'logarithmic']).default('linear'),
+  pickupMode: z.enum(['pickup', 'jump']).default('pickup'),
+  /** ABSOLUTE now; 'modulate' reserved for the Signal-system mode. */
+  mode: z.enum(['absolute', 'modulate']).default('absolute'),
+});
+export type MidiMapping = z.infer<typeof midiMappingSchema>;
+
 export const compositionSchema = z.object({
   sourceId: z.string().nullable(),
   audioSourceId: z.string().nullable(),
@@ -186,6 +229,8 @@ export const projectSchema = z.object({
   /** Look whose state was last applied; dirty when current state diverges. */
   activeLookId: z.string().nullable().default(null),
   morphEvents: z.array(morphEventSchema).default([]),
+  /** Optional (defaulted) — v2 projects without it stay valid. */
+  midiMappings: z.array(midiMappingSchema).default([]),
   explore: z.object({
     lockedParams: z.array(z.string()),
     lastSeed: z.number().int().nonnegative().nullable(),
@@ -221,6 +266,7 @@ export function createEmptyProject(name = 'Untitled'): Project {
     pinnedLooks: [],
     activeLookId: null,
     morphEvents: [],
+    midiMappings: [],
     explore: { lockedParams: [], lastSeed: null },
   };
 }

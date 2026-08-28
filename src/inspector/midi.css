@@ -1,0 +1,164 @@
+/* MIDI section (Phase 14) */
+.midi-enable-row {
+  padding: 4px 8px 8px;
+}
+.midi-unavailable {
+  font-size: 9px;
+  color: var(--danger);
+}
+.midi-device-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+}
+.midi-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-1);
+  flex: none;
+}
+.midi-dot.connected {
+  background: var(--ok);
+}
+.midi-device-name {
+  font-size: 10px;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.midi-device-name.dim {
+  color: var(--text-2);
+}
+.midi-learn-banner {
+  margin: 4px 8px;
+  padding: 5px 8px;
+  font-size: 9px;
+  color: var(--accent);
+  border: 1px dashed var(--accent-dim);
+  border-radius: 2px;
+}
+.midi-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  min-height: 22px;
+}
+.midi-row.disabled .midi-src,
+.midi-row.disabled .midi-target {
+  color: var(--text-2);
+}
+.midi-src {
+  font-size: 9px;
+  color: var(--text-1);
+  min-width: 52px;
+}
+.midi-arrow {
+  color: var(--text-2);
+  font-size: 9px;
+}
+.midi-target {
+  font-size: 10px;
+  color: var(--text-0);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.midi-value {
+  font-size: 9px;
+  color: var(--text-2);
+  min-width: 28px;
+  text-align: right;
+}
+.midi-value.active {
+  color: var(--accent);
+}
+.midi-status {
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  min-width: 38px;
+  text-align: right;
+  color: var(--text-2);
+}
+.midi-status.s-live {
+  color: var(--ok);
+}
+.midi-status.s-waiting {
+  color: var(--accent);
+}
+.midi-status.s-frozen,
+.midi-status.s-morph {
+  color: var(--mod);
+}
+.midi-status.s-offline {
+  color: var(--danger);
+}
+.midi-note-learn {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  align-items: center;
+}
+.midi-note-learn .select {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+}
+.midi-note-learn .midi-slot {
+  flex: 0 0 42px;
+}
+.midi-diag {
+  padding: 3px 8px 6px;
+  font-size: 8px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+}
+
+/* Param-row integration */
+.midi-param-wrap {
+  position: relative;
+}
+.midi-badge {
+  position: absolute;
+  right: 2px;
+  top: 1px;
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  color: var(--accent-dim);
+  pointer-events: none;
+}
+.midi-badge.waiting {
+  color: var(--accent);
+}
+.midi-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.midi-menu {
+  position: fixed;
+  z-index: 41;
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.midi-menu button {
+  background: none;
+  border: none;
+  color: var(--text-0);
+  font-size: 10px;
+  text-align: left;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+.midi-menu button:hover {
+  background: var(--surface-2);
+}

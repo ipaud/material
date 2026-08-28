@@ -19,6 +19,8 @@ import * as lookCore from './performance/lookCore';
 import * as interpolate from './performance/interpolate';
 import * as lookActions from './projects/lookActions';
 import * as triggerRuntime from './signals/triggerRuntime';
+import { midiEngine, useMidiStore } from './midi/midiEngine';
+import { FakeMidiTransport, WebMidiTransport } from './midi/transport';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -46,6 +48,10 @@ if (import.meta.env.DEV) {
       triggerRuntime,
       lookCore,
       interpolate,
+      midiEngine,
+      useMidiStore,
+      FakeMidiTransport,
+      WebMidiTransport,
     },
   });
 }

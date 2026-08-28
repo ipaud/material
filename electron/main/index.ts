@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, session, shell } from 'electron';
 import path from 'node:path';
 import { registerIpcHandlers, SESSION_ID } from '../ipc/handlers';
 import { clearRecovery } from '../filesystem/recovery';
@@ -66,6 +66,19 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerMediaProtocolHandler();
+
+  // Web MIDI: Chromium ≥M119 routes ALL Web MIDI access through the
+  // 'midiSysex' permission gate — even requestMIDIAccess({sysex:false}).
+  // Granting the gate does NOT enable sysex data: the renderer only ever
+  // requests sysex:false, so access.sysexEnabled stays false (verified in
+  // QA). All other permission requests stay denied (offline instrument).
+  const isMidi = (permission: string): boolean =>
+    permission === 'midi' || permission === 'midiSysex';
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) =>
+    callback(isMidi(permission)),
+  );
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => isMidi(permission));
+
   registerIpcHandlers(() => mainWindow);
   buildAppMenu(() => mainWindow);
   createWindow();

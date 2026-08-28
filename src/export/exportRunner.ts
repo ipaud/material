@@ -246,16 +246,37 @@ export function createFrameEvaluator(startSec: number, fps: number) {
   };
 }
 
-function seekVideoExact(video: HTMLVideoElement, timeSec: number): Promise<void> {
+/**
+ * Seek and WAIT until the frame at `timeSec` is decoded. The same-position
+ * shortcut must never skip the wait when the element has no decoded data yet
+ * (project just opened, export started immediately) — that raced a black
+ * first frame into exports. `force` performs a real seek even at the same
+ * position, guaranteeing fresh decode for the first export frame.
+ */
+async function seekVideoExact(
+  video: HTMLVideoElement,
+  timeSec: number,
+  force = false,
+): Promise<void> {
+  if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    await new Promise<void>((resolve) => {
+      const onReady = () => {
+        video.removeEventListener('loadeddata', onReady);
+        resolve();
+      };
+      video.addEventListener('loadeddata', onReady);
+    });
+  }
   const target = Math.min(Math.max(timeSec, 0), Math.max(video.duration - 0.001, 0));
-  if (Math.abs(video.currentTime - target) < 0.0005) return Promise.resolve();
-  return new Promise((resolve) => {
+  if (!force && Math.abs(video.currentTime - target) < 0.0005) return;
+  await new Promise<void>((resolve) => {
     const onSeeked = () => {
       video.removeEventListener('seeked', onSeeked);
       resolve();
     };
     video.addEventListener('seeked', onSeeked);
-    video.currentTime = target;
+    // A same-position forced seek needs a nudge or 'seeked' may never fire.
+    video.currentTime = Math.abs(video.currentTime - target) < 1e-6 ? target + 1e-4 : target;
   });
 }
 
@@ -270,6 +291,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       : null;
 
   playback.pause();
+  engine.beginExportMode();
   const video = playback.currentVideo;
 
   store.begin(totalFrames);
@@ -302,7 +324,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       if (engine.isTemporalActive) {
         await engine.prepareTemporalForExport(timeSec, i === 0);
       }
-      if (video) await seekVideoExact(video, timeSec);
+      if (video) await seekVideoExact(video, timeSec, i === 0);
       const rgba = engine.renderStill(request.width, request.height, params, alpha);
       await window.material.exportFrame(sessionId, rgba);
       store.setProgress(i + 1);

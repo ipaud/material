@@ -15,6 +15,8 @@ import { ExportDialog } from '@/export/ExportDialog';
 import { RecoveryPrompt } from './RecoveryPrompt';
 import { TechniquesBrowser } from '@/techniques/TechniquesBrowser';
 import { startAutosave } from '@/projects/autosave';
+import { midiEngine } from '@/midi/midiEngine';
+import { WebMidiTransport } from '@/midi/transport';
 import { usePerformanceKeys } from '@/hooks/usePerformanceKeys';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
@@ -24,6 +26,18 @@ export function App() {
   useMenuEvents();
   usePerformanceKeys();
   useEffect(() => startAutosave(), []);
+  // §25: request MIDI only when needed — a project that ships MIDI mappings
+  // needs the controller live; otherwise the user opts in from the panel.
+  useEffect(() => {
+    const check = () => {
+      if (!midiEngine.isRunning && useProjectStore.getState().project.midiMappings.length > 0) {
+        void midiEngine.start(new WebMidiTransport());
+      }
+    };
+    check();
+    const unsub = useProjectStore.subscribe(check);
+    return unsub;
+  }, []);
   const { isDragOver, onDragOver, onDragLeave, onDrop } = useMediaDrop();
   const libraryWidth = useUiStore((s) => s.libraryWidth);
   const inspectorWidth = useUiStore((s) => s.inspectorWidth);

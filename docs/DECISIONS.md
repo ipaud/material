@@ -58,3 +58,28 @@ Meaningful deviations and choices not obvious from the spec.
 
 - Dev-only `window.__dev` handle + CDP remote-debugging port 9223 power the
   scripted QA harness (drive.mjs); disabled in packaged builds.
+
+## MIDI (Phase 14)
+
+- **Web MIDI over a native module**: works in this Electron/Chromium, no
+  node-gyp dependency, hot-plug via `statechange`. A `MidiTransport` seam
+  keeps the engine testable (FakeMidiTransport) and leaves room for a native
+  backend if Web MIDI ever falls short.
+- **Chromium ≥ M119 gates ALL Web MIDI behind the `midiSysex` permission**,
+  even `sysex: false` requests. The main process grants `midi`+`midiSysex`
+  at the permission-handler level; the renderer only ever requests
+  `sysex: false`, so `access.sysexEnabled` stays false (QA-verified). No
+  sysex data flows; every other permission stays denied.
+- **ABSOLUTE + PICKUP first**: a knob IS its parameter (with soft takeover),
+  because direct manual control is what makes the instrument feel like
+  hardware. `mode: 'modulate'` is reserved in the schema for a future
+  Signal-system contribution mode.
+- **Frozen targets block MIDI**: freeze holds the modulation contribution,
+  and the base is locked against the controller too — a frozen look must
+  survive a live performer's hands. Unfreeze is explicit.
+- **Export ignores live MIDI at the engine entrance** (not merely at the
+  evaluator): mid-export document writes rebuild instanced geometry from
+  live params, which no per-frame uniform override can mask. Verified
+  byte-identical exports under a continuous CC/note stream.
+- **Device rebinding**: exact platform id, else UNIQUE manufacturer·name
+  match; ambiguity never auto-binds. Mappings persist offline.

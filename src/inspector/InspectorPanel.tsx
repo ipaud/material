@@ -7,6 +7,8 @@ import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
 import { TriggersSection } from './TriggersSection';
+import { MidiSection } from './MidiSection';
+import { MidiParamWrap } from './MidiParamWrap';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
 import type { ParamValue } from '@shared/schemas/project';
@@ -100,6 +102,7 @@ export function InspectorPanel() {
             </div>
             <ModulationSection />
             <TriggersSection />
+            <MidiSection />
             <div className="inspector-section">
               <div className="inspector-section-header">
                 <span className="label">Material</span>
@@ -165,15 +168,16 @@ export function InspectorPanel() {
                 count={section.params.filter((p) => modulatedTargets.has(p.id)).length}
               >
                 {section.params.map((param) => (
-                  <ParamControl
-                    key={param.id}
-                    def={param}
-                    value={technique.params[param.id] ?? param.default}
-                    modulated={modulatedTargets.has(param.id)}
-                    onChange={(v) => setParam(param.id, v)}
-                    onDragStart={beginTransient}
-                    onDragEnd={commitTransient}
-                  />
+                  <MidiParamWrap key={param.id} paramId={param.id}>
+                    <ParamControl
+                      def={param}
+                      value={technique.params[param.id] ?? param.default}
+                      modulated={modulatedTargets.has(param.id)}
+                      onChange={(v) => setParam(param.id, v)}
+                      onDragStart={beginTransient}
+                      onDragEnd={commitTransient}
+                    />
+                  </MidiParamWrap>
                 ))}
               </CollapsibleSection>
             ))}

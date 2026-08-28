@@ -4,7 +4,8 @@ The exact order a parameter value is assembled, per frame, everywhere —
 preview and export share this pipeline function-for-function.
 
 ```
-base value                     (slider / project state)
+base value                     (slider / project state / engaged MIDI CC —
+                                ABSOLUTE mode writes the base, live only)
   → morph overlay              (armed morph replaces base+mappings+triggers
                                 with the interpolated look core — pure fn of t)
   → continuous modulation      (signal × amount × paramSpan, additive; FREEZE lives here)
@@ -78,7 +79,7 @@ the same parameter interfere like signals — intended.
 | Class | Sources | Preview | Export |
 |---|---|---|---|
 | Deterministic | beat, bar, divisions, onset, markers | ✓ | ✓ identical schedule |
-| Live | manual button, keyboard (future), MIDI (future) | ✓ | **absent by design** |
+| Live | manual button, keyboard shortcuts, MIDI | ✓ | **absent by design** |
 
 Deterministic pulse values are **pure functions of composition time**: the
 value at `t` is the sum of envelopes from trigger events within the envelope
