@@ -3,7 +3,7 @@ import type { OutputChannelMsg } from '@shared/outputChannel';
 
 declare global {
   interface Window {
-    materialOutput: { ready: boolean };
+    materialOutput: { ready: boolean; escape?: () => void };
     __replica?: OutputReplica;
   }
 }
@@ -23,6 +23,26 @@ window.addEventListener('message', (event: MessageEvent) => {
   port.onmessage = (msg: MessageEvent<OutputChannelMsg>) => replica.handle(msg.data);
   port.start?.();
 });
+
+// The output renders pixels; Escape is its only control (18C §28/§30).
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    window.materialOutput.escape?.();
+  }
+});
+
+// Presentation cursor: hide it while the pointer rests over the output, and
+// bring it back the moment it moves so the window stays operable.
+let cursorTimer: ReturnType<typeof setTimeout> | null = null;
+const HIDE_CURSOR_AFTER_MS = 1200;
+const armCursorHide = () => {
+  document.body.classList.remove('hide-cursor');
+  if (cursorTimer) clearTimeout(cursorTimer);
+  cursorTimer = setTimeout(() => document.body.classList.add('hide-cursor'), HIDE_CURSOR_AFTER_MS);
+};
+window.addEventListener('mousemove', armCursorHide);
+armCursorHide();
 
 // Spike status line: quiet, mono, bottom-left. 4 Hz.
 setInterval(() => {

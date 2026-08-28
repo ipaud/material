@@ -1,7 +1,17 @@
 import { app, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
 import { isLivenessReason, reduceLiveness, type LivenessReason } from '../../shared/liveness';
-import { closeOutputWindow, configureOutputWindow, openOutputWindow } from '../main/outputWindow';
-import type { OutputWindowStatus } from '../../shared/outputChannel';
+import { listDisplays } from '../main/displays';
+import { readSettings, updateSettings } from '../filesystem/settings';
+import {
+  closeOutputWindow,
+  configureOutputWindow,
+  moveOutputWindow,
+  openOutputWindow,
+  outputTarget,
+  setOutputMode,
+  setOutputTarget,
+  startDisplayWatch,
+} from '../main/outputWindow';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -41,6 +51,12 @@ function sanitizeDefaultName(name: string): string {
 
 /** Held while the live engine must not be suspended by macOS App Nap. */
 let liveEngineBlockerId: number | null = null;
+const outputModeSchema = z.enum(['windowed', 'fullscreen']);
+const outputOpenOptionsSchema = z.object({
+  displayId: z.number().nullable().optional(),
+  mode: outputModeSchema.optional(),
+});
+
 const livenessReasons = new Set<LivenessReason>();
 
 export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void {
@@ -170,15 +186,70 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     return applyLiveness(rawReason, rawActive === true);
   });
 
-  // ---- Output window (Phase 18B): open/close + status push ----------------
+  // ---- Output window (18B) / Display destination (18C) -------------------
   configureOutputWindow({
     setLiveness: (reason, active) => void applyLiveness(reason, active),
-    notifyEditor: (status: OutputWindowStatus) => {
+    notifyEditor: (status) => {
       getWindow()?.webContents.send(IPC.outputStatus, status);
     },
+    notifyDisplays: (displays) => {
+      getWindow()?.webContents.send(IPC.outputDisplayList, displays);
+    },
   });
-  ipcMain.handle(IPC.outputOpen, () => openOutputWindow(getWindow));
+  startDisplayWatch();
+
+  // The remembered target is machine setup, not creative state: it lives in
+  // app settings and is applied lazily on first use.
+  let targetLoaded = false;
+  const loadTarget = async () => {
+    if (targetLoaded) return;
+    targetLoaded = true;
+    const settings = await readSettings();
+    setOutputTarget(settings.lastOutputDisplayId, settings.lastOutputMode);
+  };
+
+  const rememberTarget = () => {
+    const { displayId, mode } = outputTarget();
+    void updateSettings({ lastOutputDisplayId: displayId, lastOutputMode: mode });
+  };
+
+  ipcMain.handle(IPC.outputOpen, async (_event, rawOptions: unknown) => {
+    await loadTarget();
+    const options = outputOpenOptionsSchema.parse(rawOptions ?? {});
+    const opened = openOutputWindow(getWindow, options);
+    if (opened) rememberTarget();
+    return opened;
+  });
   ipcMain.handle(IPC.outputClose, () => closeOutputWindow());
+  ipcMain.handle(IPC.outputDisplays, () => listDisplays());
+  ipcMain.handle(IPC.outputMove, (_event, rawId: unknown, rawMode: unknown) => {
+    const displayId = rawId === null || rawId === undefined ? null : z.number().parse(rawId);
+    const mode = rawMode === undefined ? undefined : outputModeSchema.parse(rawMode);
+    const moved = moveOutputWindow(displayId, mode);
+    if (moved) rememberTarget();
+    else {
+      // Not open yet: remember the choice so the next open uses it.
+      setOutputTarget(displayId, mode ?? outputTarget().mode);
+      rememberTarget();
+    }
+    return moved;
+  });
+  ipcMain.handle(IPC.outputSetMode, (_event, rawMode: unknown) => {
+    const mode = outputModeSchema.parse(rawMode);
+    const applied = setOutputMode(mode);
+    if (!applied) setOutputTarget(outputTarget().displayId, mode);
+    rememberTarget();
+    return applied;
+  });
+  // Escape on the output window drops fullscreen back to windowed rather
+  // than closing anything — never quits, never disturbs the editor.
+  ipcMain.on(IPC.outputEscape, () => {
+    if (outputTarget().mode === 'fullscreen') setOutputMode('windowed');
+  });
+  ipcMain.handle(IPC.outputTarget, async () => {
+    await loadTarget();
+    return outputTarget();
+  });
 
   ipcMain.handle(IPC.sessionId, () => SESSION_ID);
   ipcMain.handle(IPC.recoveryWrite, async (_event, rawPath: unknown, rawProject: unknown) => {

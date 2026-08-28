@@ -183,3 +183,33 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   golden fixture (`tests/fixtures/project-v2-pattern.json`) locks the
   evaluated result so a future PRNG/clock/transform change cannot silently
   alter saved compositions.
+- **ADR — Display fullscreen strategy (18C)**: presentation fullscreen is a
+  BORDERLESS window driven by `setSimpleFullScreen(true)` plus
+  `setAlwaysOnTop(true, 'screen-saver')`, never macOS native
+  `setFullScreen(true)`. Native fullscreen puts the output in its own Space:
+  it animates on entry, animates again when the target display changes, and
+  drags the performer's Space around mid-set. The borderless path appears
+  immediately and moves between monitors without a Space transition.
+  Measured on macOS 15 (1512×982 @2× panel): `setSimpleFullScreen` alone
+  stops at the work area (1512×949, menu bar still visible); adding the
+  screen-saver window level is what actually fills the panel — 1512×982 at
+  y=0, canvas backing 3024×1964. Consequence: a fullscreen output covers
+  everything, so it needs a guaranteed way out — Escape on the output
+  window, ⌘⇧F in the editor (which keeps keyboard focus), or the DISPLAY
+  panel. simpleFullScreen only takes effect on a VISIBLE window, so it is
+  applied in `ready-to-show`, after the window has been positioned on the
+  target display (which is what prevents a flash on the primary monitor).
+- **ADR — Display disconnect policy (18C)**: if the display an output is
+  presenting on disappears, MATERIAL CLOSES the output and reports
+  `DISPLAY DISCONNECTED`. The alternative — moving it to the primary
+  display — would slam a fullscreen composition over the performer's editor
+  at the worst possible moment. Reopening is one click and the choice of
+  where stays with the performer. A display whose geometry merely changes
+  (resolution, scaling, rotation, rearrangement) is re-applied in place
+  instead.
+- **ADR — Display selection is machine state**: the chosen display and mode
+  persist in `userData/settings.json`, never in the project. Monitor
+  topology belongs to a setup, not to a composition, and a project moved
+  between machines must not carry a display id. Deliberately absent from
+  that file: whether the output was open — restoring that would make
+  MATERIAL seize a projector on launch.

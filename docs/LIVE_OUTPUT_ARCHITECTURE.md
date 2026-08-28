@@ -496,3 +496,40 @@ diff bounded by decode nondeterminism on video sources, exact on static.
    meters ever exist — default no).
 3. Camera audio (mic) — explicitly out of v0.3; revisit with recording.
 4. Three upgrade cadence for the FLIP_Y warning.
+
+## Display destination (Phase 18C)
+
+The Output replica from 18B became a DISPLAY destination in the OUTPUT
+workspace. The architecture is unchanged — editor authority → FrameState →
+MessagePort → passive replica — with a target added:
+
+```
+OUTPUT
+├── EDITOR PREVIEW
+├── DISPLAY          ← 18C: a physical macOS display
+└── FILE EXPORT
+```
+
+- **One window, always.** Selecting another monitor MOVES the existing
+  Output window; it never spawns a second one. Simultaneous multi-display
+  output is explicitly not in this phase.
+- **Main owns everything native**: enumeration (`electron/main/displays.ts`
+  is the only module that touches `screen`), target, bounds, fullscreen,
+  lifecycle. The renderer owns pixels and the editor-side status UI.
+- **`DisplayInfo`** (shared/display.ts) is the only display shape that
+  crosses IPC — id, label, bounds, workArea, scaleFactor, rotation, primary,
+  internal. Raw Electron `Display` objects never do.
+- **Identity is the display id**, never the list index. Ordering is
+  presentation only (built-in first, then externals by position).
+- **Negative coordinates are preserved.** A monitor arranged left of or
+  above the primary reports negative bounds, and clamping them would drag
+  the output back onto the primary — test-locked.
+- **Hotplug** arrives through `display-added` / `display-removed` /
+  `display-metrics-changed`; the list is pushed to the editor, never polled.
+- **Liveness** keeps using the single `output-window` reason. Fullscreen
+  toggles and display moves do not change it.
+- The replica still evaluates nothing, and no pixels are transported —
+  both are structurally test-locked.
+
+Fullscreen strategy and the disconnect policy are recorded as ADRs in
+[DECISIONS](DECISIONS.md).

@@ -45,10 +45,18 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
     return () => ipcRenderer.removeListener(IPC.exportProgress, listener);
   },
   setLiveness: (reason, active) => ipcRenderer.invoke(IPC.setLiveness, reason, active),
-  outputOpen: () => ipcRenderer.invoke(IPC.outputOpen),
+  outputOpen: (options?: unknown) => ipcRenderer.invoke(IPC.outputOpen, options),
   outputClose: () => ipcRenderer.invoke(IPC.outputClose),
+  outputDisplays: () => ipcRenderer.invoke(IPC.outputDisplays),
+  onOutputDisplays: (callback) => {
+    ipcRenderer.on(IPC.outputDisplayList, (_event, displays) => callback(displays));
+  },
+  outputMove: (displayId: number | null, mode?: unknown) =>
+    ipcRenderer.invoke(IPC.outputMove, displayId, mode),
+  outputSetMode: (mode: unknown) => ipcRenderer.invoke(IPC.outputSetMode, mode),
+  outputTarget: () => ipcRenderer.invoke(IPC.outputTarget),
   onOutputStatus: (callback) => {
-    ipcRenderer.on(IPC.outputStatus, (_event, status: string) => callback(status));
+    ipcRenderer.on(IPC.outputStatus, (_event, status) => callback(status));
   },
 
   getSessionId: () => ipcRenderer.invoke(IPC.sessionId),

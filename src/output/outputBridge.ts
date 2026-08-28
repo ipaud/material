@@ -113,11 +113,15 @@ export function startOutputBridge(): void {
     if (port) attach(port);
   });
   window.material.onOutputStatus((status) => {
-    useOutputStore.getState().setStatus(status as never);
-    if (status === 'closed' || status === 'error') {
+    useOutputStore.getState().setStatus(status);
+    if (status.state !== 'open') {
       teardown?.();
       teardown = null;
     }
+  });
+  // Hotplug: main pushes the list, the editor never polls.
+  window.material.onOutputDisplays((displays) => {
+    useOutputStore.getState().setDisplays(displays);
   });
 }
 

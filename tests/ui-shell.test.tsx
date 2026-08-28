@@ -58,15 +58,24 @@ describe('WorkspaceNav', () => {
 describe('OUTPUT future destinations', () => {
   it('renders unsupported destinations as inert, labelled controls', () => {
     render(<OutputDestinations selected="editor" onSelect={() => {}} />);
-    const future = ['FULLSCREEN', 'SECOND DISPLAY', 'SYPHON'];
-    for (const name of future) {
+    // FULLSCREEN stopped being a placeholder in 18C: it is the DISPLAY
+    // destination's mode. What remains genuinely unavailable stays inert.
+    for (const name of ['SECOND DISPLAY', 'SYPHON']) {
       const button = screen.getByText(name).closest('button');
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute('aria-disabled', 'true');
       // Clicking must do nothing at all — no handler, no state change.
       fireEvent.click(button!);
     }
-    expect(screen.getAllByText('NOT AVAILABLE · v0.3')).toHaveLength(2);
     expect(useUiStore.getState().workspace).toBe('build');
+  });
+
+  it('DISPLAY is a real, selectable destination', () => {
+    let picked: string | null = null;
+    render(<OutputDestinations selected="editor" onSelect={(id) => (picked = id)} />);
+    const button = screen.getByText('DISPLAY').closest('button');
+    expect(button).not.toBeDisabled();
+    fireEvent.click(button!);
+    expect(picked).toBe('display');
   });
 });

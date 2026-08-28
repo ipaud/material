@@ -4,6 +4,7 @@ import { useExportStore } from '@/state/exportStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { useUiStore } from '@/state/uiStore';
 import { useOutputStore } from '@/state/outputStore';
+import { DisplayPanel } from './DisplayPanel';
 import { Viewport } from '@/viewport/Viewport';
 import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import './output.css';
@@ -20,7 +21,7 @@ import './output.css';
  * its surface to the preview pane; the workspace shell does not change.
  */
 
-type DestinationId = 'editor' | 'file';
+type DestinationId = 'editor' | 'display' | 'file';
 
 export function OutputWorkspace() {
   const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
@@ -31,7 +32,7 @@ export function OutputWorkspace() {
       <div className="output-main">
         <OutputDestinations selected={selected} onSelect={setSelected} />
         <OutputPreviewPane hasSource={hasSource} />
-        <OutputSettings />
+        {selected === 'display' ? <DisplayPanel /> : <OutputSettings />}
       </div>
       <OutputExportBar hasSource={hasSource} emphasized={selected === 'file'} />
     </div>
@@ -41,8 +42,7 @@ export function OutputWorkspace() {
 // ---- Destinations ------------------------------------------------------
 
 const FUTURE_LIVE = [
-  { name: 'FULLSCREEN', hint: 'Dedicated fullscreen output is planned for v0.3.' },
-  { name: 'SECOND DISPLAY', hint: 'Routing to a second display is planned for v0.3.' },
+  { name: 'SECOND DISPLAY', hint: 'Simultaneous output to two displays is a later phase.' },
 ];
 const FUTURE_INTEROP = [
   { name: 'SYPHON', hint: 'Syphon interop is under research — not committed to v0.3.' },
@@ -81,9 +81,9 @@ export function OutputDestinations({
         </span>
       </button>
 
-      <OutputWindowRow />
+      <DisplayRow selected={selected === 'display'} onSelect={() => onSelect('display')} />
 
-      <span className="output-rail-head future">LIVE OUTPUT — v0.3</span>
+      <span className="output-rail-head future">LIVE OUTPUT — LATER</span>
       {FUTURE_LIVE.map((d) => (
         <FutureRow key={d.name} name={d.name} state="NOT AVAILABLE · v0.3" hint={d.hint} />
       ))}
@@ -96,24 +96,30 @@ export function OutputDestinations({
   );
 }
 
-function OutputWindowRow() {
+function DisplayRow({ selected, onSelect }: { selected: boolean; onSelect: () => void }) {
   const status = useOutputStore((s) => s.status);
-  const open = status === 'open';
+  const open = status.state === 'open';
+  const state =
+    status.state === 'open'
+      ? status.mode === 'fullscreen'
+        ? 'LIVE · FULLSCREEN'
+        : 'LIVE · WINDOWED'
+      : status.state === 'display-disconnected'
+        ? 'DISCONNECTED'
+        : status.state === 'error'
+          ? 'OUTPUT LOST'
+          : 'READY';
   return (
     <button
-      className={`output-dest${open ? ' selected' : ''}`}
-      onClick={() => {
-        if (open) void window.material.outputClose();
-        else void window.material.outputOpen();
-      }}
-      title={open ? 'Close the output window' : 'Open a dedicated clean output window'}
+      className={`output-dest${selected ? ' selected' : ''}`}
+      aria-current={selected ? 'true' : undefined}
+      onClick={onSelect}
+      title="Send the composition to a physical display"
     >
       <span className={`output-dest-dot${open ? ' live' : ''}`} aria-hidden="true" />
       <span className="output-dest-text">
-        <span className="output-dest-name">OUTPUT WINDOW</span>
-        <span className="output-dest-state">
-          {open ? 'LIVE — CLICK TO CLOSE' : status === 'error' ? 'ERROR — REOPEN' : 'OPEN'}
-        </span>
+        <span className="output-dest-name">DISPLAY</span>
+        <span className="output-dest-state">{state}</span>
       </span>
     </button>
   );

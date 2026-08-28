@@ -29,6 +29,7 @@ anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 | `⌘⇧S` | Save as                                                    |
 | `⌘I`  | Import media                                               |
 | `⌘E`  | Export                                                     |
+| `⌘⇧F` | Display output — fullscreen / windowed                     |
 | `⌘Z`  | Undo                                                       |
 | `⌘⇧Z` | Redo                                                       |
 | `⌘D`  | Toggle the debug overlay (fps, frame time, instance count) |

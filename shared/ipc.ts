@@ -1,5 +1,6 @@
 import type { MediaMetadata } from './schemas/media';
 import type { Project } from './schemas/project';
+import type { DisplayInfo, OutputDisplayStatus, OutputMode } from './display';
 import type { Preset } from './schemas/preset';
 
 export const IPC = {
@@ -32,6 +33,12 @@ export const IPC = {
   outputClose: 'output:close',
   outputStatus: 'output:status',
   outputRuntimePort: 'output:runtime-port',
+  outputDisplays: 'output:displays',
+  outputDisplayList: 'output:display-list',
+  outputMove: 'output:move',
+  outputSetMode: 'output:set-mode',
+  outputTarget: 'output:target',
+  outputEscape: 'output:escape',
 } as const;
 
 export interface RecoveryEntry {
@@ -117,9 +124,19 @@ export interface MaterialApi {
   /** Stable id for this app run; scopes the autosave file. */
   /** Hold/release the macOS App Nap inhibitor while the live engine runs. */
   setLiveness(reason: string, active: boolean): Promise<boolean>;
-  outputOpen(): Promise<boolean>;
+  /** Open (or move) the output window on a display. */
+  outputOpen(options?: { displayId?: number | null; mode?: OutputMode }): Promise<boolean>;
   outputClose(): Promise<void>;
-  onOutputStatus(callback: (status: string) => void): void;
+  onOutputStatus(callback: (status: OutputDisplayStatus) => void): void;
+  /** Displays currently connected, in presentation order. */
+  outputDisplays(): Promise<DisplayInfo[]>;
+  /** Hotplug / geometry changes — the list is pushed, never polled. */
+  onOutputDisplays(callback: (displays: DisplayInfo[]) => void): void;
+  /** Move the existing output window; never opens a second one. */
+  outputMove(displayId: number | null, mode?: OutputMode): Promise<boolean>;
+  outputSetMode(mode: OutputMode): Promise<boolean>;
+  /** Remembered target (app preference, not project state). */
+  outputTarget(): Promise<{ displayId: number | null; mode: OutputMode }>;
 
   getSessionId(): Promise<string>;
   /** Autosave — writes to userData/recovery, never to the user's project. */

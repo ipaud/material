@@ -97,7 +97,7 @@ describe('destinations', () => {
 
   it('groups the future rows under LIVE OUTPUT and INTEROP headings', () => {
     render(<OutputDestinations selected="editor" onSelect={() => {}} />);
-    expect(screen.getByText('LIVE OUTPUT — v0.3')).toBeInTheDocument();
+    expect(screen.getByText('LIVE OUTPUT — LATER')).toBeInTheDocument();
     expect(screen.getByText('INTEROP — FUTURE')).toBeInTheDocument();
     expect(screen.getByText('SYPHON').closest('button')).toBeDisabled();
     expect(screen.getByText('RESEARCH')).toBeInTheDocument();

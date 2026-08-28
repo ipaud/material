@@ -247,3 +247,61 @@
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+/* ---- Display destination (18C) ---- */
+.output-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.output-field-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  min-width: 44px;
+  flex-shrink: 0;
+}
+.output-field .select {
+  flex: 1;
+  min-width: 0;
+}
+.output-status {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-1);
+}
+.output-status.live {
+  color: var(--accent);
+}
+.output-status-detail {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.output-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  flex-wrap: wrap;
+}
+.output-actions .vp-btn {
+  border-color: var(--border-0);
+}
+.output-actions .vp-btn.primary {
+  color: var(--surface-0);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.output-actions .vp-btn.primary:hover {
+  background: var(--accent-hover);
+}
+.output-note {
+  margin-top: var(--sp-3);
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-2);
+  max-width: 34ch;
+}

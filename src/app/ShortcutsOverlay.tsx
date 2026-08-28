@@ -16,6 +16,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['⌘S / ⌘⇧S', 'Save / Save as'],
       ['⌘O / ⌘I', 'Open project / Import media'],
       ['⌘E', 'Export'],
+      ['⌘⇧F', 'Display output — fullscreen / windowed'],
       ['⌘Z / ⌘⇧Z', 'Undo / Redo'],
       ['⌘D', 'Debug overlay'],
       ['?', 'This overlay'],

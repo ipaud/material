@@ -21,4 +21,10 @@ ipcRenderer.on('output:runtime-port', (event) => {
 contextBridge.exposeInMainWorld('materialOutput', {
   /** Marker only — the replica listens for the window message itself. */
   ready: true,
+  /**
+   * Escape on the output window leaves fullscreen presentation (18C §28).
+   * It never quits the app and never touches the editor — the output has
+   * exactly one control, and this is it.
+   */
+  escape: () => ipcRenderer.send('output:escape'),
 });
