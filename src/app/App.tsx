@@ -20,6 +20,7 @@ import { WebMidiTransport } from '@/midi/transport';
 import { usePerformanceKeys } from '@/hooks/usePerformanceKeys';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
+import { PerformanceWorkspace } from '@/performance/ui/PerformanceWorkspace';
 import './app.css';
 
 export function App() {
@@ -45,14 +46,20 @@ export function App() {
   const hasSources = useProjectStore((s) => s.project.sources.length > 0);
   const workspace = useUiStore((s) => s.workspace);
 
+  const isPerf = workspace === 'performance';
+
   return (
-    <div className="app" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+    <div className={`app${isPerf ? ' perf' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       <TitleBar />
       <div className="main-row">
-        <aside className="panel panel-left" style={{ width: libraryWidth }}>
-          <LibraryPanel />
-        </aside>
-        <Gutter panel="library" />
+        {!isPerf && (
+          <>
+            <aside className="panel panel-left" style={{ width: libraryWidth }}>
+              <LibraryPanel />
+            </aside>
+            <Gutter panel="library" />
+          </>
+        )}
         <main className="viewport-area">
           <Viewport />
           {workspace === 'explore' && <ExplorePanel />}
@@ -60,15 +67,25 @@ export function App() {
           {!hasSources && <EmptyState isDragOver={isDragOver} />}
           {isDragOver && <div className="drop-overlay" />}
         </main>
-        <Gutter panel="inspector" />
-        <aside className="panel panel-right" style={{ width: inspectorWidth }}>
-          <InspectorPanel />
-        </aside>
+        {!isPerf && (
+          <>
+            <Gutter panel="inspector" />
+            <aside className="panel panel-right" style={{ width: inspectorWidth }}>
+              <InspectorPanel />
+            </aside>
+          </>
+        )}
       </div>
-      <Gutter panel="timeline" />
-      <div className="timeline-strip" style={{ height: timelineHeight }}>
-        <TimelinePanel />
-      </div>
+      {isPerf ? (
+        <PerformanceWorkspace />
+      ) : (
+        <>
+          <Gutter panel="timeline" />
+          <div className="timeline-strip" style={{ height: timelineHeight }}>
+            <TimelinePanel />
+          </div>
+        </>
+      )}
       <WorkspaceTabs />
       <Toasts />
       <ExportDialog />

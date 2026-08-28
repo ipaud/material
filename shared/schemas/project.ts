@@ -164,6 +164,48 @@ export const morphEventSchema = z.object({
 export type MorphEvent = z.infer<typeof morphEventSchema>;
 
 /**
+ * Performance macro (Phase 15): one 0–1 control fanned out to several
+ * parameters. Contributions are additive through the shared evaluation
+ * pipeline (base → macros → modulation → pulses → clamp) — a macro never
+ * writes into stored params or Looks; its value is live performance state
+ * persisted at the project level.
+ */
+export const macroMappingSchema = z.object({
+  targetParam: z.string(),
+  /** Signed fraction of the target's span added at macro value 1. */
+  amount: z.number().min(-1).max(1),
+  min: z.number().min(0).max(1).default(0),
+  max: z.number().min(0).max(1).default(1),
+  invert: z.boolean().default(false),
+  curve: z.enum(['linear', 'exponential', 'logarithmic']).default('linear'),
+  enabled: z.boolean().default(true),
+});
+export type MacroMapping = z.infer<typeof macroMappingSchema>;
+
+export const macroSchema = z.object({
+  id: z.string(),
+  name: z.string().max(24),
+  value: z.number().min(0).max(1).default(0),
+  mappings: z.array(macroMappingSchema).default([]),
+});
+export type Macro = z.infer<typeof macroSchema>;
+
+/**
+ * Performance trigger pad: a large button firing a trigger action through
+ * the existing scheduler (live-class). The pad EMBEDS its trigger payload —
+ * project.triggers is look-core state and gets replaced on every look
+ * apply/morph, so pads must not reference into it. `velocityScale` reserves
+ * MIDI-velocity scaling of pulse amounts (§19 — wiring is future work).
+ */
+export const performancePadSchema = z.object({
+  id: z.string(),
+  label: z.string().max(16),
+  trigger: triggerMappingSchema.nullable().default(null),
+  velocityScale: z.boolean().default(false),
+});
+export type PerformancePad = z.infer<typeof performancePadSchema>;
+
+/**
  * MIDI mapping (Phase 14). Live-class input: never part of export.
  *
  * CC mappings drive a parameter in ABSOLUTE mode (the knob IS the base
@@ -186,7 +228,7 @@ export const midiMappingSchema = z.object({
   messageType: z.enum(['cc', 'note']),
   /** CC number or note number, 0–127. */
   control: z.number().int().min(0).max(127),
-  targetType: z.enum(['param', 'triggerAction']),
+  targetType: z.enum(['param', 'triggerAction', 'macro']),
   /** param target: technique parameter id. */
   targetParam: z.string().nullable().default(null),
   /** triggerAction target: reuses the trigger-engine action vocabulary. */
@@ -231,6 +273,10 @@ export const projectSchema = z.object({
   morphEvents: z.array(morphEventSchema).default([]),
   /** Optional (defaulted) — v2 projects without it stay valid. */
   midiMappings: z.array(midiMappingSchema).default([]),
+  macros: z.array(macroSchema).default([]),
+  performancePads: z.array(performancePadSchema).default([]),
+  /** Global quantization for performance actions (look apply, morph, pads). */
+  performanceQuantize: quantizeModeSchema.default('bar'),
   explore: z.object({
     lockedParams: z.array(z.string()),
     lastSeed: z.number().int().nonnegative().nullable(),
@@ -267,6 +313,9 @@ export function createEmptyProject(name = 'Untitled'): Project {
     activeLookId: null,
     morphEvents: [],
     midiMappings: [],
+    macros: [],
+    performancePads: [],
+    performanceQuantize: 'bar' as const,
     explore: { lockedParams: [], lastSeed: null },
   };
 }

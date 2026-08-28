@@ -14,6 +14,7 @@ import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
 import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
 import { lookToCore } from '@/performance/lookCore';
+import { applyMacros } from '@/performance/macros';
 import type {
   LookCore,
   ModulationMapping,
@@ -235,7 +236,13 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     if (!definition) return { timeSec, params: working.params };
     const sources = evalSources(timeSec, sourceCtx);
     lastSources = sources;
-    const baseParams = overlay ? overlay.params : working.params;
+    // Macro values are project state (deterministic snapshot); live macro
+    // MOVEMENT is not recorded and cannot appear here (§41).
+    const baseParams = applyMacros(
+      overlay ? overlay.params : working.params,
+      project.macros,
+      definition,
+    );
     const mappings = overlay ? overlay.modulations : working.modulations;
     const activeTriggers = overlay ? overlay.triggers : working.triggers;
     const modulated = applyModulations(baseParams, mappings, sources, definition, smoothing, dt);

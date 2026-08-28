@@ -31,7 +31,7 @@ const TRANSIENT_COMMIT_MS = 600;
 export type MappingStatus = 'live' | 'waiting' | 'frozen' | 'morph' | 'offline' | 'idle';
 
 export interface LearnRequest {
-  targetType: 'param' | 'triggerAction';
+  targetType: 'param' | 'triggerAction' | 'macro';
   targetParam?: string;
   action?: TriggerAction;
   lookSlot?: number | null;
@@ -249,7 +249,7 @@ class MidiEngine {
         control: event.control,
         value: event.value,
       };
-      if (this.learn?.request.targetType === 'param') {
+      if (this.learn?.request.targetType === 'param' || this.learn?.request.targetType === 'macro') {
         this.tryLearnCc(event);
         return;
       }
@@ -360,9 +360,14 @@ class MidiEngine {
     const params = allParams(definition);
 
     for (const mapping of project.midiMappings) {
-      if (mapping.messageType !== 'cc' || mapping.targetType !== 'param') continue;
+      if (mapping.messageType !== 'cc') continue;
       if (!this.matches(mapping, event.deviceId, event.channel)) continue;
       if (mapping.control !== event.control) continue;
+      if (mapping.targetType === 'macro') {
+        this.handleMacroCc(mapping, event.value);
+        continue;
+      }
+      if (mapping.targetType !== 'param') continue;
       const def = params.find(
         (p) => p.id === mapping.targetParam && p.type === 'number',
       ) as NumberParamDef | undefined;
@@ -410,6 +415,46 @@ class MidiEngine {
       this.setStatus(mapping.id, 'live');
       this.writeParam(technique.id, mapping.targetParam as string, def, shaped);
     }
+  }
+
+  /** CC → macro value, ABSOLUTE with the same pickup discipline (§12). */
+  private handleMacroCc(mapping: MidiMapping, raw: number): void {
+    const { project } = useProjectStore.getState();
+    const macro = project.macros.find((m) => m.id === mapping.targetParam);
+    if (!macro) return;
+    const shaped = this.shapeWithSmoothing(mapping, raw);
+    this.liveValues.set(mapping.id, shaped);
+    const state = this.pickup.get(mapping.id) ?? { engaged: false, lastKnob: null };
+    if (!state.engaged) {
+      if (mapping.pickupMode === 'jump' || pickupCrossed(state.lastKnob, shaped, macro.value)) {
+        state.engaged = true;
+      }
+    }
+    state.lastKnob = shaped;
+    this.pickup.set(mapping.id, state);
+    if (!state.engaged) {
+      this.setStatus(mapping.id, 'waiting');
+      return;
+    }
+    this.setStatus(mapping.id, 'live');
+    const store = useProjectStore.getState();
+    if (!this.transientActive) {
+      store.beginTransient();
+      this.transientActive = true;
+    }
+    this.selfWrite = true;
+    store.apply((p) => ({
+      ...p,
+      macros: p.macros.map((m) => (m.id === mapping.targetParam ? { ...m, value: shaped } : m)),
+    }));
+    this.selfWrite = false;
+    if (this.commitTimer) clearTimeout(this.commitTimer);
+    this.commitTimer = setTimeout(() => {
+      if (this.transientActive) {
+        useProjectStore.getState().commitTransient();
+        this.transientActive = false;
+      }
+    }, TRANSIENT_COMMIT_MS);
   }
 
   private shapeWithSmoothing(mapping: MidiMapping, raw: number): number {
@@ -492,15 +537,18 @@ class MidiEngine {
    */
   private watchStore(): void {
     let lastTechniques = useProjectStore.getState().project.techniques;
+    let lastMacros = useProjectStore.getState().project.macros;
     let lastMappings = useProjectStore.getState().project.midiMappings;
     this.unsubscribeStore = useProjectStore.subscribe((state) => {
       if (state.project.midiMappings !== lastMappings) {
         lastMappings = state.project.midiMappings;
         this.rebindAll();
       }
-      if (state.project.techniques === lastTechniques) return;
+      const techniquesChanged = state.project.techniques !== lastTechniques;
+      const macrosChanged = state.project.macros !== lastMacros;
       lastTechniques = state.project.techniques;
-      if (this.selfWrite) return;
+      lastMacros = state.project.macros;
+      if (this.selfWrite || (!techniquesChanged && !macrosChanged)) return;
       this.reevaluatePickup();
     });
   }
@@ -516,16 +564,23 @@ class MidiEngine {
       if (mapping.messageType !== 'cc' || mapping.pickupMode !== 'pickup') continue;
       const state = this.pickup.get(mapping.id);
       if (!state?.engaged || state.lastKnob === null) continue;
-      const def = params.find((p) => p.id === mapping.targetParam && p.type === 'number') as
-        | NumberParamDef
-        | undefined;
-      if (!def) continue;
-      const current = technique.params[mapping.targetParam ?? ''];
-      const currentNorm =
-        typeof current === 'number'
-          ? (current - def.min) / Math.max(def.max - def.min, 1e-9)
-          : 0;
-      if (Math.abs(state.lastKnob - currentNorm) > PICKUP_EPSILON) {
+      let currentNorm: number | null = null;
+      if (mapping.targetType === 'macro') {
+        const macro = project.macros.find((m) => m.id === mapping.targetParam);
+        if (macro) currentNorm = macro.value;
+      } else {
+        const def = params.find((p) => p.id === mapping.targetParam && p.type === 'number') as
+          | NumberParamDef
+          | undefined;
+        if (def) {
+          const current = technique.params[mapping.targetParam ?? ''];
+          currentNorm =
+            typeof current === 'number'
+              ? (current - def.min) / Math.max(def.max - def.min, 1e-9)
+              : 0;
+        }
+      }
+      if (currentNorm !== null && Math.abs(state.lastKnob - currentNorm) > PICKUP_EPSILON) {
         state.engaged = false;
         this.setStatus(mapping.id, 'waiting');
       }

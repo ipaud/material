@@ -59,7 +59,7 @@ export function pinCurrentLook(): PinnedLook | null {
   apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, look], activeLookId: look.id }));
   useUiStore
     .getState()
-    .pushToast('info', slot ? `Pinned ${look.label} → slot ${slot}` : `Pinned ${look.label} (no free slot)`);
+    .pushToast('info', slot ? `Pinned ${look.label} → slot ${slot}` : `Pinned ${look.label} — all slots full; Shift+1–9 assigns it over a slot`);
   return look;
 }
 

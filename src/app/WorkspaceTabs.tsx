@@ -5,7 +5,7 @@ const TABS: { id: WorkspaceId; label: string; available: boolean }[] = [
   { id: 'explore', label: 'EXPLORE', available: true },
   { id: 'techniques', label: 'TECHNIQUES', available: true },
   { id: 'modulation', label: 'MODULATION', available: false },
-  { id: 'performance', label: 'PERFORMANCE', available: false },
+  { id: 'performance', label: 'PERFORMANCE', available: true },
 ];
 
 export function WorkspaceTabs() {

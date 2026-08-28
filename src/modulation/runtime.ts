@@ -5,6 +5,8 @@ import { applyModulations, SmoothingState } from './evaluator';
 import { applyPulses } from '@/signals/pulseEngine';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
+import { applyMacros } from '@/performance/macros';
+import type { Macro } from '@shared/schemas/project';
 
 /**
  * Live modulation runtime: the bridge feeds it project state; the render
@@ -12,6 +14,7 @@ import { morphRuntime } from '@/performance/morphRuntime';
  */
 class ModulationRuntime {
   private mappings: ModulationMapping[] = [];
+  private macros: Macro[] = [];
   private techniqueId: string | null = null;
   private sourceCtx: SourceContext = {
     analysis: null,
@@ -29,6 +32,10 @@ class ModulationRuntime {
     this.mappings = mappings;
     this.techniqueId = techniqueId;
     this.sourceCtx = ctx;
+  }
+
+  configureMacros(macros: Macro[]): void {
+    this.macros = macros;
   }
 
   hasActiveMappings(): boolean {
@@ -53,8 +60,11 @@ class ModulationRuntime {
     const sources = evalSources(timeSec, this.sourceCtx);
     this.lastSourceValues = sources;
     // Evaluation order (docs/PARAMETER_EVALUATION.md):
-    // (morph base) → continuous modulation (freeze inside) → pulses → clamp.
-    const effectiveBase = overlay ? overlay.params : base;
+    // (morph base) → macros → continuous modulation (freeze inside) →
+    // pulses → clamp. Macros ride ON TOP of look/morph state (§13) — they
+    // are performance state, applied after the overlay, never stored into
+    // Looks.
+    const effectiveBase = applyMacros(overlay ? overlay.params : base, this.macros, definition);
     const effectiveMappings = overlay ? overlay.modulations : this.mappings;
     const modulated = applyModulations(
       effectiveBase,

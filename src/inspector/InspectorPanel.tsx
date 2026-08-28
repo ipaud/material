@@ -8,6 +8,7 @@ import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
 import { TriggersSection } from './TriggersSection';
 import { MidiSection } from './MidiSection';
+import { MacrosSection } from './MacrosSection';
 import { MidiParamWrap } from './MidiParamWrap';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
@@ -102,6 +103,7 @@ export function InspectorPanel() {
             </div>
             <ModulationSection />
             <TriggersSection />
+            <MacrosSection />
             <MidiSection />
             <div className="inspector-section">
               <div className="inspector-section-header">

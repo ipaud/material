@@ -78,6 +78,17 @@ export class TriggerScheduler {
     return { ...this.diag, pendingCount: this.pending.length };
   }
 
+  /** Pending quantized actions (performance UI shows what is queued). */
+  getPending(): { mapping: TriggerMapping; executeAt: number }[] {
+    return this.pending.map((p) => ({ mapping: p.mapping, executeAt: p.executeAt }));
+  }
+
+  /** Cancel queued quantized actions without touching interval state (Esc). */
+  cancelPending(): void {
+    this.pending = [];
+    this.diag = { ...this.diag, pendingCount: 0 };
+  }
+
   /** Live pulse envelopes' current contribution per target param (signed). */
   livePulseContributions(t: number): Map<string, number> {
     const out = new Map<string, number>();

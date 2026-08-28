@@ -5,6 +5,11 @@
   height: 100%;
 }
 
+/* PERFORMANCE: no gutter/timeline rows — titlebar / output / strip / tabs. */
+.app.perf {
+  grid-template-rows: var(--titlebar-height) 1fr auto var(--workspace-tabs-height);
+}
+
 /* ---- Title bar ---- */
 .titlebar {
   display: flex;

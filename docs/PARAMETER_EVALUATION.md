@@ -8,6 +8,9 @@ base value                     (slider / project state / engaged MIDI CC —
                                 ABSOLUTE mode writes the base, live only)
   → morph overlay              (armed morph replaces base+mappings+triggers
                                 with the interpolated look core — pure fn of t)
+  → macros                     (Σ macro.value shaped × amount × paramSpan,
+                                additive; live performance layer ON TOP of
+                                look/morph state — never written into Looks)
   → continuous modulation      (signal × amount × paramSpan, additive; FREEZE lives here)
   → trigger pulses             (Σ envelope × amount × paramSpan, additive)
   → clamp to parameter range
@@ -112,3 +115,15 @@ accepted one. For pulses this is applied over a bounded lookback window
 (envelope span + 8 cooldowns) — deterministic because the same pure filter
 runs everywhere. For discrete actions the scheduler tracks the last firing;
 that chain resets at seeks, identically in preview and export.
+
+## Macro layer
+
+Macros (Phase 15) are pure and stateless: `applyMacros(base, macros, def)`
+adds `amount × shaped(macro.value) × paramSpan` per enabled mapping, clamped
+to the definition range, BEFORE continuous modulation. Macro values are
+project state — export uses the stored snapshot; live macro movement is
+unrecorded live input (see docs/PERFORMANCE.md). A frozen modulation rides
+on the macroed base: freeze holds the modulation's shaped value, not the
+final number, so moving a macro under a frozen mapping still shifts the
+final value by the macro delta — freeze protects the modulation layer, the
+macro is the performer's hand.

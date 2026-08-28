@@ -20,6 +20,11 @@ interface UiStore {
   offlineSources: string[];
   showBeatGrid: boolean;
   showSignalMonitor: boolean;
+  /** Performance workspace: minimal HUD (Tab). */
+  perfHud: boolean;
+  /** Performance morph target look id (M key / MORPH button). */
+  perfMorphTargetId: string | null;
+  perfMorphDuration: '1beat' | '2beats' | '1bar' | '2bars' | '4bars';
 
   setWorkspace: (workspace: WorkspaceId) => void;
   toggleDebugOverlay: () => void;
@@ -30,6 +35,9 @@ interface UiStore {
   setOfflineSources: (ids: string[]) => void;
   toggleBeatGrid: () => void;
   toggleSignalMonitor: () => void;
+  togglePerfHud: () => void;
+  setPerfMorphTarget: (id: string | null) => void;
+  setPerfMorphDuration: (d: UiStore['perfMorphDuration']) => void;
 }
 
 let toastCounter = 0;
@@ -45,6 +53,12 @@ export const useUiStore = create<UiStore>((set) => ({
   offlineSources: [],
   showBeatGrid: true,
   showSignalMonitor: false,
+  perfHud: false,
+  perfMorphTargetId: null,
+  perfMorphDuration: '1bar',
+  togglePerfHud: () => set((s) => ({ perfHud: !s.perfHud })),
+  setPerfMorphTarget: (id) => set({ perfMorphTargetId: id }),
+  setPerfMorphDuration: (d) => set({ perfMorphDuration: d }),
   setOfflineSources: (ids) => set({ offlineSources: ids }),
   toggleBeatGrid: () => set((s) => ({ showBeatGrid: !s.showBeatGrid })),
   toggleSignalMonitor: () => set((s) => ({ showSignalMonitor: !s.showSignalMonitor })),

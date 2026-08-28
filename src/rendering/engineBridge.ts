@@ -180,6 +180,7 @@ function configureModulation(): void {
     beatOffsetSec: project.timeline.beatOffsetSec,
     beatsPerBar: project.timeline.beatsPerBar,
   });
+  modulationRuntime.configureMacros(project.macros);
   configureTriggers(project.triggers, {
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
