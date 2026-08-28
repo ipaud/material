@@ -13,6 +13,7 @@ import { Viewport } from '@/viewport/Viewport';
 import { ExplorePanel } from '@/explore/ExplorePanel';
 import { ExportDialog } from '@/export/ExportDialog';
 import { RecoveryPrompt } from './RecoveryPrompt';
+import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { TechniquesBrowser } from '@/techniques/TechniquesBrowser';
 import { startAutosave } from '@/projects/autosave';
 import { midiEngine } from '@/midi/midiEngine';
@@ -90,6 +91,7 @@ export function App() {
       <Toasts />
       <ExportDialog />
       <RecoveryPrompt />
+      <ShortcutsOverlay />
     </div>
   );
 }

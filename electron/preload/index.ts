@@ -27,6 +27,7 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
     ipcRenderer.on(IPC.exportProgress, listener);
     return () => ipcRenderer.removeListener(IPC.exportProgress, listener);
   },
+  setLiveEngine: (active) => ipcRenderer.invoke(IPC.setLiveEngine, active),
   getSessionId: () => ipcRenderer.invoke(IPC.sessionId),
   writeRecovery: (projectPath, project) =>
     ipcRenderer.invoke(IPC.recoveryWrite, projectPath, project),

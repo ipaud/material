@@ -22,6 +22,7 @@ interface UiStore {
   showSignalMonitor: boolean;
   /** Performance workspace: minimal HUD (Tab). */
   perfHud: boolean;
+  showShortcuts: boolean;
   /** Performance morph target look id (M key / MORPH button). */
   perfMorphTargetId: string | null;
   perfMorphDuration: '1beat' | '2beats' | '1bar' | '2bars' | '4bars';
@@ -36,6 +37,7 @@ interface UiStore {
   toggleBeatGrid: () => void;
   toggleSignalMonitor: () => void;
   togglePerfHud: () => void;
+  toggleShortcuts: () => void;
   setPerfMorphTarget: (id: string | null) => void;
   setPerfMorphDuration: (d: UiStore['perfMorphDuration']) => void;
 }
@@ -54,9 +56,11 @@ export const useUiStore = create<UiStore>((set) => ({
   showBeatGrid: true,
   showSignalMonitor: false,
   perfHud: false,
+  showShortcuts: false,
   perfMorphTargetId: null,
   perfMorphDuration: '1bar',
   togglePerfHud: () => set((s) => ({ perfHud: !s.perfHud })),
+  toggleShortcuts: () => set((s) => ({ showShortcuts: !s.showShortcuts })),
   setPerfMorphTarget: (id) => set({ perfMorphTargetId: id }),
   setPerfMorphDuration: (d) => set({ perfMorphDuration: d }),
   setOfflineSources: (ids) => set({ offlineSources: ids }),
@@ -73,9 +77,17 @@ export const useUiStore = create<UiStore>((set) => ({
   toggleDebugOverlay: () => set((s) => ({ debugOverlay: !s.debugOverlay })),
   setShowOriginal: (show) => set({ showOriginal: show }),
   pushToast: (kind, message) =>
-    set((s) => ({
-      toasts: [...s.toasts.slice(-4), { id: `toast_${toastCounter++}`, kind, message }],
-    })),
+    set((s) => {
+      // Repeating the same message (a knob hitting a frozen target, say)
+      // should not build a wall of identical cards over the controls.
+      const withoutDuplicate = s.toasts.filter((t) => t.message !== message);
+      return {
+        toasts: [
+          ...withoutDuplicate.slice(-2),
+          { id: `toast_${toastCounter++}`, kind, message },
+        ],
+      };
+    }),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 

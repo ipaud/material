@@ -1,29 +1,32 @@
-import { engine } from '@/rendering/RenderEngine';
+import { isDarkThumbnail, renderThumbnail } from '@/performance/thumbnail';
+import { blockedByExport } from '@/export/exportGuard';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { uid } from '@/utils/id';
 import { captureLookCore, lookToCore, projectWithLookCore } from '@/performance/lookCore';
 import type { PinnedLook, Project } from '@shared/schemas/project';
 
-const THUMB_WIDTH = 220;
-
 /** Deterministic look thumbnail via the existing offscreen render path. */
 function renderLookThumbnail(project: Project): string | null {
-  try {
-    const aspect = project.composition.width / project.composition.height;
-    const h = Math.max(Math.round(THUMB_WIDTH / aspect), 16);
-    const active = project.techniques.find((t) => t.enabled);
-    if (!active || !project.composition.sourceId) return null;
-    const pixels = engine.renderStill(THUMB_WIDTH, h, active.params);
-    const canvas = document.createElement('canvas');
-    canvas.width = THUMB_WIDTH;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), THUMB_WIDTH, h), 0, 0);
-    return canvas.toDataURL('image/jpeg', 0.7);
-  } catch {
-    return null;
+  return renderThumbnail(project, project.techniques.find((t) => t.enabled)?.params ?? {}).dataUrl;
+}
+
+/** Re-render a look's thumbnail from the CURRENT frame (§14). */
+export function rethumbnailLook(lookId: string): void {
+  const { project, apply } = useProjectStore.getState();
+  const look = project.pinnedLooks.find((l) => l.id === lookId);
+  if (!look) return;
+  const params = look.techniques.find((t) => t.enabled)?.params ?? {};
+  const { dataUrl, luminance } = renderThumbnail(project, params);
+  if (!dataUrl) return;
+  apply((p) => ({
+    ...p,
+    pinnedLooks: p.pinnedLooks.map((l) => (l.id === lookId ? { ...l, thumbnail: dataUrl } : l)),
+  }));
+  if (isDarkThumbnail(luminance)) {
+    useUiStore
+      .getState()
+      .pushToast('info', 'Thumbnail is very dark — try again on a brighter frame');
   }
 }
 
@@ -65,6 +68,7 @@ export function pinCurrentLook(): PinnedLook | null {
 
 /** ATOMIC apply: the whole look state commits as one operation (§5). */
 export function applyLook(lookId: string): void {
+  if (blockedByExport('Applying a Look')) return;
   useProjectStore.getState().apply((p) => {
     const look = p.pinnedLooks.find((l) => l.id === lookId);
     if (!look) return p;

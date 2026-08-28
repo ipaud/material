@@ -9,15 +9,39 @@ export (PNG, PNG sequence, H.264, ProRes 422/4444 with alpha);
 composition-time temporal engine with Echo, Step Print and Slit Scan;
 techniques browser; autosave and crash recovery.
 
+## v0.2 — shipped
+
+Phases 10–17, themed MUSIC / PERFORMANCE. Audio Engine 2 (peak, centroid,
+flux, improved onset) with offline tempo detection and tap tempo; a musical
+clock with bar/beat/division phases and markers; the trigger engine with
+pure-function pulses and one quantizing scheduler; Freeze 2.0; Looks 2.0 with
+slots, thumbnails and morph; Web MIDI with MIDI Learn and pickup; the
+Performance workspace with macros, trigger pads and quantized actions; and
+CURRENT/CANDIDATE mutation with non-destructive preview.
+
 ## Next
 
-**Keyframes.** The project format already reserves parameter/time/value/
+**Performance recording.** The single biggest gap. Every live gesture already
+passes through one timestampable chokepoint (see the readiness table in
+PERFORMANCE.md), and recorded morphs prove the replay pattern. What is missing
+is a recorder and a replay path into the export evaluator.
+
+**Keyframes.** The project format still reserves parameter/time/value/
 interpolation. Needs a timeline lane and an evaluator that composes with
 modulation rather than fighting it.
 
-**Performance workspace.** Full-screen output, parameters bound to mouse,
-keyboard and MIDI, preset triggering. Architecture is in place; nothing is
-wired.
+**Tempo map.** v0.2 has one global BPM. Music that drifts, ritardandos and
+live drummers all want a tempo track. The beat grid is pure arithmetic over
+`{bpm, offset}`, so this is a data-model change more than an engine one.
+
+**Dedicated output window.** Fullscreen output on a second display, and the
+foundation Syphon would need. The engine already renders from pushed state and
+the transport already owns the liveness signal
+(see BACKGROUND_RENDERING.md), so nothing blocks it.
+
+**Candidate material mutation.** Blocked today because material state reaches
+the renderer from the document rather than through the per-frame transform, so
+a mutated material would be invisible in preview.
 
 **Colour management.** sRGB today. Rec.709 and a linear working space are the
 honest next step, then wide gamut. Nothing should claim to be colour-managed

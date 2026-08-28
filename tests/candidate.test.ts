@@ -489,3 +489,38 @@ describe('queue hygiene (§25 adversarial)', () => {
     expect(useProjectStore.getState().project).toEqual(before);
   });
 });
+
+describe('mutation always changes something (Phase 17)', () => {
+  test('generate retries past a no-op draw', () => {
+    candidateRuntime.reset();
+    useProjectStore.getState().loadProject('', perfProject());
+    useCandidateStore.setState({ intensity: 'low', locks: emptyMutationLocks() });
+    for (let i = 0; i < 30; i++) {
+      const c = candidateRuntime.generate();
+      expect(c).not.toBeNull();
+      expect(c!.metadata.changedParams + c!.metadata.changedModulations).toBeGreaterThan(0);
+    }
+    candidateRuntime.reset();
+  });
+});
+
+describe('document replacement clears runtimes (Phase 17)', () => {
+  test('a new project drops the candidate and any armed morph', () => {
+    useProjectStore.getState().loadProject('', perfProject());
+    candidateRuntime.generate();
+    candidateRuntime.setPreview(true);
+    expect(candidateRuntime.current).not.toBeNull();
+    useProjectStore.getState().newProject();
+    expect(candidateRuntime.current).toBeNull();
+    expect(candidateRuntime.isPreviewing).toBe(false);
+    expect(morphRuntime.current).toBeNull();
+  });
+
+  test('opening another project drops a candidate from the previous one', () => {
+    useProjectStore.getState().loadProject('', perfProject());
+    const candidate = candidateRuntime.generate();
+    expect(candidate).not.toBeNull();
+    useProjectStore.getState().loadProject('/elsewhere.material', perfProject());
+    expect(candidateRuntime.current).toBeNull();
+  });
+});

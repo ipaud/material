@@ -91,13 +91,24 @@ function syncFromProject(): void {
         playback.seek(0);
       });
       video.addEventListener('error', () => {
-        if (generation === loadGeneration) {
-          reportError(
-            'Load video',
-            new Error(`Could not decode ${source.path} (unsupported codec?)`),
-          );
-          engine.setSource(null);
-        }
+        if (generation !== loadGeneration) return;
+        // A moved or deleted file fails exactly like an unplayable one. Ask
+        // the filesystem which it is before blaming the codec — "unsupported
+        // codec?" on a file the user simply moved sends them hunting for the
+        // wrong problem.
+        const fileName = source.path.split('/').pop() ?? source.path;
+        void window.material
+          .probeMedia(source.path)
+          .then(() => {
+            reportError('Load video', new Error(`Could not decode ${fileName} (unsupported codec?)`));
+          })
+          .catch(() => {
+            reportError(
+              'Media offline',
+              new Error(`${fileName} is missing — relink it from the Library`),
+            );
+          });
+        engine.setSource(null);
       });
     }
   }

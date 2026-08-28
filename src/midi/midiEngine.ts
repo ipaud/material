@@ -120,7 +120,6 @@ class MidiEngine {
     resolve: ((mapping: MidiMapping | null) => void) | null;
   } | null = null;
 
-  private transientActive = false;
   private commitTimer: ReturnType<typeof setTimeout> | null = null;
   private selfWrite = false;
   private unsubscribeStore: (() => void) | null = null;
@@ -438,22 +437,21 @@ class MidiEngine {
     }
     this.setStatus(mapping.id, 'live');
     const store = useProjectStore.getState();
-    if (!this.transientActive) {
-      store.beginTransient();
-      this.transientActive = true;
-    }
+    store.beginTransient();
     this.selfWrite = true;
     store.apply((p) => ({
       ...p,
       macros: p.macros.map((m) => (m.id === mapping.targetParam ? { ...m, value: shaped } : m)),
     }));
     this.selfWrite = false;
+    this.armGestureCommit();
+  }
+
+  /** Close the gesture shortly after the last message: one undo entry. */
+  private armGestureCommit(): void {
     if (this.commitTimer) clearTimeout(this.commitTimer);
     this.commitTimer = setTimeout(() => {
-      if (this.transientActive) {
-        useProjectStore.getState().commitTransient();
-        this.transientActive = false;
-      }
+      useProjectStore.getState().commitTransient();
     }, TRANSIENT_COMMIT_MS);
   }
 
@@ -474,10 +472,12 @@ class MidiEngine {
   ): void {
     const value = def.min + Math.min(Math.max(norm, 0), 1) * (def.max - def.min);
     const store = useProjectStore.getState();
-    if (!this.transientActive) {
-      store.beginTransient();
-      this.transientActive = true;
-    }
+    // beginTransient is idempotent, so asking every message keeps the engine
+    // in step with the STORE rather than with a local flag. A local flag goes
+    // stale the moment a project is loaded mid-gesture (the store clears its
+    // transient, the flag does not) and every later message would then become
+    // its own undo entry.
+    store.beginTransient();
     this.selfWrite = true;
     store.apply((p) => ({
       ...p,
@@ -486,13 +486,7 @@ class MidiEngine {
       ),
     }));
     this.selfWrite = false;
-    if (this.commitTimer) clearTimeout(this.commitTimer);
-    this.commitTimer = setTimeout(() => {
-      if (this.transientActive) {
-        useProjectStore.getState().commitTransient();
-        this.transientActive = false;
-      }
-    }, TRANSIENT_COMMIT_MS);
+    this.armGestureCommit();
   }
 
   // ---- Note → trigger action ------------------------------------------

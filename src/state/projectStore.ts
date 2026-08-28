@@ -11,6 +11,8 @@ interface ProjectStore {
   future: Project[];
   /** Snapshot taken at the start of a transient gesture (slider drag). */
   transientBase: Project | null;
+  /** Bumped when the document is REPLACED (new / open / recover), never on edits. */
+  projectGeneration: number;
 
   /**
    * Apply an immutable update. Pushes an undo entry unless a transient
@@ -41,6 +43,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   past: [],
   future: [],
   transientBase: null,
+  projectGeneration: 0,
 
   apply: (updater) => {
     const { project, past, transientBase } = get();
@@ -119,25 +122,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   newProject: () => {
-    set({
+    set((s) => ({
       project: createEmptyProject(),
       projectPath: null,
       dirty: false,
       past: [],
       future: [],
       transientBase: null,
-    });
+      projectGeneration: s.projectGeneration + 1,
+    }));
   },
 
   loadProject: (path, project) => {
-    set({
+    set((s) => ({
       project,
       projectPath: path,
       dirty: false,
       past: [],
       future: [],
       transientBase: null,
-    });
+      projectGeneration: s.projectGeneration + 1,
+    }));
   },
 
   markSaved: (path) => {

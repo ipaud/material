@@ -5,6 +5,7 @@ import {
   deleteLook,
   duplicateLook,
   renameLook,
+  rethumbnailLook,
   updateLook,
 } from '@/projects/lookActions';
 import { isLookDirty } from '@/performance/lookCore';
@@ -127,6 +128,14 @@ export function LooksPanel() {
                     }}
                   >
                     Rename
+                  </button>
+                  <button
+                    onClick={() => {
+                      rethumbnailLook(look.id);
+                      setMenuFor(null);
+                    }}
+                  >
+                    Re-thumbnail
                   </button>
                   <button
                     onClick={() => {

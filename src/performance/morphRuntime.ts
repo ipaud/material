@@ -2,6 +2,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { playback } from '@/playback/PlaybackController';
 import { nextBoundary } from '@/signals/quantize';
+import { blockedByExport } from '@/export/exportGuard';
 import { uid } from '@/utils/id';
 import { captureLookCore, lookToCore, projectWithLookCore } from './lookCore';
 import { interpolateLookCore, morphCurve, type MorphStats } from './interpolate';
@@ -74,6 +75,7 @@ class MorphRuntime {
     options: { startQuantize: QuantizeMode; duration: MorphDuration; curve: MorphCurve },
     atTime = playback.getTime(),
   ): boolean {
+    if (blockedByExport('Morph')) return false;
     const { project } = useProjectStore.getState();
     const look = project.pinnedLooks.find((l) => l.id === targetLookId);
     const source = captureLookCore(project);

@@ -1,5 +1,174 @@
 # Release Notes
 
+## v0.2.0 — MUSIC / PERFORMANCE
+
+v0.1 proved MATERIAL could construct visual systems. v0.2 makes those systems
+**playable**: a musical clock, signals that fire on the beat, Looks you can
+switch and morph between, a physical controller, and a workspace built for
+performing rather than editing.
+
+### Highlights
+
+**Audio Engine 2.** Peak, spectral centroid, flux and a proper onset track
+join the v0.1 features. Bands share one normalization reference so their
+balance is real; the centroid is absolute (100 Hz – 8 kHz log scale) so
+"bright" means the same thing across songs. All offline, all deterministic.
+
+**Tempo and beat grid.** Offline tempo detection (autocorrelation over the
+onset envelope, 60–200 BPM, log-normal prior at 120) with confidence and a
+half/double-time alternative, plus tap tempo. Detection is *advisory* — your
+manual BPM always wins, and silence returns nothing rather than a
+confident-looking number. The grid drives bar/beat readouts, divisions and
+every quantized action.
+
+**Trigger engine.** Beat, bar, divisions, onsets and markers fire actions
+through one scheduler that processes half-open time intervals, so an event on
+a boundary fires exactly once no matter how frames are cut, where you seek, or
+how a loop wraps.
+
+**Pulses.** An AHD envelope per trigger, evaluated as a pure function of time.
+Overlapping pulses sum then clamp, so a drum roll builds energy. Because there
+is no state machine, seeking is free and export needs no replay.
+
+**Freeze 2.0.** Freeze all modulated values, or one at a time, with a live
+BASE / MOD / PULSE / FINAL breakdown per mapping. Frozen state survives Look
+switches, morphs and a live controller.
+
+**Looks 2.0.** Nine slots with thumbnails, keyboard recall, rename, duplicate,
+update and a "modified" indicator. A Look captures technique, parameters,
+material, modulations, triggers and seed — applied atomically as one undo
+entry.
+
+**Morph.** Interpolate between Looks over seconds, beats or bars. Numbers
+glide; techniques, materials and enums switch cleanly at the midpoint;
+unmatched modulations cross-fade; triggers hand over without double-firing.
+An armed morph is a pure function of time, so seeking and looping reconstruct
+it exactly, and completed morphs are recorded so they export.
+
+**MIDI with MIDI Learn.** Web MIDI in Electron, no native dependency.
+Right-click any parameter to learn a knob; pick an action and hit a pad to
+learn a note. Devices reconnect by name when the platform id changes, and
+mappings persist offline rather than vanishing.
+
+**Pickup.** A knob whose position disagrees with the software value waits
+until you sweep across it. After a Look change the affected knobs return to
+waiting — which is what makes Look switching safe with fixed controllers.
+
+**Performance workspace.** Output dominates; below it sit nine Look slots,
+macros, the actions and a musical readout with a beat pulse. Tab strips it to
+a minimal HUD.
+
+**Macros.** One 0–1 control fanned out to several parameters with per-target
+amount, range, curve and invert. This is where MATERIAL's depth folds into
+something playable: five relationships in CREATE become `MEMORY 0.73` in
+PERFORMANCE. MIDI-learnable, and never written into stored Looks.
+
+**Quantized performance.** A global Off / Beat / Bar / 2 / 4 Bars setting
+governs Look changes, morph starts and candidate applies. Queued actions are
+visible and cancellable; measured boundary error at 78.03 BPM was 0 ms.
+
+**Candidate / Mutate.** Press `G` and MATERIAL mutates what is playing into a
+CANDIDATE held entirely outside the project. Hold `B` to audition it live,
+`⇧G` to mutate again along a lineage, Enter to apply it musically, PIN to save
+it without touching the output. Generating or previewing can never alter what
+the audience sees.
+
+### Measured performance
+
+| | |
+| --- | --- |
+| Mosaic, 1080p | 120 fps |
+| Temporal (Echo Chamber), 1080p | 119 fps |
+| Mosaic / Echo / Fracture, **4K** (3840×2160) | 117–120 fps |
+| Performance workspace, active macros | 120 fps |
+| Macro input → store | 0.013 ms |
+| Macro input → pixels | 16.4 ms (one frame) |
+| MIDI event → parameter | 0.17 ms mean, 0.5 ms worst |
+| Look apply | 0.1–0.3 ms |
+| Trigger pad fire | < 0.1 ms |
+| Candidate generate (incl. thumbnail) | 14.7 ms |
+| Candidate preview → pixels | 5.8 ms |
+| Morph overlay evaluation | 4.8 µs |
+| Export, 960×540 @ 24 fps, 4 s | 4.8–6.9 s per format |
+| Renderer heap, heavy session | ~85 MB, flat |
+| Project with 20 Looks | 331 KB |
+
+4K needs no proxy media — measured, not assumed.
+
+### Compatibility
+
+Project format stays at **v2**. v0.1 (v1) projects open and migrate: existing
+visual state is preserved exactly, musical fields keep any BPM you had set,
+and every v0.2 system starts empty rather than invented. Migration is
+idempotent and never mutates the file on disk without an explicit Save.
+
+### Long-session stability
+
+A 30-minute scripted performance session — 228 cycles of Look changes,
+quantized switches, macro sweeps, trigger pads, freeze/unfreeze, morphs,
+mutations, candidate previews and applies, pins, undo/redo, workspace and HUD
+toggling, seeks and transport stops:
+
+| | |
+| --- | --- |
+| Errors | 0 |
+| Frame rate | 119–120 fps sustained (avg 116.9 across 40 samples) |
+| Renderer heap | 87.8 MB → 21.6 MB (peak 90 MB) — no growth |
+| Queued actions left pending | 0 |
+| Stale candidate / preview / morph | none |
+| Morph events recorded | 20 |
+
+### Tested
+
+- 307 automated tests; typecheck and lint clean.
+- Export determinism across five representative projects (modulation, temporal,
+  triggers, morph, applied candidate): byte-identical on re-export.
+- Export isolation: byte-identical output while macros, Look switches, seeks
+  and candidate generation were fired at it throughout.
+- v1 → v2 migration and v2 round-trip, including a 20-Look project.
+- Crash recovery, including v1 autosaves and malformed files.
+- Timing edge cases at 60–200 BPM, 3/4, 4/4 and 6/8, positive and negative beat
+  offsets, boundary-adjacent events, seeks and loops.
+- Audio edge cases: silence, DC, near-silence, clipping, single impulses.
+- MIDI input abuse: 5000-message CC storms, eight simultaneous controls,
+  repeated notes, thirty rapid device reconnects.
+- 60 candidate mutations across the six demonstration Looks.
+
+### Experimental
+
+- Tempo **detection** — advisory by design; confirm with TAP when it matters.
+- ProRes 4444 with alpha — verified with ffprobe, less exercised in NLEs than
+  H.264.
+
+### Not implemented
+
+- Performance recording. Live knob moves, pad hits and keystrokes are real in
+  the room and absent from exports. Recorded morphs are the exception: they
+  become timeline state and do export.
+- MIDI clock, MIDI output, sysex, relative encoders.
+- Tempo maps — one global BPM per project.
+- Camera input, screen capture, Syphon, OSC, node graph, Shader Lab.
+
+### Known limitations
+
+- **Physical MIDI hardware is untested.** All MIDI validation used a virtual
+  CoreMIDI device. The architecture, latency and pickup behaviour are verified;
+  the *feel* under a real controller (smoothing defaults, pickup epsilon) has
+  not been tuned. See the checklist in MIDI.md.
+- One global BPM. Music that drifts or slows will drift off the grid.
+- One Candidate at a time; full populations stay in the Explore workspace.
+- Candidate mutation does not touch materials, because material state reaches
+  the renderer from the document rather than the per-frame transform — a
+  mutated material would be invisible in preview.
+- Look and Candidate thumbnails capture the frame under the playhead, so
+  pinning during a dark passage yields a dark tile. MATERIAL warns and offers
+  a re-thumbnail rather than moving the playhead behind your back.
+- A hidden, paused editor may be throttled by macOS App Nap. Playback holds a
+  suspension inhibitor, so a running transport is never affected. See
+  BACKGROUND_RENDERING.md.
+- Live MIDI is ignored during export, and Look/morph/candidate applies and
+  seeks are blocked while exporting, because they move shared render state.
+
 ## v0.1.0 — 2026-08-28
 
 First complete functional foundation. MATERIAL v0.1 proves the core thesis:

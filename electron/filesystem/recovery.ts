@@ -88,9 +88,12 @@ export async function listRecoveries(currentSessionId: string): Promise<Recovery
     try {
       envelope = recoveryEnvelopeSchema.parse(JSON.parse(await fs.readFile(filePath, 'utf8')));
     } catch {
-      // Unreadable JSON or a broken envelope is genuinely unrecoverable;
-      // drop it rather than blocking startup.
-      await fs.rm(filePath, { force: true });
+      // Unreadable JSON or a broken envelope cannot be offered — but it must
+      // not be destroyed either. A truncated autosave is exactly what a kill
+      // mid-write produces, which is precisely when the user's work is at
+      // stake, and a human may still salvage it by hand. Move it aside so it
+      // leaves the scan path without leaving the disk.
+      await fs.rename(filePath, `${filePath}.corrupt`).catch(() => undefined);
       continue;
     }
     try {

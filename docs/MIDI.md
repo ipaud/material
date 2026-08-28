@@ -136,3 +136,35 @@ LEARN armed. Per-row: live shaped value (imperative, UI-rate) and status
 MIDI Clock sync, MIDI output/LED feedback, sysex, motorized faders, OSC,
 relative encoders, velocity→pulse scaling, controller preset library,
 performance recording.
+
+## Physical controller QA checklist
+
+All MIDI validation to date used a **virtual CoreMIDI source**, not hardware.
+The architecture, latency and pickup logic are verified; the *feel* is not.
+Anyone with a controller should walk this list and tune the defaults:
+
+- [ ] **Smoothing.** Default is 0 (raw). Sweep a knob fast and slow — if the
+      image steps audibly, raise smoothing per mapping and consider a new
+      default.
+- [ ] **Pickup epsilon.** Currently 0.015 (1.5% of range). Too small and a
+      knob feels like it refuses to catch; too large and it jumps. Test by
+      applying a Look, then sweeping slowly through the software value.
+- [ ] **Rapid CC.** Spin a knob as fast as it goes; watch for lag or stuck
+      values. Endless encoders will misbehave — they are absolute-only in
+      v0.2 (see Relative encoders above).
+- [ ] **Multiple simultaneous knobs.** Move four at once, including two mapped
+      to the same parameter family.
+- [ ] **Pads.** Check velocity is reported in diagnostics; check double-hits
+      at speed do not double-fire quantized actions.
+- [ ] **Disconnect / reconnect.** Unplug mid-performance: mappings must show
+      OFFLINE and survive. Replug: they must re-bind by name.
+- [ ] **Look switch pickup.** Apply a Look from the keyboard while holding a
+      knob still. The mapping must return to WAITING and not jump when the
+      knob next moves.
+- [ ] **Morph completion pickup.** Same check immediately after a morph
+      commits.
+- [ ] **Channel filtering.** If the controller sends on a non-zero channel,
+      confirm learn captured it and omni behaves.
+
+Until this list has been walked on hardware, MATERIAL's release notes say
+physical controllers are untested. Do not claim otherwise.

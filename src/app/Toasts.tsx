@@ -7,12 +7,13 @@ export function Toasts() {
   const toasts = useUiStore((s) => s.toasts);
   const dismissToast = useUiStore((s) => s.dismissToast);
 
+  // One timer per toast: the previous version only ever timed the newest, so
+  // an older card could sit on screen indefinitely while new ones arrived.
   useEffect(() => {
-    if (toasts.length === 0) return;
-    const newest = toasts[toasts.length - 1];
-    if (!newest) return;
-    const timer = setTimeout(() => dismissToast(newest.id), TOAST_LIFETIME_MS);
-    return () => clearTimeout(timer);
+    const timers = toasts.map((toast) =>
+      setTimeout(() => dismissToast(toast.id), TOAST_LIFETIME_MS),
+    );
+    return () => timers.forEach(clearTimeout);
   }, [toasts, dismissToast]);
 
   if (toasts.length === 0) return null;

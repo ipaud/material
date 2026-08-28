@@ -83,3 +83,47 @@ Meaningful deviations and choices not obvious from the spec.
   byte-identical exports under a continuous CC/note stream.
 - **Device rebinding**: exact platform id, else UNIQUE manufacturer·name
   match; ambiguity never auto-binds. Mappings persist offline.
+
+## Release polish (Phase 17)
+
+- **Liveness follows the transport, not the window.** macOS App Nap throttles
+  a hidden, idle app's `requestAnimationFrame` to ~1 Hz — below Chromium, so
+  `backgroundThrottling: false` does not reach it, and once engaged, starting
+  playback does not recover. MATERIAL holds a `prevent-app-suspension` blocker
+  for exactly as long as the transport runs. A paused editor still naps, which
+  is correct: nothing is playing. See BACKGROUND_RENDERING.md.
+- **Two waits per exported video frame.** `seeked` says the seek finished, not
+  that a decoded frame has been presented. Rendering on `seeked` alone made
+  ~20% of frames in a non-temporal export differ between two runs of the same
+  project — whole different images, not codec noise. Export now also awaits
+  `requestVideoFrameCallback`. This is why the temporal path was already
+  stable: it primes from exact timestamps instead.
+- **Export blocks shared-state mutations rather than duplicating the
+  renderer.** Parameters are already snapshot-isolated, but the video position
+  and the technique/material renderers are shared hardware state that a live
+  Look switch or seek moves mid-render. Blocking those few actions during an
+  export is smaller and more honest than maintaining a second render path.
+- **Corrupt autosaves are moved aside, never deleted.** A truncated recovery
+  file is exactly what a kill mid-write produces, which is precisely when the
+  user's work is at stake. Unparseable files are renamed `.corrupt` so they
+  leave the scan path without leaving the disk.
+- **Recovery ids are validated for path safety, not as UUIDs.** A strict
+  `uuid()` check on discard meant any entry the listing produced with a
+  different id shape could be shown but never dismissed — an undismissable
+  prompt. The real requirement is no separators and no traversal.
+- **MIDI gestures ask the store, not a local flag.** The engine used to track
+  "a transient is open" itself, which went stale the moment a project loaded
+  mid-gesture: the store cleared its transient, the flag did not, and every
+  later CC message became its own undo entry. `beginTransient()` is idempotent,
+  so asking every message keeps the two in step.
+- **Mutation sparsity over magnitude.** Moving every eligible parameter is not
+  a variation, it is a new random state, and small changes compound into
+  near-black frames. A per-intensity mutation rate plus a declarative
+  `explore.coverage` correlation constraint took broken candidates from
+  frequent to none across 60 samples on the six official Looks.
+- **Thumbnails tell the truth.** They capture the frame under the playhead. If
+  that frame is nearly black, MATERIAL says so and offers a re-thumbnail — it
+  does not move the playhead or alter visual state to get a prettier picture.
+- **4K needs no proxies.** Measured 117–120 fps at 3840×2160 across Mosaic,
+  Echo Chamber and Time Fracture, with one-frame macro response. Proxy media
+  would be complexity bought with no evidence.

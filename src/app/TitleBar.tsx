@@ -1,5 +1,6 @@
 import { useProjectStore } from '@/state/projectStore';
 import { useExportStore } from '@/state/exportStore';
+import { useUiStore } from '@/state/uiStore';
 import { saveProject } from '@/projects/projectActions';
 import { pinCurrentLook } from '@/projects/lookActions';
 
@@ -15,6 +16,14 @@ export function TitleBar() {
         {dirty && <span className="titlebar-dirty"> ●</span>}
       </span>
       <span className="titlebar-spacer" />
+      <button
+        className="titlebar-action"
+        onClick={() => useUiStore.getState().toggleShortcuts()}
+        title="Keyboard shortcuts"
+        aria-label="Keyboard shortcuts"
+      >
+        ?
+      </button>
       <button className="titlebar-action" onClick={() => pinCurrentLook()} title="Pin current look (instant snapshot)">
         ◆ Pin
       </button>

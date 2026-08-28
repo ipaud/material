@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { engine } from '@/rendering/RenderEngine';
+import { isDarkThumbnail, renderThumbnail } from '@/performance/thumbnail';
 import { playback } from '@/playback/PlaybackController';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
+import { blockedByExport } from '@/export/exportGuard';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { captureLookCore, projectWithLookCore } from '@/performance/lookCore';
 import { mutateLookCore, type MutationIntensity, type MutationLocks, type MutationMetadata } from '@/performance/mutation';
@@ -43,6 +45,8 @@ export interface Candidate {
   /** Candidate this one was mutated from (MUTATE AGAIN lineage). */
   parentCandidateId: string | null;
   label: string;
+  /** The captured frame was almost black — offer a re-thumbnail (§14). */
+  darkThumbnail: boolean;
 }
 
 interface CandidateUiState {
@@ -53,8 +57,6 @@ interface CandidateUiState {
   intensity: MutationIntensity;
   locks: MutationLocks;
 }
-
-const THUMB_WIDTH = 220;
 
 export const useCandidateStore = create<CandidateUiState>(() => ({
   candidate: null,
@@ -69,23 +71,9 @@ function candidateLabel(seed: number): string {
   return `MUTATION ${String(seed % 10000).padStart(4, '0')}`;
 }
 
-function renderCandidateThumbnail(core: LookCore): string | null {
-  try {
-    const { project } = useProjectStore.getState();
-    if (!project.composition.sourceId) return null;
-    const aspect = project.composition.width / project.composition.height;
-    const h = Math.max(Math.round(THUMB_WIDTH / aspect), 16);
-    const pixels = engine.renderStill(THUMB_WIDTH, h, core.params);
-    const canvas = document.createElement('canvas');
-    canvas.width = THUMB_WIDTH;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), THUMB_WIDTH, h), 0, 0);
-    return canvas.toDataURL('image/jpeg', 0.7);
-  } catch {
-    return null;
-  }
+function renderCandidateThumbnail(core: LookCore): { dataUrl: string | null; dark: boolean } {
+  const { dataUrl, luminance } = renderThumbnail(useProjectStore.getState().project, core.params);
+  return { dataUrl, dark: isDarkThumbnail(luminance) };
 }
 
 class CandidateRuntime {
@@ -139,19 +127,25 @@ class CandidateRuntime {
     if (!definition) return null;
 
     const { intensity, locks } = useCandidateStore.getState();
-    const seed = deriveCandidateSeed(parentCore.seed, this.seedCounter++);
     const generation = fromCandidate ? (this.candidate as Candidate).metadata.generation + 1 : 1;
-    const { core, metadata } = mutateLookCore(
-      parentCore,
-      definition,
-      seed,
-      intensity,
-      locks,
-      generation,
-    );
+
+    // Sparse mutation can legitimately draw a candidate that changes nothing,
+    // and "MUTATE did nothing" reads as a broken button. Try a few fresh
+    // seeds before giving up — still deterministic, since the seeds come from
+    // the same counter.
+    let seed = deriveCandidateSeed(parentCore.seed, this.seedCounter++);
+    let result = mutateLookCore(parentCore, definition, seed, intensity, locks, generation);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (result.metadata.changedParams + result.metadata.changedModulations > 0) break;
+      seed = deriveCandidateSeed(parentCore.seed, this.seedCounter++);
+      result = mutateLookCore(parentCore, definition, seed, intensity, locks, generation);
+    }
+    const { core, metadata } = result;
 
     // Regenerating invalidates any queued apply of the previous candidate.
     this.cancelQueued();
+
+    const thumb = renderCandidateThumbnail(core);
 
     this.candidate = {
       id: uid('cand'),
@@ -162,9 +156,10 @@ class CandidateRuntime {
       seed,
       core,
       metadata,
-      thumbnail: renderCandidateThumbnail(core),
+      thumbnail: thumb.dataUrl,
       parentCandidateId: fromCandidate ? (this.candidate as Candidate).id : null,
       label: candidateLabel(seed),
+      darkThumbnail: thumb.dark,
     };
     this.sync();
     return this.candidate;
@@ -173,8 +168,14 @@ class CandidateRuntime {
   /** Re-render the candidate thumbnail from the current playhead frame (§21). */
   rethumbnail(): void {
     if (!this.candidate) return;
-    this.candidate = { ...this.candidate, thumbnail: renderCandidateThumbnail(this.candidate.core) };
+    const { dataUrl, dark } = renderCandidateThumbnail(this.candidate.core);
+    this.candidate = { ...this.candidate, thumbnail: dataUrl, darkThumbnail: dark };
     this.sync();
+    if (dark) {
+      useUiStore
+        .getState()
+        .pushToast('info', 'Thumbnail is very dark — try again on a brighter frame');
+    }
   }
 
   setPreview(on: boolean): void {
@@ -207,6 +208,7 @@ class CandidateRuntime {
   apply(): boolean {
     const candidate = this.candidate;
     if (!candidate) return false;
+    if (blockedByExport('Applying a candidate')) return false;
     const { project } = useProjectStore.getState();
     const quantize = project.timeline.bpm ? project.performanceQuantize : 'off';
     if (quantize === 'off') {
@@ -344,6 +346,21 @@ function deriveCandidateSeed(parentSeed: number, counter: number): number {
 }
 
 export const candidateRuntime = new CandidateRuntime();
+
+/**
+ * A replaced document invalidates anything holding a reference into the old
+ * one. Watching `projectGeneration` (bumped only by new / open / recover,
+ * never by edits) catches every path at once, instead of remembering to reset
+ * at each call site — a candidate surviving a New Project could otherwise be
+ * applied into a project it was never derived from.
+ */
+let lastProjectGeneration = useProjectStore.getState().projectGeneration;
+useProjectStore.subscribe((state) => {
+  if (state.projectGeneration === lastProjectGeneration) return;
+  lastProjectGeneration = state.projectGeneration;
+  candidateRuntime.reset();
+  morphRuntime.abortSilently();
+});
 
 export function setMutationIntensity(intensity: MutationIntensity): void {
   useCandidateStore.setState({ intensity });

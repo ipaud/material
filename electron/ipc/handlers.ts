@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -35,6 +35,9 @@ const base64Schema = z.string().min(1);
 function sanitizeDefaultName(name: string): string {
   return name.replace(/[/\\:]/g, '-').replace(/^\.+/, '');
 }
+
+/** Held while the live engine must not be suspended by macOS App Nap. */
+let liveEngineBlockerId: number | null = null;
 
 export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(IPC.appInfo, async (): Promise<AppInfo> => {
@@ -128,6 +131,31 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   );
   ipcMain.handle(IPC.exportCancel, (_event, sessionId: unknown) => cancelExport(sessionId));
 
+  /**
+   * LIVE ENGINE (Phase 17). macOS App Nap suspends an app's timers once it
+   * is hidden/occluded and looks idle, throttling requestAnimationFrame to
+   * ~1 Hz. Chromium's own `backgroundThrottling: false` does not cover it —
+   * the throttling happens below Chromium, and `document.visibilityState`
+   * still reports "visible". Measured: once App Nap engages, starting
+   * playback does NOT recover the frame rate, while the audio clock keeps
+   * perfect time — output freezes under a running track.
+   *
+   * `prevent-app-suspension` is the documented inhibitor. It is held only
+   * while playback runs, so an idle editor still naps normally.
+   */
+  ipcMain.handle(IPC.setLiveEngine, (_event, rawActive: unknown) => {
+    const active = rawActive === true;
+    if (active) {
+      if (liveEngineBlockerId === null || !powerSaveBlocker.isStarted(liveEngineBlockerId)) {
+        liveEngineBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+      }
+    } else if (liveEngineBlockerId !== null && powerSaveBlocker.isStarted(liveEngineBlockerId)) {
+      powerSaveBlocker.stop(liveEngineBlockerId);
+      liveEngineBlockerId = null;
+    }
+    return liveEngineBlockerId !== null;
+  });
+
   ipcMain.handle(IPC.sessionId, () => SESSION_ID);
   ipcMain.handle(IPC.recoveryWrite, async (_event, rawPath: unknown, rawProject: unknown) => {
     const projectPath = rawPath === null ? null : pathArgSchema.parse(rawPath);
@@ -136,7 +164,17 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   ipcMain.handle(IPC.recoveryList, () => listRecoveries(SESSION_ID));
   ipcMain.handle(IPC.recoveryClear, () => clearRecovery(SESSION_ID));
   ipcMain.handle(IPC.recoveryDiscard, (_event, rawId: unknown) =>
-    discardRecovery(z.string().uuid().parse(rawId)),
+    // Not `.uuid()`: whatever listRecoveries handed the renderer must be
+    // discardable, or a stale entry becomes an undismissable prompt. The
+    // real requirement is path safety — no separators, no traversal.
+    discardRecovery(
+      z
+        .string()
+        .min(1)
+        .max(128)
+        .regex(/^[A-Za-z0-9_-]+$/, 'Invalid recovery id')
+        .parse(rawId),
+    ),
   );
 
   ipcMain.handle(IPC.listPresets, async () => listUserPresets());

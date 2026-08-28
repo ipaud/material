@@ -256,11 +256,25 @@ export function createFrameEvaluator(startSec: number, fps: number) {
 }
 
 /**
- * Seek and WAIT until the frame at `timeSec` is decoded. The same-position
- * shortcut must never skip the wait when the element has no decoded data yet
- * (project just opened, export started immediately) — that raced a black
- * first frame into exports. `force` performs a real seek even at the same
- * position, guaranteeing fresh decode for the first export frame.
+ * Seek and WAIT until the frame at `timeSec` is actually available to the
+ * GPU texture.
+ *
+ * Two waits are needed, and missing either one produces silently wrong
+ * export frames:
+ *
+ * 1. `seeked` — the element has moved to the requested time. Alone this is
+ *    not enough: it says the seek finished, not that a decoded frame has
+ *    been presented. Rendering here uploads whichever frame the texture
+ *    still held, which made ~20% of frames in a non-temporal export differ
+ *    between two runs of the same project (measured 11–16 dB PSNR — a whole
+ *    different image, not codec noise).
+ * 2. `requestVideoFrameCallback` — a new frame has been composited and is
+ *    safe to sample. This is the signal that makes non-temporal exports
+ *    reproducible.
+ *
+ * `force` performs a real seek even at the same position, guaranteeing a
+ * fresh decode for the first export frame (a project that just opened has no
+ * decoded data at all).
  */
 async function seekVideoExact(
   video: HTMLVideoElement,
@@ -277,15 +291,43 @@ async function seekVideoExact(
     });
   }
   const target = Math.min(Math.max(timeSec, 0), Math.max(video.duration - 0.001, 0));
-  if (!force && Math.abs(video.currentTime - target) < 0.0005) return;
-  await new Promise<void>((resolve) => {
-    const onSeeked = () => {
-      video.removeEventListener('seeked', onSeeked);
+  const alreadyThere = !force && Math.abs(video.currentTime - target) < 0.0005;
+  if (!alreadyThere) {
+    await new Promise<void>((resolve) => {
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked);
+        resolve();
+      };
+      video.addEventListener('seeked', onSeeked);
+      // A same-position forced seek needs a nudge or 'seeked' may never fire.
+      video.currentTime = Math.abs(video.currentTime - target) < 1e-6 ? target + 1e-4 : target;
+    });
+  }
+  await waitForPresentedFrame(video);
+}
+
+/**
+ * Resolve once the element has presented a decoded frame. Falls back to a
+ * short timeout so an element without `requestVideoFrameCallback` (or one
+ * that never presents, e.g. a still-frame end of stream) cannot stall an
+ * export.
+ */
+function waitForPresentedFrame(video: HTMLVideoElement): Promise<void> {
+  const withCallback = video as HTMLVideoElement & {
+    requestVideoFrameCallback?: (cb: () => void) => number;
+  };
+  if (typeof withCallback.requestVideoFrameCallback !== 'function') {
+    return new Promise((resolve) => setTimeout(resolve, 8));
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
       resolve();
     };
-    video.addEventListener('seeked', onSeeked);
-    // A same-position forced seek needs a nudge or 'seeked' may never fire.
-    video.currentTime = Math.abs(video.currentTime - target) < 1e-6 ? target + 1e-4 : target;
+    withCallback.requestVideoFrameCallback!(done);
+    setTimeout(done, 60);
   });
 }
 

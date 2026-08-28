@@ -574,7 +574,15 @@ function CandidateRow() {
         <button className="perf-big-btn" onClick={() => candidateRuntime.pin()} title="Pin as a Look without changing output">
           PIN
         </button>
-        <button className="perf-big-btn" onClick={() => candidateRuntime.rethumbnail()} title="Re-render the thumbnail from the current frame">
+        <button
+          className={`perf-big-btn${candidate.darkThumbnail ? ' engaged' : ''}`}
+          onClick={() => candidateRuntime.rethumbnail()}
+          title={
+            candidate.darkThumbnail
+              ? 'Thumbnail captured on a very dark frame — re-render from the current frame'
+              : 'Re-render the thumbnail from the current frame'
+          }
+        >
           ⟳
         </button>
         <button className="perf-big-btn danger" onClick={() => candidateRuntime.discard()} title="Discard candidate (Backspace)">

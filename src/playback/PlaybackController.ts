@@ -1,5 +1,6 @@
 import { usePlaybackStore } from '@/state/playbackStore';
 import { engine } from '@/rendering/RenderEngine';
+import { isExporting } from '@/export/exportGuard';
 import { audioEngine } from '@/audio/AudioEngine';
 import { resetTriggers, tickTriggers } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
@@ -65,6 +66,9 @@ class PlaybackController {
 
   play(): void {
     if (!this.audioMaster && !this.video) return;
+    // Keep macOS App Nap from throttling the live engine to ~1 Hz while the
+    // editor window is hidden or occluded (docs/BACKGROUND_RENDERING.md).
+    void window.material.setLiveEngine(true).catch(() => undefined);
     if (this.audioMaster) {
       audioEngine.play();
       if (this.video && this.video.duration > 0) {
@@ -86,6 +90,7 @@ class PlaybackController {
   }
 
   pause(): void {
+    void window.material.setLiveEngine(false).catch(() => undefined);
     audioEngine.pause();
     this.video?.pause();
     usePlaybackStore.getState().setPlaying(false);
@@ -99,6 +104,8 @@ class PlaybackController {
   }
 
   seek(timeSec: number): void {
+    // The export owns the video element's position while it runs.
+    if (isExporting()) return;
     const clamped = Math.min(Math.max(timeSec, 0), this.getDuration());
     // Frames before a seek are not history for what comes after it (§13);
     // the same goes for trigger events and pending quantized actions.
