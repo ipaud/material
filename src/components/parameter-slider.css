@@ -1,51 +1,81 @@
+:root {
+  --param-value-w: 46px;
+}
+
 .param-row {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 1px var(--sp-4);
-  height: 24px;
+  padding: 0 var(--sp-4);
+  height: 22px;
 }
 
 .param-label {
-  flex: 0 0 92px;
-  font-size: var(--text-sm);
+  flex: 0 0 84px;
+  font-size: var(--text-xs);
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* A hairline track with a small handle — no input container, no fill slab. */
 .param-track {
   position: relative;
   flex: 1;
   height: 18px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-0);
-  border-radius: var(--radius-1);
   cursor: ew-resize;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  padding-right: var(--param-value-w);
 }
-.param-track:hover {
-  border-color: var(--border-1);
+.param-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: var(--param-value-w);
+  top: 50%;
+  height: 1px;
+  background: var(--border-1);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .param-fill {
   position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--surface-3);
-  border-right: 1px solid var(--accent-dim);
+  left: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: var(--text-2);
   pointer-events: none;
 }
 .param-track:hover .param-fill {
-  border-right-color: var(--accent);
+  background: var(--accent);
+}
+/* Handle rides the end of the fill. */
+.param-fill::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: var(--text-0);
+}
+.param-track:hover .param-fill::after {
+  background: var(--accent);
 }
 
 .param-value {
-  position: relative;
-  padding: 0 6px;
+  position: absolute;
+  right: 0;
+  width: calc(var(--param-value-w) - 2px);
+  text-align: right;
+  padding: 0 2px;
   font-size: var(--text-xs);
   color: var(--text-0);
   cursor: text;
@@ -57,16 +87,18 @@
 }
 
 .param-input {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  background: var(--surface-0);
-  border: none;
+  position: absolute;
+  right: 0;
+  width: 48px;
+  height: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-1);
   outline: none;
   text-align: right;
-  padding: 0 6px;
+  padding: 0 3px;
   font-size: var(--text-xs);
-  z-index: 1;
+  z-index: 2;
 }
 
 /* Boolean + select rows share the layout */
@@ -112,13 +144,27 @@
   border-radius: var(--radius-1);
   color: var(--text-0);
   font-size: var(--text-xs);
-  padding: 2px 4px;
+  padding: 1px 4px;
   outline: none;
+  max-width: 100%;
+}
+.select:hover {
+  border-color: var(--border-1);
 }
 
 .inspector-section {
   border-bottom: 1px solid var(--border-0);
-  padding: var(--sp-2) 0 var(--sp-3);
+  padding: 0 0 var(--sp-3);
+}
+/* Sub-blocks inside a conceptual group (Modulation, Triggers, Macros, MIDI)
+   must not restate the group's own frame. */
+.inspector-group .inspector-section {
+  border-bottom: none;
+  padding-bottom: var(--sp-2);
+}
+.inspector-group .inspector-section + .inspector-section {
+  border-top: 1px solid var(--border-0);
+  padding-top: var(--sp-2);
 }
 
 /* Modulated parameters read as "driven, not yours to fight" */
@@ -136,9 +182,10 @@
 }
 .param-mod-marker {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
   width: 2px;
+  height: 8px;
+  transform: translateY(-50%);
   background: var(--mod);
   pointer-events: none;
   z-index: 1;
@@ -150,8 +197,15 @@
   align-items: center;
   gap: var(--sp-2);
   width: 100%;
-  padding: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
   cursor: pointer;
+}
+.inspector-section-header .label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.inspector-group .inspector-section-header {
+  padding-top: var(--sp-2);
 }
 .inspector-section-header:hover .label {
   color: var(--text-1);

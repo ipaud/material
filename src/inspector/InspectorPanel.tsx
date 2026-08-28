@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
+import { groupParams } from './paramGroups';
 import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
@@ -50,14 +51,13 @@ export function InspectorPanel() {
 
   const definition = technique ? getTechnique(technique.techniqueId) : null;
   // Parameter ids currently driven by an enabled mapping.
-  const modulatedTargets = new Set(
-    modulations.filter((m) => m.enabled).map((m) => m.target),
-  );
+  const modulatedTargets = new Set(modulations.filter((m) => m.enabled).map((m) => m.target));
 
   return (
     <>
       <div className="panel-header inspector-header">
-        <span className="label">{definition ? definition.name : 'Inspector'}</span>
+        <span className="label">System</span>
+        <span className="inspector-system-name">{definition ? definition.name : '—'}</span>
         <button
           className="inspector-browse"
           onClick={() => useUiStore.getState().toggleTechniques()}
@@ -68,7 +68,13 @@ export function InspectorPanel() {
       </div>
       <div className="panel-body">
         {!hasSource && (
-          <div style={{ padding: 'var(--sp-5) var(--sp-4)', color: 'var(--text-2)', fontSize: 'var(--text-sm)' }}>
+          <div
+            style={{
+              padding: 'var(--sp-5) var(--sp-4)',
+              color: 'var(--text-2)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
             Import a source to begin
           </div>
         )}
@@ -109,14 +115,38 @@ export function InspectorPanel() {
                 </div>
               </div>
             </div>
-            <ModulationSection />
-            <TriggersSection />
-            <MacrosSection />
-            <MidiSection />
-            <div className="inspector-section">
-              <div className="inspector-section-header">
-                <span className="label">Material</span>
+
+            {groupParams(definition).map((group) => (
+              <CollapsibleSection
+                key={group.label}
+                label={group.label}
+                count={group.params.filter((p) => modulatedTargets.has(p.id)).length}
+              >
+                {group.params.map((param) => (
+                  <MidiParamWrap key={param.id} paramId={param.id}>
+                    <ParamControl
+                      def={param}
+                      value={technique.params[param.id] ?? param.default}
+                      modulated={modulatedTargets.has(param.id)}
+                      onChange={(v) => setParam(param.id, v)}
+                      onDragStart={beginTransient}
+                      onDragEnd={commitTransient}
+                    />
+                  </MidiParamWrap>
+                ))}
+              </CollapsibleSection>
+            ))}
+
+            <CollapsibleSection label="Signals" count={modulatedTargets.size}>
+              <div className="inspector-group">
+                <ModulationSection />
+                <TriggersSection />
+                <MacrosSection />
+                <MidiSection />
               </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection label="Material" count={0}>
               <div className="param-row">
                 <span className="param-label">Shape</span>
                 <div className="param-control">
@@ -131,9 +161,7 @@ export function InspectorPanel() {
                       </option>
                     ))}
                     {material.assetPath && (
-                      <option value="custom">
-                        Custom: {material.assetPath.split('/').pop()}
-                      </option>
+                      <option value="custom">Custom: {material.assetPath.split('/').pop()}</option>
                     )}
                   </select>
                 </div>
@@ -170,27 +198,7 @@ export function InspectorPanel() {
                 onDragStart={beginTransient}
                 onDragEnd={commitTransient}
               />
-            </div>
-            {definition.sections.map((section) => (
-              <CollapsibleSection
-                key={section.label}
-                label={section.label}
-                count={section.params.filter((p) => modulatedTargets.has(p.id)).length}
-              >
-                {section.params.map((param) => (
-                  <MidiParamWrap key={param.id} paramId={param.id}>
-                    <ParamControl
-                      def={param}
-                      value={technique.params[param.id] ?? param.default}
-                      modulated={modulatedTargets.has(param.id)}
-                      onChange={(v) => setParam(param.id, v)}
-                      onDragStart={beginTransient}
-                      onDragEnd={commitTransient}
-                    />
-                  </MidiParamWrap>
-                ))}
-              </CollapsibleSection>
-            ))}
+            </CollapsibleSection>
           </>
         )}
       </div>

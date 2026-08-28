@@ -10,6 +10,7 @@ import './viewport.css';
 export function Viewport() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [zoomPct, setZoomPct] = useState(0);
+  const [stats, setStats] = useState({ fps: 0, instances: 0 });
   const [checker, setChecker] = useState(false);
   const panning = useRef<{ x: number; y: number } | null>(null);
   const debugOverlay = useUiStore((s) => s.debugOverlay);
@@ -26,7 +27,12 @@ export function Viewport() {
     const stopBridge = startEngineBridge();
     const observer = new ResizeObserver(() => engine.invalidate());
     observer.observe(canvas);
-    const zoomTimer = setInterval(() => setZoomPct(Math.round(engine.view.zoom * 100)), 200);
+    // One low-rate sampler for the status line; the render loop stays untouched.
+    const zoomTimer = setInterval(() => {
+      setZoomPct(Math.round(engine.view.zoom * 100));
+      const s = engine.getStats();
+      setStats({ fps: s.fps, instances: s.instanceCount });
+    }, 400);
     return () => {
       clearInterval(zoomTimer);
       observer.disconnect();
@@ -95,20 +101,31 @@ export function Viewport() {
         onPointerUp={onPointerUp}
         onDoubleClick={() => engine.fit()}
       />
-      <div className="viewport-controls">
-        <button className="vp-btn" onClick={() => engine.fit()} title="Fit (double-click)">
-          FIT
-        </button>
-        <button className="vp-btn" onClick={() => engine.zoomTo(1)} title="Actual size">
-          100%
-        </button>
-        <span className="vp-readout mono">{zoomPct}%</span>
-        <span className="vp-sep" />
+      <div className="viewport-status">
+        <div className="vp-zoom">
+          <button className="vp-btn" onClick={() => engine.fit()} title="Fit (double-click)">
+            FIT
+          </button>
+          <button className="vp-btn" onClick={() => engine.zoomTo(1)} title="Actual size">
+            100%
+          </button>
+          <span className="vp-readout mono">{zoomPct}%</span>
+        </div>
+        <span className="vp-status-spacer" />
         <span className="vp-readout mono">
           {compWidth}×{compHeight}
         </span>
-        <span className="vp-sep" />
-        <button className={`vp-btn${checker ? ' active' : ''}`} onClick={toggleChecker} title="Checkerboard background">
+        {stats.fps > 0 && <span className="vp-readout mono">{stats.fps} FPS</span>}
+        {stats.instances > 0 && (
+          <span className="vp-readout mono" title="Rendered instances">
+            {stats.instances} INST
+          </span>
+        )}
+        <button
+          className={`vp-btn${checker ? ' active' : ''}`}
+          onClick={toggleChecker}
+          title="Checkerboard background"
+        >
           CHK
         </button>
         <button

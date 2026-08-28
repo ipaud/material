@@ -1,0 +1,36 @@
+.system-path {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 26px;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border-0);
+  background: var(--surface-1);
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.system-path-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.system-path-arrow {
+  color: var(--text-2);
+  font-size: 9px;
+}
+.system-path-seg {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.system-path-seg.current {
+  color: var(--accent);
+}
+.system-path-seg.placeholder {
+  color: var(--text-2);
+}

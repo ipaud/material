@@ -1,5 +1,7 @@
-.mod-row-wrap {
-  border-bottom: 1px solid var(--border-0);
+/* A mapping reads as a sentence — SOURCE → TARGET  AMOUNT — with the selects
+   staying invisible until you go for them. */
+.mod-row-wrap + .mod-row-wrap {
+  border-top: 1px solid var(--border-0);
 }
 .mod-row-wrap.frozen {
   box-shadow: inset 2px 0 0 var(--mod);
@@ -9,12 +11,26 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-4);
+  height: 22px;
+  padding: 0 var(--sp-4);
+}
+.mod-row .select {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-0);
+}
+.mod-row .select:hover,
+.mod-row .select:focus {
+  background: var(--surface-2);
+  border-color: var(--border-0);
+}
+.mod-row .vp-btn {
+  flex-shrink: 0;
 }
 
 .mod-enable {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   border: 1px solid var(--border-1);
   flex-shrink: 0;
@@ -36,14 +52,22 @@
 }
 
 .mod-amount {
-  font-size: var(--text-xs);
+  font-size: 9px;
   color: var(--mod);
-  min-width: 38px;
+  min-width: 34px;
   text-align: right;
+  flex-shrink: 0;
+}
+/* A frozen mapping is not just cyan: it says so. */
+.mod-row-wrap.frozen .mod-amount::after {
+  content: ' FROZEN';
+  color: var(--text-2);
+  letter-spacing: 0.08em;
 }
 
 .mod-detail {
-  padding-bottom: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border-0);
   background: var(--surface-0);
 }
 
@@ -59,7 +83,17 @@
 }
 
 .mod-add {
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+}
+/* Add actions are quiet text, not buttons competing with the mappings. */
+.mod-add .vp-btn,
+.inspector-group .vp-btn {
+  border-color: transparent;
+}
+.mod-add .vp-btn:hover,
+.inspector-group .vp-btn:hover {
+  color: var(--accent);
+  border-color: var(--border-0);
 }
 
 .mod-breakdown {

@@ -74,6 +74,74 @@ component seams in `src/output/OutputWorkspace.tsx`: `OutputDestinationList`
 (inputs and destinations), `OutputPreview` (what a destination shows),
 `OutputSettingsPanel` (per-destination settings).
 
+## BUILD (Phase B)
+
+BUILD is the technical creation workspace: header → system path → Library /
+Viewport / System Inspector → timeline. All three panels still resize; the
+gutters are invisible until hover.
+
+### System path
+
+One line above the viewport, generated from project state — never hardcoded:
+
+```
+VIDEO → TEMPORAL MOSAIC → SQUARE → BASS / ONSET / BEAT · 1/4 → OUTPUT
+```
+
+| Segment   | Source of truth                                                                | Empty state         |
+| --------- | ------------------------------------------------------------------------------ | ------------------- |
+| SOURCE    | `composition.sourceId` → source kind (title = file name)                       | `SOURCE`, dimmed    |
+| TECHNIQUE | enabled technique; prefixed `TEMPORAL` when `techniqueNeedsTemporal()` is true | `TECHNIQUE`, dimmed |
+| MATERIAL  | builtin material name, or the custom asset's file name                         | —                   |
+| SIGNALS   | up to three enabled modulation/trigger sources, then `+n`                      | `NO SIGNAL`, dimmed |
+| OUTPUT    | static                                                                         | —                   |
+
+Signal Yellow marks only the technique segment — the current core of the
+system. Everything else is monochrome, placeholders dimmed.
+
+### Inspector grouping
+
+Technique parameters are presented under conceptual groups instead of
+per-technique section names. The mapping lives in
+`src/inspector/paramGroups.ts`, keyed by parameter id:
+
+- **STRUCTURE** — grid, counts, scale bounds, spacing, depth, strips, axis
+- **SAMPLING** — threshold, contrast, gamma, invert, luminance mappings
+- **TIME** — tile mode, offsets, span, step, hold, decay, direction
+- **BEHAVIOR** — rotation, jitter, opacity, blend, distribution, mode
+- **SIGNALS** — modulation mappings, triggers, macros, MIDI
+- **MATERIAL** — shape, colour mode, aspect
+
+Every parameter appears exactly once, and a parameter the table does not know
+keeps its own technique section as its group heading — new techniques cannot
+silently lose controls (covered by `tests/ui-build.test.tsx`).
+
+### Timeline height
+
+Default 96px, minimum 64px, capped at `38vh` so it can never crowd out the
+viewport on a small window. With no media the strip collapses to the 23px hint
+line instead of reserving the user's chosen track height for empty space.
+
+### Signal surfaces (no duplication)
+
+Three distinct jobs, one place each:
+
+- **Near the timeline** — live levels (`Meters`) plus the musical readout
+  (BAR / BEAT). Glanceable while working.
+- **Inspector → SIGNALS** — the relationships: source → target, amount, freeze
+  state, triggers, macros, MIDI.
+- **SignalMonitor overlay** (`SIG`) — the detailed per-track debug view, opt-in.
+
+### Where the mockup and the app disagree
+
+- The reference library shows a MATERIALS section with `+ New Material`.
+  MATERIAL v0.2 has no material library: builtin shapes live in the Inspector
+  and custom materials come from an image/SVG source row (`MAT`). No fake
+  browser was added.
+- The reference inspector shows a single technique name with no selector; the
+  real app needs the technique `<select>` (and BROWSE) to switch systems, so
+  both are kept in the SYSTEM block.
+
 ## Phase status
 
 | Phase | Scope                                                                      | State         |

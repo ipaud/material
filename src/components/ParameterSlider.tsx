@@ -127,9 +127,17 @@ export function ParameterSlider({
         onPointerUp={onPointerUp}
         onDoubleClick={onDoubleClick}
       >
-        <div className="param-fill" style={{ width: `${fraction * 100}%` }} />
+        {/* The value readout occupies the track's right gutter (--param-value-w),
+            so the rail and every marker measure against the space left over. */}
+        <div
+          className="param-fill"
+          style={{ width: `calc((100% - var(--param-value-w)) * ${fraction})` }}
+        />
         {modFraction !== null && (
-          <div className="param-mod-marker" style={{ left: `${modFraction * 100}%` }} />
+          <div
+            className="param-mod-marker"
+            style={{ left: `calc((100% - var(--param-value-w)) * ${modFraction})` }}
+          />
         )}
         {editing ? (
           <input

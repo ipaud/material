@@ -19,17 +19,31 @@
     linear-gradient(45deg, transparent 75%, #1a1a1d 75%),
     linear-gradient(-45deg, transparent 75%, #1a1a1d 75%);
   background-size: 16px 16px;
-  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
 }
 
-.viewport-controls {
+/* One quiet status line along the bottom edge — zoom left, readouts right. */
+.viewport-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 22px;
+  padding: 0 var(--sp-3);
+  background: var(--surface-0);
+  border-top: 1px solid var(--border-0);
+  flex-shrink: 0;
+}
+.vp-zoom {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--surface-1);
-  border-top: 1px solid var(--border-0);
-  flex-shrink: 0;
+}
+.vp-status-spacer {
+  flex: 1;
 }
 
 .vp-btn {
@@ -37,23 +51,29 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--text-2);
-  padding: 3px 7px;
-  border: 1px solid var(--border-0);
+  padding: 2px 5px;
+  border: 1px solid transparent;
   border-radius: var(--radius-1);
+  transition: color var(--duration-fast) var(--ease-out);
 }
 .vp-btn:hover {
   color: var(--text-0);
-  border-color: var(--border-1);
+  border-color: var(--border-0);
 }
 .vp-btn.active {
   color: var(--accent);
   border-color: var(--accent-dim);
 }
+.vp-btn:disabled {
+  color: var(--text-2);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .vp-readout {
-  font-size: var(--text-xs);
+  font-size: 9px;
+  letter-spacing: 0.06em;
   color: var(--text-2);
-  padding: 0 var(--sp-2);
 }
 
 .vp-sep {
@@ -79,7 +99,7 @@
 }
 .signal-monitor {
   position: absolute;
-  bottom: 44px;
+  bottom: 32px;
   left: var(--sp-3);
   width: 210px;
   padding: var(--sp-3);

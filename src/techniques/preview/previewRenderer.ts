@@ -121,7 +121,7 @@ export class TechniquePreviewRenderer {
       });
 
       this.renderer.setRenderTarget(this.target);
-      this.renderer.setClearColor('#0c0c0d', 1);
+      this.renderer.setClearColor('#08090a', 1);
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);
 

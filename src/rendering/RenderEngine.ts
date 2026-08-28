@@ -50,7 +50,7 @@ export class RenderEngine {
   private compWidth = 1920;
   private compHeight = 1080;
   private compBackground = '#000000';
-  private wellColor = '#0c0c0d';
+  private wellColor = '#08090a';
   private checkerboard = false;
   private showOriginal = false;
   private perspectiveAmount = 0.35;

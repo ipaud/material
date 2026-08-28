@@ -12,9 +12,9 @@
   min-height: 0;
   overflow: hidden;
 }
-/* BUILD: main row / gutter / timeline. */
+/* BUILD: system path / main row / gutter / timeline. */
 .workspace-build {
-  grid-template-rows: 1fr auto auto;
+  grid-template-rows: auto 1fr auto auto;
 }
 /* EXPLORE, PERFORM, OUTPUT: viewport-dominant, no timeline strip. */
 .workspace-explore,
@@ -128,9 +128,17 @@
   border-left: 1px solid var(--border-0);
 }
 .panel-header {
-  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 26px;
+  padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--border-0);
   flex-shrink: 0;
+}
+.panel-header .label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
 }
 .panel-body {
   flex: 1;
@@ -178,6 +186,13 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Never let the strip crowd out the viewport on a small window. */
+  max-height: 38vh;
+}
+/* With no media there is nothing to draw: collapse to the hint line rather
+   than reserving the user's chosen track height for empty space. */
+.timeline-strip:has(.timeline-empty) {
+  height: 23px !important;
 }
 
 /* ---- Empty state ---- */
@@ -314,6 +329,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
+}
+.inspector-system-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .inspector-browse {
   font-size: 9px;

@@ -116,9 +116,9 @@ export function TechniquesBrowser() {
 
   return (
     <div className="techniques-browser">
-      <div className="explore-toolbar">
+      <div className="techniques-bar">
         <span className="label">Techniques</span>
-        <div className="explore-counts">
+        <div className="techniques-filters">
           {CATEGORIES.map((c) => (
             <button
               key={c}
@@ -129,8 +129,11 @@ export function TechniquesBrowser() {
             </button>
           ))}
         </div>
-        <span className="explore-spacer" />
+        <span className="techniques-spacer" />
         {generating && <span className="vp-readout mono">generating previews…</span>}
+        <button className="vp-btn" onClick={() => closeTechniques()} title="Close (stay in BUILD)">
+          CLOSE
+        </button>
       </div>
       <div className="techniques-grid">
         {visible.map((card) => (

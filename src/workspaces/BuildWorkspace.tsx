@@ -7,6 +7,7 @@ import { Viewport } from '@/viewport/Viewport';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
 import { TechniquesBrowser } from '@/techniques/TechniquesBrowser';
+import { SystemPath } from '@/build/SystemPath';
 
 interface Props {
   isDragOver: boolean;
@@ -26,6 +27,7 @@ export function BuildWorkspace({ isDragOver }: Props) {
 
   return (
     <div className="workspace workspace-build">
+      <SystemPath />
       <div className="main-row">
         <aside className="panel panel-left" style={{ width: libraryWidth }}>
           <LibraryPanel />

@@ -64,6 +64,9 @@ interface UiStore {
   setPerfMorphDuration: (d: UiStore['perfMorphDuration']) => void;
 }
 
+/** Compact waveform band: toolbar + track, nothing wasted. */
+export const TIMELINE_MIN_HEIGHT = 64;
+
 let toastCounter = 0;
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -74,7 +77,7 @@ export const useUiStore = create<UiStore>((set) => ({
   toasts: [],
   libraryWidth: 220,
   inspectorWidth: 280,
-  timelineHeight: 140,
+  timelineHeight: 96,
   offlineSources: [],
   showBeatGrid: true,
   showSignalMonitor: false,
@@ -96,7 +99,7 @@ export const useUiStore = create<UiStore>((set) => ({
     set(() => {
       if (panel === 'library') return { libraryWidth: Math.min(Math.max(size, 160), 400) };
       if (panel === 'inspector') return { inspectorWidth: Math.min(Math.max(size, 220), 460) };
-      return { timelineHeight: Math.min(Math.max(size, 90), 320) };
+      return { timelineHeight: Math.min(Math.max(size, TIMELINE_MIN_HEIGHT), 320) };
     }),
   toggleDebugOverlay: () => set((s) => ({ debugOverlay: !s.debugOverlay })),
   setShowOriginal: (show) => set({ showOriginal: show }),
