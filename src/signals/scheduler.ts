@@ -31,6 +31,8 @@ export interface ActionTarget {
   toggleMapping(mappingId: string): void;
   /** Start a morph from the current state to the look in `slot` (§18). */
   morphToLook(slot: number, atTime: number): void;
+  /** Commit the pending performance CANDIDATE as current state (Phase 16). */
+  applyCandidate(): void;
 }
 
 interface PendingAction {
@@ -87,6 +89,12 @@ export class TriggerScheduler {
   cancelPending(): void {
     this.pending = [];
     this.diag = { ...this.diag, pendingCount: 0 };
+  }
+
+  /** Cancel only the queued actions matching a predicate (stale candidates). */
+  cancelPendingWhere(match: (mapping: TriggerMapping) => boolean): void {
+    this.pending = this.pending.filter((p) => !match(p.mapping));
+    this.diag = { ...this.diag, pendingCount: this.pending.length };
   }
 
   /** Live pulse envelopes' current contribution per target param (signed). */
@@ -225,6 +233,9 @@ export class TriggerScheduler {
         return;
       case 'morphToLook':
         if (mapping.lookSlot !== null) this.target.morphToLook(mapping.lookSlot, atTime);
+        return;
+      case 'applyCandidate':
+        this.target.applyCandidate();
         return;
     }
   }

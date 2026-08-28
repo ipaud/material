@@ -11,6 +11,7 @@ import {
   firePad,
   morphToLookQuantized,
 } from '@/performance/performanceActions';
+import { candidateRuntime } from '@/performance/candidateRuntime';
 
 const PAD_CODES = ['KeyZ', 'KeyX', 'KeyC', 'KeyV'];
 const DURATION_VALUES: Record<string, MorphDuration> = {
@@ -22,7 +23,7 @@ const DURATION_VALUES: Record<string, MorphDuration> = {
 };
 
 /**
- * Performance keys (§6/§15/§25):
+ * Performance keys (Phases 13/15/16):
  *   1–9        apply look (quantized in PERFORMANCE workspace)
  *   Shift+1–9  overwrite that slot with the current state
  *   P          pin current look
@@ -32,7 +33,12 @@ const DURATION_VALUES: Record<string, MorphDuration> = {
  *   M          morph to the selected target look
  *   Z X C V    trigger pads 1–4
  *   Tab        minimal HUD
- *   Esc        cancel queued action, else cancel-and-keep an armed morph
+ *   Esc        cancel queued actions, else cancel-and-keep an armed morph
+ *   G          mutate: generate a candidate from CURRENT
+ *   Shift+G    mutate again, using the candidate as parent
+ *   B (hold)   audition the candidate; release returns to CURRENT
+ *   Enter      apply the candidate (quantized)
+ *   Backspace  discard the candidate
  * Space (play), ` (A/B), ⌘-shortcuts owned elsewhere — no collisions.
  */
 export function usePerformanceKeys(): void {
@@ -59,7 +65,14 @@ export function usePerformanceKeys(): void {
           return;
         }
       }
-      if (e.shiftKey) return;
+      if (e.shiftKey) {
+        // Shift+M: mutate again from the candidate (lineage step).
+        if (isPerf && e.code === 'KeyG') {
+          e.preventDefault();
+          candidateRuntime.generate({ fromCandidate: true });
+        }
+        return;
+      }
 
       if (e.code === 'KeyP') {
         e.preventDefault();
@@ -92,9 +105,24 @@ export function usePerformanceKeys(): void {
         useUiStore.getState().togglePerfHud();
       } else if (e.code === 'Escape') {
         e.preventDefault();
+        candidateRuntime.cancelQueued();
         if (cancelPendingActions() === 0 && morphRuntime.current) {
           morphRuntime.cancelKeep();
         }
+      } else if (e.code === 'KeyG') {
+        e.preventDefault();
+        candidateRuntime.generate();
+      } else if (e.code === 'KeyB') {
+        // B = the "other side": A is CURRENT, B is CANDIDATE (§5). Held, not
+        // toggled — releasing always lands back on CURRENT.
+        e.preventDefault();
+        if (!e.repeat) candidateRuntime.setPreview(true);
+      } else if (e.code === 'Enter') {
+        e.preventDefault();
+        if (candidateRuntime.current) candidateRuntime.apply();
+      } else if (e.code === 'Backspace' || e.code === 'Delete') {
+        e.preventDefault();
+        candidateRuntime.discard();
       } else if (PAD_CODES.includes(e.code)) {
         e.preventDefault();
         const index = PAD_CODES.indexOf(e.code);
@@ -102,7 +130,15 @@ export function usePerformanceKeys(): void {
         if (pad) firePad(pad.id);
       }
     };
+    // Hold-to-preview: release returns to CURRENT (naturally safe, §4).
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'KeyB') candidateRuntime.setPreview(false);
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, []);
 }

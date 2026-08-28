@@ -19,6 +19,8 @@ import * as lookCore from './performance/lookCore';
 import * as interpolate from './performance/interpolate';
 import * as lookActions from './projects/lookActions';
 import * as performanceActions from './performance/performanceActions';
+import { candidateRuntime, useCandidateStore } from './performance/candidateRuntime';
+import * as mutation from './performance/mutation';
 import * as triggerRuntime from './signals/triggerRuntime';
 import { midiEngine, useMidiStore } from './midi/midiEngine';
 import { FakeMidiTransport, WebMidiTransport } from './midi/transport';
@@ -47,6 +49,9 @@ if (import.meta.env.DEV) {
       morphRuntime,
       lookActions,
       performanceActions,
+      candidateRuntime,
+      useCandidateStore,
+      mutation,
       triggerRuntime,
       lookCore,
       interpolate,

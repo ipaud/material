@@ -62,6 +62,7 @@ export const triggerActionSchema = z.enum([
   'resetParam',
   'toggleMapping',
   'morphToLook',
+  'applyCandidate',
 ]);
 export type TriggerAction = z.infer<typeof triggerActionSchema>;
 

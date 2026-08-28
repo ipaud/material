@@ -14,6 +14,13 @@ import { toggleFreezeAll } from '@/modulation/modulationActions';
 import { midiEngine, useMidiStore } from '@/midi/midiEngine';
 import { WebMidiTransport } from '@/midi/transport';
 import {
+  candidateRuntime,
+  setMutationIntensity,
+  toggleMutationLock,
+  useCandidateStore,
+} from '@/performance/candidateRuntime';
+import type { MutationIntensity, MutationLocks } from '@/performance/mutation';
+import {
   applyLookQuantized,
   firePad,
   morphToLookQuantized,
@@ -50,6 +57,7 @@ export function PerformanceWorkspace() {
       <LooksRow />
       <MacrosRow />
       {!hud && <ActionsRow />}
+      <CandidateRow />
       <StatusRow compact={hud} />
     </div>
   );
@@ -308,10 +316,7 @@ function ActionsRow() {
         ))}
       </div>
 
-      <button className="perf-big-btn" disabled title="Mutation candidates arrive in Phase 16">
-        MUTATE
-        <span className="perf-soon mono">P16</span>
-      </button>
+      <MutateButton />
       <div className="perf-quant" role="group" aria-label="Performance quantization">
         <span className="perf-quant-label">QUANT</span>
         {(Object.keys(QUANT_LABEL) as QuantizeMode[]).map((mode) => (
@@ -447,6 +452,141 @@ function StatusRow({ compact }: { compact: boolean }) {
       <span className={`perf-midi mono ${midiState}`} title="Live controls are not recorded — export replays deterministic timeline state only">
         MIDI <span className="perf-midi-dot" /> {midiLabel}
       </span>
+    </div>
+  );
+}
+
+// ---- CANDIDATE (Phase 16) ---------------------------------------------
+
+const INTENSITIES: { value: MutationIntensity; label: string }[] = [
+  { value: 'low', label: 'LOW' },
+  { value: 'med', label: 'MED' },
+  { value: 'high', label: 'HIGH' },
+];
+
+/** Locks the performer actually toggles; material/topology are structural. */
+const LOCK_KEYS: { key: keyof MutationLocks; label: string }[] = [
+  { key: 'technique', label: 'TECH' },
+  { key: 'timing', label: 'TIME' },
+  { key: 'color', label: 'COLOR' },
+  { key: 'signals', label: 'SIGNALS' },
+];
+
+function MutateButton() {
+  const candidate = useCandidateStore((s) => s.candidate);
+  const morphing = morphRuntime.current !== null;
+  return (
+    <button
+      className="perf-big-btn"
+      onClick={() => candidateRuntime.generate()}
+      disabled={morphing}
+      title={morphing ? 'MUTATE unavailable during Morph' : 'Generate a candidate from CURRENT (G)'}
+    >
+      {candidate ? 'REGENERATE' : 'MUTATE'}
+    </button>
+  );
+}
+
+function CandidateRow() {
+  const candidate = useCandidateStore((s) => s.candidate);
+  const previewing = useCandidateStore((s) => s.previewing);
+  const queuedId = useCandidateStore((s) => s.queuedId);
+  const intensity = useCandidateStore((s) => s.intensity);
+  const locks = useCandidateStore((s) => s.locks);
+  const activeLookId = useProjectStore((s) => s.project.activeLookId);
+  const looks = useProjectStore((s) => s.project.pinnedLooks);
+  const currentLabel = looks.find((l) => l.id === activeLookId)?.label ?? 'CURRENT STATE';
+
+  if (!candidate) {
+    return (
+      <div className="perf-candidate empty">
+        <span className="perf-cand-settings">
+          <span className="perf-quant-label">MUTATION</span>
+          {INTENSITIES.map((i) => (
+            <button
+              key={i.value}
+              className={`perf-quant-btn${intensity === i.value ? ' active' : ''}`}
+              onClick={() => setMutationIntensity(i.value)}
+            >
+              {i.label}
+            </button>
+          ))}
+          <span className="perf-quant-label" style={{ marginLeft: 10 }}>LOCK</span>
+          {LOCK_KEYS.map((l) => (
+            <button
+              key={l.key}
+              className={`perf-quant-btn${locks[l.key] ? ' active' : ''}`}
+              onClick={() => toggleMutationLock(l.key)}
+              title={locks[l.key] ? `${l.label} locked — mutation skips it` : `Lock ${l.label}`}
+            >
+              {locks[l.key] ? '■ ' : ''}
+              {l.label}
+            </button>
+          ))}
+        </span>
+      </div>
+    );
+  }
+
+  const queued = queuedId === candidate.id;
+
+  return (
+    <div className={`perf-candidate${previewing ? ' previewing' : ''}`}>
+      <div className="perf-cand-side">
+        <span className="perf-cand-role mono">CURRENT</span>
+        <span className="perf-cand-name">{currentLabel}</span>
+      </div>
+
+      <span className="perf-cand-arrow">→</span>
+
+      <div className="perf-cand-card">
+        {candidate.thumbnail ? (
+          <img src={candidate.thumbnail} alt="" draggable={false} />
+        ) : (
+          <span className="perf-look-blank" />
+        )}
+        <div className="perf-cand-meta">
+          <span className="perf-cand-role mono">CANDIDATE</span>
+          <span className="perf-cand-name">{candidate.label}</span>
+          <span className="perf-cand-seed mono">
+            seed {candidate.seed} · gen {candidate.metadata.generation} ·{' '}
+            {candidate.metadata.changedParams}p/{candidate.metadata.changedModulations}m
+          </span>
+        </div>
+      </div>
+
+      <div className="perf-cand-actions">
+        <button
+          className={`perf-big-btn${previewing ? ' engaged' : ''}`}
+          onPointerDown={() => candidateRuntime.setPreview(true)}
+          onPointerUp={() => candidateRuntime.setPreview(false)}
+          onPointerLeave={() => candidateRuntime.setPreview(false)}
+          title="Hold to audition the candidate on output (hold B)"
+        >
+          {previewing ? '◉ PREVIEWING' : 'PREVIEW'}
+        </button>
+        <button className="perf-big-btn" onClick={() => candidateRuntime.apply()}>
+          APPLY
+        </button>
+        <button className="perf-big-btn" onClick={() => candidateRuntime.generate({ fromCandidate: true })} title="Mutate again from this candidate (Shift+M)">
+          MUTATE AGAIN
+        </button>
+        <button className="perf-big-btn" onClick={() => candidateRuntime.pin()} title="Pin as a Look without changing output">
+          PIN
+        </button>
+        <button className="perf-big-btn" onClick={() => candidateRuntime.rethumbnail()} title="Re-render the thumbnail from the current frame">
+          ⟳
+        </button>
+        <button className="perf-big-btn danger" onClick={() => candidateRuntime.discard()} title="Discard candidate (Backspace)">
+          ✕
+        </button>
+      </div>
+
+      {(previewing || queued) && (
+        <span className={`perf-cand-state mono${previewing ? ' preview' : ' queued'}`}>
+          {previewing ? 'PREVIEWING CANDIDATE' : 'CANDIDATE QUEUED'}
+        </span>
+      )}
     </div>
   );
 }

@@ -91,6 +91,11 @@ class MorphRuntime {
       curve: options.curve,
     };
     this.committedSide = -1;
+    // A morph owns the overlay from here: drop any candidate audition so the
+    // performer never has two "not the document" states at once.
+    void import('@/performance/candidateRuntime').then(({ candidateRuntime }) =>
+      candidateRuntime.setPreview(false),
+    );
     return true;
   }
 

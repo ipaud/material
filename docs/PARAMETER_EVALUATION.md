@@ -7,7 +7,9 @@ preview and export share this pipeline function-for-function.
 base value                     (slider / project state / engaged MIDI CC —
                                 ABSOLUTE mode writes the base, live only)
   → morph overlay              (armed morph replaces base+mappings+triggers
-                                with the interpolated look core — pure fn of t)
+                                with the interpolated look core — pure fn of t;
+                                CANDIDATE preview substitutes the candidate
+                                core here the same way, live-only)
   → macros                     (Σ macro.value shaped × amount × paramSpan,
                                 additive; live performance layer ON TOP of
                                 look/morph state — never written into Looks)

@@ -9,6 +9,7 @@ import {
 } from '@/projects/projectActions';
 import { useExportStore } from '@/state/exportStore';
 import { morphRuntime } from '@/performance/morphRuntime';
+import { candidateRuntime } from '@/performance/candidateRuntime';
 
 /** Wire native menu events (File/Edit/View accelerators) to app actions. */
 export function useMenuEvents(): void {
@@ -33,10 +34,12 @@ export function useMenuEvents(): void {
         case 'undo':
           // History rewinds under an armed morph would desync the overlay.
           morphRuntime.abortSilently();
+      candidateRuntime.reset();
           useProjectStore.getState().undo();
           break;
         case 'redo':
           morphRuntime.abortSilently();
+      candidateRuntime.reset();
           useProjectStore.getState().redo();
           break;
         case 'toggle-debug-overlay':

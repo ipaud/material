@@ -217,6 +217,7 @@ function recordingTarget(): { target: ActionTarget; log: string[] } {
     prevLook: () => log.push('prevLook'),
     resetParam: (id) => log.push(`resetParam:${id}`),
     toggleMapping: (id) => log.push(`toggleMapping:${id}`),
+    applyCandidate: () => log.push('applyCandidate'),
     morphToLook: (slot) => log.push(`morphToLook:${slot}`),
   };
   return { target, log };

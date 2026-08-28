@@ -71,7 +71,12 @@ scaling (future).
 | M | morph to selected target (right-click a tile to select) |
 | Z X C V | trigger pads |
 | Tab | minimal HUD |
-| Esc | cancel queued action / cancel-and-keep morph |
+| Esc | cancel queued actions / cancel-and-keep morph |
+| G | mutate: generate a candidate from CURRENT |
+| Shift+G | mutate again, using the candidate as parent |
+| B (hold) | audition the candidate; release returns to CURRENT |
+| Enter | apply the candidate (quantized) |
+| Backspace | discard the candidate |
 
 ## State safety
 
@@ -102,3 +107,92 @@ already replays recorded shapes — MorphEvents prove the pattern).
 Until then the UI tells the truth: live controls are not recorded (tooltip
 on the MIDI status chip); export reproduces deterministic timeline state
 only.
+
+## CURRENT / CANDIDATE (Phase 16)
+
+CURRENT is the committed project state — what is on output. A CANDIDATE is a
+generated mutation held **entirely outside the project**: it lives in
+`candidateRuntime`, never in the store, so generating one cannot alter what
+the audience sees.
+
+```
+CURRENT ──MUTATE──▶ CANDIDATE ──┬── hold B ── audition on output
+                                ├── APPLY ─── becomes CURRENT (quantized)
+                                ├── PIN ───── saved as a Look, output untouched
+                                ├── MUTATE AGAIN ── lineage step
+                                └── DISCARD
+```
+
+### Preview isolation
+
+`resolveOverlay()` returns the candidate core as a pure value consumed by the
+modulation runtime for rendering only — the same mechanism as the morph
+overlay. Nothing writes to the document, so releasing preview restores
+CURRENT (freeze state included) **by construction**, not by save/restore
+bookkeeping. Preview is hold-to-audition (button or `B`), never a toggle, so
+the safe state is the one you fall back to when you let go.
+
+Discrete trigger ACTIONS keep running against CURRENT while previewing: the
+scheduler is fed from `project.triggers` by the engine bridge, and the
+candidate runtime never touches it. Only the visual layers — modulation and
+pulses — see candidate topology, so a candidate whose triggers would apply
+looks or freeze mappings cannot do so from inside a preview.
+
+### Quantized apply
+
+Apply honours the global performance quantization through the ONE scheduler
+(action `applyCandidate`). Queued applies are visible and safe: regenerating,
+discarding, resetting or pressing Esc sweeps the pending entry, and commit
+re-checks the candidate id, so a stale candidate can never land. Measured
+boundary error at 78.03 BPM: 0 ms.
+
+### Mutation model
+
+`mutateLookCore(parent, definition, seed, intensity, locks)` is pure:
+identical inputs always produce an identical candidate. Values wander ±sigma
+of each parameter's EXPLORE range (never its raw min/max). Modulation
+source/target topology is never randomized — only amount / smoothing / curve.
+Macros are never touched: they are the performer's hands, not material.
+Material is not mutated in v0.2 because material state reaches the renderer
+from the document rather than through the per-frame transform, so a mutated
+material would be invisible in preview.
+
+Two tuning rules came out of measuring 36 candidates across the six official
+looks:
+
+- **Sparsity beats magnitude.** Touching every eligible parameter produced
+  10–15 changes per candidate — not a variation but a new random state — and
+  the changes compounded into near-black results. A mutation rate per
+  intensity (LOW 0.22 / MED 0.4 / HIGH 0.6) brought that to ~4.6 changes and
+  kept the parent recognisable.
+- **Coverage correlation.** Several parameters each shrink how much of the
+  frame carries image (smaller elements, wider gaps, higher cut threshold,
+  stronger luminance-to-scale). Individually good, together lethal. Parameter
+  definitions now declare `explore.coverage: 'up' | 'down'`, and a candidate
+  may make at most ONE coverage-reducing move; coverage-increasing moves are
+  unrestricted.
+
+Intensity: LOW = 0.10 sigma, MED = 0.25 (the established Explore sigma),
+HIGH = 0.45. Locks exposed in Performance: TECH (all technique params, the
+superset), TIME (temporal/offset/scan sections), COLOR (sampling/colour
+sections), SIGNALS (modulation shaping). Detailed per-parameter locks stay in
+Explore.
+
+### Persistence
+
+A candidate is transient and is **not** saved with the project or captured by
+autosave — it is an audition, not a document state. Pinning or applying turns
+it into ordinary project state, which persists normally. Undo/redo and
+project switches drop the candidate and sweep any queued apply.
+
+### Undo
+
+Generate, preview, regenerate and discard create no history. Apply is one
+undo entry; Pin is one undo entry.
+
+### Export
+
+Export renders committed CURRENT state only. An un-applied candidate is
+live-only and cannot reach a frame: the export evaluator's action target
+implements `applyCandidate` as an explicit no-op, and preview lives in the
+render overlay that export never consults.

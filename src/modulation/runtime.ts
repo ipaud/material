@@ -6,6 +6,7 @@ import { applyPulses } from '@/signals/pulseEngine';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { applyMacros } from '@/performance/macros';
+import { candidateRuntime } from '@/performance/candidateRuntime';
 import type { Macro } from '@shared/schemas/project';
 
 /**
@@ -49,8 +50,10 @@ class ModulationRuntime {
 
   transform(base: ParamRecord, timeSec: number): ParamRecord {
     // An armed morph replaces the base layer entirely: params, modulations
-    // and triggers all come from the interpolated look core.
-    const overlay = morphRuntime.resolveOverlay(timeSec);
+    // and triggers all come from the interpolated look core. CANDIDATE
+    // preview does the same for auditioning — visual only, never committed
+    // (Phase 16). Morph wins: MUTATE is blocked while one runs.
+    const overlay = morphRuntime.resolveOverlay(timeSec) ?? candidateRuntime.resolveOverlay();
     const techniqueId = overlay?.techniqueId ?? this.techniqueId;
     if (!techniqueId) return base;
     const definition = getTechnique(techniqueId);

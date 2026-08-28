@@ -89,6 +89,13 @@ const liveTarget: ActionTarget = {
       .project.modulations.find((m) => m.id === mappingId);
     if (mapping) updateMapping(mappingId, { enabled: !mapping.enabled });
   },
+  applyCandidate: () => {
+    // Lazy import avoids a cycle: candidateRuntime imports this module.
+    void import('@/performance/candidateRuntime').then(({ candidateRuntime }) => {
+      const candidate = candidateRuntime.current;
+      if (candidate) candidateRuntime.commit(candidate.id);
+    });
+  },
   morphToLook: (slot, atTime) => {
     const id = lookIdAtSlot(slot);
     if (!id) {

@@ -18,10 +18,10 @@ export const mosaicDefinition: TechniqueDefinition = {
     {
       label: 'Element',
       params: [
-        { type: 'number', id: 'scale', label: 'Scale', min: 0, max: 3, step: 0.01, default: 1, modulatable: true, explore: { randomizable: true, min: 0.4, max: 1.8 } },
+        { type: 'number', id: 'scale', label: 'Scale', min: 0, max: 3, step: 0.01, default: 1, modulatable: true, explore: { randomizable: true, min: 0.4, max: 1.8, coverage: 'up' } },
         { type: 'number', id: 'minScale', label: 'Min Scale', min: 0, max: 1, step: 0.01, default: 0, explore: { randomizable: false } },
         { type: 'number', id: 'maxScale', label: 'Max Scale', min: 0, max: 4, step: 0.01, default: 2, explore: { randomizable: false } },
-        { type: 'number', id: 'spacing', label: 'Spacing', min: -0.5, max: 0.95, step: 0.01, default: 0.1, modulatable: true, explore: { randomizable: true, min: -0.2, max: 0.6 } },
+        { type: 'number', id: 'spacing', label: 'Spacing', min: -0.5, max: 0.95, step: 0.01, default: 0.1, modulatable: true, explore: { randomizable: true, min: -0.2, max: 0.6, coverage: 'down' } },
         { type: 'number', id: 'rotation', label: 'Rotation', min: -180, max: 180, step: 1, default: 0, unit: '°', modulatable: true, explore: { randomizable: true, weight: 0.6 } },
         { type: 'number', id: 'randomRotation', label: 'Random Rot', min: 0, max: 1, step: 0.01, default: 0, modulatable: true, explore: { randomizable: true, weight: 0.8 } },
         { type: 'number', id: 'opacity', label: 'Opacity', min: 0, max: 1, step: 0.01, default: 1, modulatable: true, explore: { randomizable: false } },
@@ -30,7 +30,7 @@ export const mosaicDefinition: TechniqueDefinition = {
     {
       label: 'Sampling',
       params: [
-        { type: 'number', id: 'threshold', label: 'Threshold', min: 0, max: 1, step: 0.01, default: 0, modulatable: true, explore: { randomizable: true, min: 0, max: 0.5, weight: 0.7 } },
+        { type: 'number', id: 'threshold', label: 'Threshold', min: 0, max: 1, step: 0.01, default: 0, modulatable: true, explore: { randomizable: true, min: 0, max: 0.5, weight: 0.7, coverage: 'down' } },
         { type: 'number', id: 'contrast', label: 'Contrast', min: 0, max: 4, step: 0.01, default: 1, explore: { randomizable: true, min: 0.5, max: 2.5 } },
         { type: 'number', id: 'gamma', label: 'Gamma', min: 0.2, max: 4, step: 0.01, default: 1, explore: { randomizable: true, min: 0.5, max: 2.2 } },
         { type: 'boolean', id: 'invert', label: 'Invert', default: false, explore: { randomizable: true, weight: 0.3 } },
@@ -39,7 +39,7 @@ export const mosaicDefinition: TechniqueDefinition = {
     {
       label: 'Mapping',
       params: [
-        { type: 'number', id: 'lumToScale', label: 'Lum → Scale', min: -1, max: 1, step: 0.01, default: 0.85, explore: { randomizable: true } },
+        { type: 'number', id: 'lumToScale', label: 'Lum → Scale', min: -1, max: 1, step: 0.01, default: 0.85, explore: { randomizable: true, coverage: 'down' } },
         { type: 'number', id: 'lumToRotation', label: 'Lum → Rotation', min: -1, max: 1, step: 0.01, default: 0, explore: { randomizable: true, weight: 0.5 } },
         { type: 'number', id: 'lumToOpacity', label: 'Lum → Opacity', min: -1, max: 1, step: 0.01, default: 0, explore: { randomizable: true, weight: 0.5 } },
         { type: 'number', id: 'lumToDepth', label: 'Lum → Depth', min: -1, max: 1, step: 0.01, default: 0, explore: { randomizable: true, weight: 0.5 } },

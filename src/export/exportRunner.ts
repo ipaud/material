@@ -195,6 +195,8 @@ export function createFrameEvaluator(startSec: number, fps: number) {
         if (m.id === mappingId) m.enabled = !m.enabled;
       }
     },
+    // An un-applied CANDIDATE is live-only and can never reach a render.
+    applyCandidate: () => undefined,
     morphToLook: (slot, atTime) => {
       const look = project.pinnedLooks.find((l) => l.slot === slot);
       if (!look) return;

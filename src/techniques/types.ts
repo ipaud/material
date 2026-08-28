@@ -10,6 +10,13 @@ export interface ParamExploreMeta {
   /** Relative likelihood of being mutated (1 = normal). */
   weight?: number;
   distribution?: 'uniform' | 'exponential';
+  /**
+   * Which way this parameter moves VISIBLE COVERAGE — how much of the frame
+   * ends up carrying image. 'up' = raising it shows more, 'down' = raising it
+   * shows less. Candidate mutation uses this to stop several parameters from
+   * shrinking the image at once, which is what produces near-black results.
+   */
+  coverage?: 'up' | 'down';
 }
 
 export interface NumberParamDef {
