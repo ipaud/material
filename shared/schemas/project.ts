@@ -61,6 +61,7 @@ export const triggerActionSchema = z.enum([
   'prevLook',
   'resetParam',
   'toggleMapping',
+  'morphToLook',
 ]);
 export type TriggerAction = z.infer<typeof triggerActionSchema>;
 
@@ -120,11 +121,47 @@ export const pinnedLookSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   label: z.string(),
+  note: z.string().max(200).default(''),
+  /** Keyboard slot 1–9, or null when unassigned. */
+  slot: z.number().int().min(1).max(9).nullable().default(null),
+  seed: z.number().int().nonnegative().default(1),
+  /** Small JPEG data URL rendered at pin time; null when unavailable. */
+  thumbnail: z.string().nullable().default(null),
   techniques: z.array(techniqueInstanceSchema),
   material: materialStateSchema,
   modulations: z.array(modulationMappingSchema),
+  triggers: z.array(triggerMappingSchema).default([]),
 });
 export type PinnedLook = z.infer<typeof pinnedLookSchema>;
+
+export const morphCurveSchema = z.enum(['linear', 'easeIn', 'easeOut', 'easeInOut', 'exponential']);
+export type MorphCurve = z.infer<typeof morphCurveSchema>;
+
+/** The morphable core of a look — no identity, no thumbnail. */
+export const lookCoreSchema = z.object({
+  techniqueId: z.string(),
+  params: paramRecordSchema,
+  material: materialStateSchema,
+  modulations: z.array(modulationMappingSchema),
+  triggers: z.array(triggerMappingSchema),
+  seed: z.number().int().nonnegative(),
+});
+export type LookCore = z.infer<typeof lookCoreSchema>;
+
+/**
+ * A completed (or truncated-by-cancel) morph, recorded as timeline state so
+ * export can replay it deterministically. Start/end are exact composition
+ * times — musical durations were resolved when the morph launched.
+ */
+export const morphEventSchema = z.object({
+  id: z.string(),
+  startTime: z.number().nonnegative(),
+  endTime: z.number().nonnegative(),
+  curve: morphCurveSchema,
+  sourceSnapshot: lookCoreSchema,
+  targetLookId: z.string(),
+});
+export type MorphEvent = z.infer<typeof morphEventSchema>;
 
 export const compositionSchema = z.object({
   sourceId: z.string().nullable(),
@@ -146,6 +183,9 @@ export const projectSchema = z.object({
   triggers: z.array(triggerMappingSchema).default([]),
   timeline: timelineStateSchema,
   pinnedLooks: z.array(pinnedLookSchema),
+  /** Look whose state was last applied; dirty when current state diverges. */
+  activeLookId: z.string().nullable().default(null),
+  morphEvents: z.array(morphEventSchema).default([]),
   explore: z.object({
     lockedParams: z.array(z.string()),
     lastSeed: z.number().int().nonnegative().nullable(),
@@ -179,6 +219,8 @@ export function createEmptyProject(name = 'Untitled'): Project {
       markers: [],
     },
     pinnedLooks: [],
+    activeLookId: null,
+    morphEvents: [],
     explore: { lockedParams: [], lastSeed: null },
   };
 }

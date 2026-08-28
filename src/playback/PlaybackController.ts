@@ -2,6 +2,7 @@ import { usePlaybackStore } from '@/state/playbackStore';
 import { engine } from '@/rendering/RenderEngine';
 import { audioEngine } from '@/audio/AudioEngine';
 import { resetTriggers, tickTriggers } from '@/signals/triggerRuntime';
+import { morphRuntime } from '@/performance/morphRuntime';
 
 const UI_TICK_MS = 100;
 /** Video is re-synced to the audio clock when drift exceeds this. */
@@ -129,6 +130,8 @@ class PlaybackController {
       engine.setTime(time); // invalidates → live texture refresh
       // Discrete trigger actions fire on composition-time crossings.
       tickTriggers(time);
+      // Morph side flips + completion commit are composition-time driven too.
+      morphRuntime.tick(time);
 
       // Slave video to the audio clock.
       if (this.audioMaster && this.video && this.video.duration > 0) {

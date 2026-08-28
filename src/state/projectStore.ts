@@ -17,6 +17,12 @@ interface ProjectStore {
    * gesture is in progress (then history is deferred to commitTransient).
    */
   apply: (updater: (p: Project) => Project) => void;
+  /**
+   * Transient update with NO history entry and no dirty change — reserved
+   * for morph-driven technique/material side flips, where the single real
+   * commit happens at morph completion.
+   */
+  applySilent: (updater: (p: Project) => Project) => void;
   beginTransient: () => void;
   commitTransient: () => void;
   cancelTransient: () => void;
@@ -51,6 +57,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       future: [],
       dirty: true,
     });
+  },
+
+  applySilent: (updater) => {
+    const { project } = get();
+    const next = updater(project);
+    if (next !== project) set({ project: next });
   },
 
   beginTransient: () => {

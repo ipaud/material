@@ -1,32 +1,150 @@
+import { engine } from '@/rendering/RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { uid } from '@/utils/id';
-import type { PinnedLook } from '@shared/schemas/project';
+import { captureLookCore, lookToCore, projectWithLookCore } from '@/performance/lookCore';
+import type { PinnedLook, Project } from '@shared/schemas/project';
 
-/** Snapshot the current visual state as a Pinned Look (instant, no dialog). */
-export function pinCurrentLook(): void {
-  const { project, apply } = useProjectStore.getState();
-  if (project.techniques.length === 0) {
-    useUiStore.getState().pushToast('info', 'Nothing to pin yet');
-    return;
+const THUMB_WIDTH = 220;
+
+/** Deterministic look thumbnail via the existing offscreen render path. */
+function renderLookThumbnail(project: Project): string | null {
+  try {
+    const aspect = project.composition.width / project.composition.height;
+    const h = Math.max(Math.round(THUMB_WIDTH / aspect), 16);
+    const active = project.techniques.find((t) => t.enabled);
+    if (!active || !project.composition.sourceId) return null;
+    const pixels = engine.renderStill(THUMB_WIDTH, h, active.params);
+    const canvas = document.createElement('canvas');
+    canvas.width = THUMB_WIDTH;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), THUMB_WIDTH, h), 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.7);
+  } catch {
+    return null;
   }
+}
+
+function nextFreeSlot(looks: PinnedLook[]): number | null {
+  for (let s = 1; s <= 9; s++) {
+    if (!looks.some((l) => l.slot === s)) return s;
+  }
+  return null;
+}
+
+/** Pin the current state as a new Look — instant, one undo entry. */
+export function pinCurrentLook(): PinnedLook | null {
+  const { project, apply } = useProjectStore.getState();
+  const core = captureLookCore(project);
+  if (!core) {
+    useUiStore.getState().pushToast('info', 'Nothing to pin yet');
+    return null;
+  }
+  const slot = nextFreeSlot(project.pinnedLooks);
   const look: PinnedLook = {
     id: uid('look'),
     createdAt: new Date().toISOString(),
-    label: `Look ${project.pinnedLooks.length + 1}`,
+    label: `LOOK ${String(project.pinnedLooks.length + 1).padStart(2, '0')}`,
+    note: '',
+    slot,
+    seed: core.seed,
+    thumbnail: renderLookThumbnail(project),
     techniques: project.techniques,
     material: project.material,
     modulations: project.modulations,
+    triggers: project.triggers,
   };
-  apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, look] }));
-  useUiStore.getState().pushToast('info', `Pinned ${look.label}`);
+  apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, look], activeLookId: look.id }));
+  useUiStore
+    .getState()
+    .pushToast('info', slot ? `Pinned ${look.label} → slot ${slot}` : `Pinned ${look.label} (no free slot)`);
+  return look;
 }
 
+/** ATOMIC apply: the whole look state commits as one operation (§5). */
 export function applyLook(lookId: string): void {
   useProjectStore.getState().apply((p) => {
     const look = p.pinnedLooks.find((l) => l.id === lookId);
     if (!look) return p;
-    return { ...p, techniques: look.techniques, material: look.material, modulations: look.modulations };
+    return projectWithLookCore(p, lookToCore(look), look.id);
+  });
+}
+
+export function applyLookBySlot(slot: number): boolean {
+  const look = useProjectStore.getState().project.pinnedLooks.find((l) => l.slot === slot);
+  if (!look) return false;
+  applyLook(look.id);
+  return true;
+}
+
+/** Shift+number: overwrite the slot's look with the current state. */
+export function overwriteSlotWithCurrent(slot: number): void {
+  const { project } = useProjectStore.getState();
+  const existing = project.pinnedLooks.find((l) => l.slot === slot);
+  if (existing) {
+    updateLook(existing.id);
+    useUiStore.getState().pushToast('info', `Slot ${slot} overwritten with current state`);
+    return;
+  }
+  const pinned = pinCurrentLook();
+  if (pinned && pinned.slot !== slot) {
+    useProjectStore.getState().apply((p) => ({
+      ...p,
+      pinnedLooks: p.pinnedLooks.map((l) =>
+        l.id === pinned.id ? { ...l, slot } : l.slot === slot ? { ...l, slot: null } : l,
+      ),
+    }));
+  }
+}
+
+/** Intentional overwrite of a stored look with the current state (§24). */
+export function updateLook(lookId: string): void {
+  const { project, apply } = useProjectStore.getState();
+  const core = captureLookCore(project);
+  if (!core) return;
+  const thumbnail = renderLookThumbnail(project);
+  apply((p) => ({
+    ...p,
+    pinnedLooks: p.pinnedLooks.map((l) =>
+      l.id === lookId
+        ? {
+            ...l,
+            techniques: p.techniques,
+            material: p.material,
+            modulations: p.modulations,
+            triggers: p.triggers,
+            seed: core.seed,
+            thumbnail: thumbnail ?? l.thumbnail,
+          }
+        : l,
+    ),
+    activeLookId: lookId,
+  }));
+}
+
+export function renameLook(lookId: string, label: string): void {
+  const trimmed = label.trim().slice(0, 40);
+  if (!trimmed) return;
+  useProjectStore.getState().apply((p) => ({
+    ...p,
+    pinnedLooks: p.pinnedLooks.map((l) => (l.id === lookId ? { ...l, label: trimmed } : l)),
+  }));
+}
+
+export function duplicateLook(lookId: string): void {
+  useProjectStore.getState().apply((p) => {
+    const look = p.pinnedLooks.find((l) => l.id === lookId);
+    if (!look) return p;
+    const copy: PinnedLook = {
+      ...look,
+      id: uid('look'),
+      createdAt: new Date().toISOString(),
+      label: `${look.label} COPY`,
+      slot: nextFreeSlot(p.pinnedLooks),
+    };
+    return { ...p, pinnedLooks: [...p.pinnedLooks, copy] };
   });
 }
 
@@ -34,5 +152,6 @@ export function deleteLook(lookId: string): void {
   useProjectStore.getState().apply((p) => ({
     ...p,
     pinnedLooks: p.pinnedLooks.filter((l) => l.id !== lookId),
+    activeLookId: p.activeLookId === lookId ? null : p.activeLookId,
   }));
 }

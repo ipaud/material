@@ -43,3 +43,27 @@ export function freezeMapping(id: string): void {
 export function unfreezeMapping(id: string): void {
   updateMapping(id, { frozenValue: null });
 }
+
+/** Freeze every enabled mapping at its current shaped value. */
+export function freezeAll(): void {
+  const { project } = useProjectStore.getState();
+  for (const m of project.modulations) {
+    if (m.enabled && m.frozenValue === null) freezeMapping(m.id);
+  }
+}
+
+/** Clear every frozen value. */
+export function clearAllFreezes(): void {
+  const { project } = useProjectStore.getState();
+  for (const m of project.modulations) {
+    if (m.frozenValue !== null) unfreezeMapping(m.id);
+  }
+}
+
+/** F key: any frozen → clear all; none frozen → freeze all (§1). */
+export function toggleFreezeAll(): void {
+  const { project } = useProjectStore.getState();
+  const anyFrozen = project.modulations.some((m) => m.frozenValue !== null);
+  if (anyFrozen) clearAllFreezes();
+  else freezeAll();
+}

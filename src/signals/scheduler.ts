@@ -29,6 +29,8 @@ export interface ActionTarget {
   prevLook(): void;
   resetParam(paramId: string): void;
   toggleMapping(mappingId: string): void;
+  /** Start a morph from the current state to the look in `slot` (§18). */
+  morphToLook(slot: number, atTime: number): void;
 }
 
 interface PendingAction {
@@ -204,6 +206,9 @@ export class TriggerScheduler {
         return;
       case 'toggleMapping':
         if (mapping.targetMappingId) this.target.toggleMapping(mapping.targetMappingId);
+        return;
+      case 'morphToLook':
+        if (mapping.lookSlot !== null) this.target.morphToLook(mapping.lookSlot, atTime);
         return;
     }
   }

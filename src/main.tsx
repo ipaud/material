@@ -14,6 +14,11 @@ import * as presetActions from './projects/presetActions';
 import { analyzeBuffer, sampleTrack } from './audio/analysis';
 import { detectTempo } from './audio/tempo';
 import { useAudioStore } from './state/audioStore';
+import { morphRuntime } from './performance/morphRuntime';
+import * as lookCore from './performance/lookCore';
+import * as interpolate from './performance/interpolate';
+import * as lookActions from './projects/lookActions';
+import * as triggerRuntime from './signals/triggerRuntime';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -36,6 +41,11 @@ if (import.meta.env.DEV) {
       detectTempo,
       sampleTrack,
       useAudioStore,
+      morphRuntime,
+      lookActions,
+      triggerRuntime,
+      lookCore,
+      interpolate,
     },
   });
 }

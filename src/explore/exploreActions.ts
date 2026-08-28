@@ -150,9 +150,14 @@ export function pinSelectedVariation(): void {
       id: uid('look'),
       createdAt: new Date().toISOString(),
       label: `Var ${String(variation.seed).slice(0, 6)}`,
+      note: '',
+      slot: null,
+      seed: variation.seed,
+      thumbnail: null,
       techniques: applied.techniques,
       material: applied.material,
       modulations: applied.modulations,
+      triggers: applied.triggers,
     };
     // Keep current state; only add the look.
     return { ...p, pinnedLooks: [...p.pinnedLooks, look] };

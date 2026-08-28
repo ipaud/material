@@ -1,7 +1,7 @@
+import { LooksPanel } from './LooksPanel';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { relinkSource } from '@/projects/projectActions';
-import { applyLook, deleteLook } from '@/projects/lookActions';
 import './library.css';
 
 const KIND_LABEL: Record<string, string> = {
@@ -101,41 +101,8 @@ export function LibraryPanel() {
             })}
           </ul>
         )}
-        <PinnedLooks />
+        <LooksPanel />
       </div>
     </>
-  );
-}
-
-function PinnedLooks() {
-  const looks = useProjectStore((s) => s.project.pinnedLooks);
-  if (looks.length === 0) return null;
-  return (
-    <div className="looks-section">
-      <div className="panel-header">
-        <span className="label">Pinned Looks</span>
-      </div>
-      <ul className="media-list">
-        {looks.map((look) => (
-          <li key={look.id}>
-            <button className="media-item" onClick={() => applyLook(look.id)} title="Apply look">
-              <span className="media-kind">◆</span>
-              <span className="media-name">{look.label}</span>
-              <span
-                className="media-mat-btn"
-                role="button"
-                title="Delete look"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteLook(look.id);
-                }}
-              >
-                ✕
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

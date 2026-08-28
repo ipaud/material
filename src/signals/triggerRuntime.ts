@@ -5,6 +5,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { freezeMapping, unfreezeMapping, updateMapping } from '@/modulation/modulationActions';
 import { applyLook, pinCurrentLook } from '@/projects/lookActions';
+import { morphRuntime } from '@/performance/morphRuntime';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
 
@@ -18,8 +19,8 @@ let currentLookIndex = -1;
 
 function lookIdAtSlot(slot: number): string | null {
   const looks = useProjectStore.getState().project.pinnedLooks;
-  const look = looks[slot - 1];
-  if (look) currentLookIndex = slot - 1;
+  const look = looks.find((l) => l.slot === slot);
+  if (look) currentLookIndex = looks.indexOf(look);
   return look?.id ?? null;
 }
 
@@ -87,6 +88,20 @@ const liveTarget: ActionTarget = {
       .getState()
       .project.modulations.find((m) => m.id === mappingId);
     if (mapping) updateMapping(mappingId, { enabled: !mapping.enabled });
+  },
+  morphToLook: (slot, atTime) => {
+    const id = lookIdAtSlot(slot);
+    if (!id) {
+      useUiStore.getState().pushToast('info', `No pinned look in slot ${slot} to morph to`);
+      return;
+    }
+    // Trigger-launched morphs: event already timed, so start immediately;
+    // default musical length of one bar, easeInOut (documented default).
+    morphRuntime.start(
+      id,
+      { startQuantize: 'off', duration: { mode: 'bars', bars: 1 }, curve: 'easeInOut' },
+      atTime,
+    );
   },
 };
 

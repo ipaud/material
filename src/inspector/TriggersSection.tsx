@@ -26,6 +26,7 @@ const ACTION_OPTIONS: { value: TriggerAction; label: string }[] = [
   { value: 'toggleFreeze', label: 'Toggle Freeze' },
   { value: 'pinLook', label: 'Pin Current Look' },
   { value: 'applyLook', label: 'Apply Look N' },
+  { value: 'morphToLook', label: 'Morph to Look N' },
   { value: 'nextLook', label: 'Next Look' },
   { value: 'prevLook', label: 'Previous Look' },
   { value: 'resetParam', label: 'Reset Parameter' },
@@ -185,7 +186,7 @@ export function TriggersSection() {
                     </div>
                   </div>
                 )}
-                {t.action === 'applyLook' && (
+                {(t.action === 'applyLook' || t.action === 'morphToLook') && (
                   <ParameterSlider
                     label="Look Slot"
                     value={t.lookSlot ?? 1}

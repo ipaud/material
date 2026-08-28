@@ -61,3 +61,11 @@
 .mod-add {
   padding: var(--sp-3) var(--sp-4);
 }
+
+.mod-breakdown {
+  font-size: 9px;
+  color: var(--mod);
+  padding: 4px 2px 2px;
+  min-height: 12px;
+  letter-spacing: 0.02em;
+}

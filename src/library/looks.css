@@ -1,0 +1,174 @@
+/* Looks 2.0 grid + morph panel */
+.looks-section {
+  border-top: 1px solid var(--border-0);
+  padding-bottom: 8px;
+}
+.looks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.looks-active-label {
+  font-size: 9px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+.looks-dirty {
+  color: var(--accent);
+}
+.looks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 6px;
+  padding: 4px 8px;
+}
+.look-card {
+  position: relative;
+  cursor: pointer;
+  border: 1px solid var(--border-0);
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: visible;
+}
+.look-card:hover {
+  border-color: var(--text-1);
+}
+.look-card.active {
+  border-color: var(--accent);
+}
+.look-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #000;
+}
+.look-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.look-thumb-empty {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(45deg, #111, #111 4px, #161616 4px, #161616 8px);
+}
+.look-slot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 9px;
+  padding: 0 3px;
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--accent);
+  border-radius: 2px;
+}
+.look-active-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.look-active-dot.dirty {
+  background: transparent;
+  border: 1px solid var(--accent);
+}
+.look-menu-btn {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  color: var(--text-1);
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 2px;
+  opacity: 0;
+}
+.look-card:hover .look-menu-btn {
+  opacity: 1;
+}
+.look-menu-btn:hover {
+  color: var(--text-0);
+}
+.look-name {
+  display: block;
+  font-size: 9px;
+  padding: 3px 4px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.look-card.active .look-name {
+  color: var(--text-0);
+}
+.look-rename {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-1);
+  border: 1px solid var(--accent);
+  color: var(--text-0);
+  font-size: 9px;
+  padding: 2px 3px;
+  outline: none;
+}
+.look-menu {
+  position: absolute;
+  top: 20px;
+  right: 2px;
+  z-index: 30;
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  min-width: 110px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.look-menu button {
+  background: none;
+  border: none;
+  color: var(--text-0);
+  font-size: 10px;
+  text-align: left;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.look-menu button:hover {
+  background: var(--surface-2);
+}
+.look-menu button.danger {
+  color: var(--danger);
+}
+
+/* Morph panel */
+.morph-panel {
+  border-top: 1px solid var(--border-0);
+}
+.morph-controls {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.morph-controls .select {
+  flex: 1 1 70px;
+  min-width: 0;
+  font-size: 9px;
+}
+.morph-progress {
+  font-size: 9px;
+  color: var(--accent);
+  padding: 0 8px 4px;
+  min-height: 12px;
+}

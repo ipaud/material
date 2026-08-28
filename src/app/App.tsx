@@ -15,12 +15,14 @@ import { ExportDialog } from '@/export/ExportDialog';
 import { RecoveryPrompt } from './RecoveryPrompt';
 import { TechniquesBrowser } from '@/techniques/TechniquesBrowser';
 import { startAutosave } from '@/projects/autosave';
+import { usePerformanceKeys } from '@/hooks/usePerformanceKeys';
 import { InspectorPanel } from '@/inspector/InspectorPanel';
 import { TimelinePanel } from '@/timeline/TimelinePanel';
 import './app.css';
 
 export function App() {
   useMenuEvents();
+  usePerformanceKeys();
   useEffect(() => startAutosave(), []);
   const { isDragOver, onDragOver, onDragLeave, onDrop } = useMediaDrop();
   const libraryWidth = useUiStore((s) => s.libraryWidth);

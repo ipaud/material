@@ -5,6 +5,8 @@ preview and export share this pipeline function-for-function.
 
 ```
 base value                     (slider / project state)
+  → morph overlay              (armed morph replaces base+mappings+triggers
+                                with the interpolated look core — pure fn of t)
   → continuous modulation      (signal × amount × paramSpan, additive; FREEZE lives here)
   → trigger pulses             (Σ envelope × amount × paramSpan, additive)
   → clamp to parameter range
@@ -13,6 +15,41 @@ base value                     (slider / project state)
 
 (Automation/keyframes will slot in between base and continuous modulation
 when they gain a UI; the data model reserves the position.)
+
+## Morph layer
+
+While a morph is armed, the state at composition time `t` is a **pure
+function** of `(sourceSnapshot, targetLook, startTime, endTime, curve, t)` —
+`interpolateLookCore` at the curved progress. Seeking anywhere inside,
+before, or after the window reconstructs the exact state; no scheduler
+history is consulted. Crossing the end during playback commits the target
+into the project as one undo entry and records a `MorphEvent`; export replays
+those events with the same interpolation function.
+
+Interpolation rules (tested in `tests/morph.test.ts`):
+
+- Numbers lerp; booleans/enums/strings switch at the midpoint (p ≥ 0.5).
+- A key present on only one side switches at the midpoint (absent = that
+  side's technique default) — endpoints stay byte-exact.
+- Different techniques: the whole block (id + params) switches at midpoint —
+  no shader crossfade. Material identity likewise; material numerics lerp.
+- Modulations matched by id: amount/min/max/smoothing lerp, topology switches
+  at midpoint. Both frozen → frozen values lerp; mixed → winning side from
+  the midpoint. **Unmatched** mappings fade: A-only rides amount×(1−p) to
+  zero, B-only rises with amount×p.
+- Triggers matched by id: envelope numerics lerp, topology switches at
+  midpoint. Unmatched triggers hard-switch at the midpoint (exactly one side
+  active at any p — no duplicate firings, no half-fired envelopes).
+- Seed switches at midpoint.
+
+Pulses stay live through a morph: the morphed core feeds the pipeline above,
+so `morphed base → modulation → freeze → pulses → clamp`. A trigger only
+sounds during the morph if it exists on the active side of the interpolation
+(matched ids play throughout).
+
+Musical durations resolve to exact seconds **at morph start**; a BPM change
+mid-morph does not move the end time. Quantized starts use the same
+`nextBoundary` as trigger quantization.
 
 ## Where FREEZE sits — a deliberate choice
 

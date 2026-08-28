@@ -12,7 +12,17 @@ import { applyModulations, SmoothingState, shapeMappingValue } from '@/modulatio
 import { applyPulses } from '@/signals/pulseEngine';
 import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
-import type { ModulationMapping, ParamRecord, PinnedLook } from '@shared/schemas/project';
+import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
+import { lookToCore } from '@/performance/lookCore';
+import type {
+  LookCore,
+  ModulationMapping,
+  MorphCurve,
+  ParamRecord,
+  PinnedLook,
+  Project,
+  TriggerMapping,
+} from '@shared/schemas/project';
 import type { ExportFormat } from '@shared/ipc';
 
 export interface AnimationExportRequest {
@@ -46,13 +56,19 @@ export function createFrameEvaluator(startSec: number, fps: number) {
   const working: {
     techniqueId: string | null;
     params: ParamRecord;
+    material: Project['material'];
     modulations: ModulationMapping[];
+    triggers: TriggerMapping[];
+    seed: number;
     looks: PinnedLook[];
     lookIndex: number;
   } = {
     techniqueId: project.techniques.find((t) => t.enabled)?.techniqueId ?? null,
     params: { ...(project.techniques.find((t) => t.enabled)?.params ?? {}) },
+    material: project.material,
     modulations: project.modulations.map((m) => ({ ...m })),
+    triggers: project.triggers.map((t) => ({ ...t })),
+    seed: project.explore.lastSeed ?? 1,
     looks: project.pinnedLooks,
     lookIndex: -1,
   };
@@ -75,15 +91,62 @@ export function createFrameEvaluator(startSec: number, fps: number) {
   const dt = 1 / fps;
   let lastSources: Record<string, number> = {};
 
+  // Morph replay: recorded events + trigger-launched virtual morphs share one
+  // list. Each is applied to the working copy exactly once when its end
+  // passes; while inside its interval the interpolated core overrides the
+  // working state (same interpolation function as preview).
+  interface VirtualMorph {
+    startTime: number;
+    endTime: number;
+    curve: MorphCurve;
+    source: LookCore;
+    target: LookCore;
+    applied: boolean;
+  }
+  const lookById = new Map(project.pinnedLooks.map((l) => [l.id, l]));
+  const virtualMorphs: VirtualMorph[] = project.morphEvents
+    .filter((e) => lookById.has(e.targetLookId))
+    .map((e) => ({
+      startTime: e.startTime,
+      endTime: e.endTime,
+      curve: e.curve,
+      source: e.sourceSnapshot,
+      target: lookToCore(lookById.get(e.targetLookId) as PinnedLook),
+      applied: false,
+    }));
+
+  const workingCore = (): LookCore => ({
+    techniqueId: working.techniqueId ?? 'mosaic',
+    params: { ...working.params },
+    material: working.material,
+    modulations: working.modulations.map((m) => ({ ...m })),
+    triggers: working.triggers.map((t) => ({ ...t })),
+    seed: working.seed,
+  });
+
+  const applyCoreToWorking = (core: LookCore) => {
+    working.techniqueId = core.techniqueId;
+    working.params = { ...core.params };
+    working.material = core.material;
+    working.modulations = core.modulations.map((m) => ({ ...m }));
+    working.triggers = core.triggers.map((t) => ({ ...t }));
+    working.seed = core.seed;
+  };
+
   const applyLookToWorking = (look: PinnedLook | undefined) => {
     if (!look) return;
-    const active = look.techniques.find((t) => t.enabled);
-    if (active) {
-      working.techniqueId = active.techniqueId;
-      working.params = { ...active.params };
-    }
-    working.modulations = look.modulations.map((m) => ({ ...m }));
+    applyCoreToWorking(lookToCore(look));
   };
+
+  // Recorded morph events tell the timeline's story: before the earliest
+  // recorded morph the composition was in that morph's sourceSnapshot, not in
+  // the document's final state. (Between two recorded morphs the previous
+  // target holds; manual edits made live between them have no recorded
+  // timing, so the next morph interpolates from its own snapshot.)
+  if (virtualMorphs.length > 0) {
+    const earliest = [...virtualMorphs].sort((a, b) => a.startTime - b.startTime)[0];
+    if (earliest) applyCoreToWorking(earliest.source);
+  }
 
   const virtualTarget: ActionTarget = {
     freeze: (mappingId) => {
@@ -106,8 +169,10 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     },
     pinLook: () => undefined, // pinning mutates the project; no-op in export replay
     applyLook: (slot) => {
-      working.lookIndex = slot - 1;
-      applyLookToWorking(working.looks[slot - 1]);
+      const look = working.looks.find((l) => l.slot === slot);
+      if (!look) return;
+      working.lookIndex = working.looks.indexOf(look);
+      applyLookToWorking(look);
     },
     nextLook: () => {
       if (working.looks.length === 0) return;
@@ -129,28 +194,54 @@ export function createFrameEvaluator(startSec: number, fps: number) {
         if (m.id === mappingId) m.enabled = !m.enabled;
       }
     },
+    morphToLook: (slot, atTime) => {
+      const look = project.pinnedLooks.find((l) => l.slot === slot);
+      if (!look) return;
+      const { bpm, beatsPerBar } = project.timeline;
+      const barSec = bpm && bpm > 0 ? (60 / bpm) * beatsPerBar : 2;
+      virtualMorphs.push({
+        startTime: atTime,
+        endTime: atTime + barSec,
+        curve: 'easeInOut',
+        source: workingCore(),
+        target: lookToCore(look),
+        applied: false,
+      });
+    },
   };
   const scheduler = new TriggerScheduler(virtualTarget);
   scheduler.reset(startSec);
 
   return (frameIndex: number): { timeSec: number; params: ParamRecord } => {
     const timeSec = startSec + frameIndex / fps;
-    scheduler.advanceTo(timeSec, project.triggers, triggerCtx);
-    const definition = working.techniqueId ? getTechnique(working.techniqueId) : null;
+    scheduler.advanceTo(timeSec, working.triggers, triggerCtx);
+
+    // Morph replay: commit completed morphs (in time order), then resolve any
+    // interval that covers this frame into an interpolated overlay core.
+    virtualMorphs.sort((a, b) => a.startTime - b.startTime);
+    let overlay: LookCore | null = null;
+    for (const vm of virtualMorphs) {
+      if (!vm.applied && timeSec >= vm.endTime) {
+        applyCoreToWorking(vm.target);
+        vm.applied = true;
+      } else if (timeSec >= vm.startTime && timeSec < vm.endTime) {
+        const raw = (timeSec - vm.startTime) / Math.max(vm.endTime - vm.startTime, 1e-6);
+        overlay = interpolateLookCore(vm.source, vm.target, morphCurve(raw, vm.curve)).core;
+      }
+    }
+
+    const techniqueId = overlay?.techniqueId ?? working.techniqueId;
+    const definition = techniqueId ? getTechnique(techniqueId) : null;
     if (!definition) return { timeSec, params: working.params };
     const sources = evalSources(timeSec, sourceCtx);
     lastSources = sources;
-    const modulated = applyModulations(
-      working.params,
-      working.modulations,
-      sources,
-      definition,
-      smoothing,
-      dt,
-    );
+    const baseParams = overlay ? overlay.params : working.params;
+    const mappings = overlay ? overlay.modulations : working.modulations;
+    const activeTriggers = overlay ? overlay.triggers : working.triggers;
+    const modulated = applyModulations(baseParams, mappings, sources, definition, smoothing, dt);
     return {
       timeSec,
-      params: applyPulses(modulated, project.triggers, timeSec, triggerCtx, definition),
+      params: applyPulses(modulated, activeTriggers, timeSec, triggerCtx, definition),
     };
   };
 }
