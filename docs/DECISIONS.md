@@ -127,3 +127,37 @@ Meaningful deviations and choices not obvious from the spec.
 - **4K needs no proxies.** Measured 117–120 fps at 3840×2160 across Mosaic,
   Echo Chamber and Time Fracture, with one-frame macro response. Proxy media
   would be complexity bought with no evidence.
+
+## v0.3 LIVE / OUTPUT (architecture audit — decided before implementation)
+
+Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE.md).
+
+- **ADR — Output renderer ownership**: one authority, replicated surfaces.
+  The editor renderer keeps every runtime singleton (clock, scheduler, MIDI,
+  modulation, overlays); the Output Window runs a second `RenderEngine`
+  instance that renders received, already-evaluated frame state and performs
+  no evaluation. Two independent runtimes (double-fire risk) and frame
+  transport (no viable cross-process pixel path in Electron) were rejected.
+- **ADR — Authoritative clock**: `PlaybackController` stays the only clock
+  (audio-master). Output slaves via ClockSync beacons + transport events,
+  reusing the existing 0.06 s drift-correction discipline.
+- **ADR — High-frequency sync**: compact evaluated FrameState over
+  `MessageChannelMain` (~1–2 KB ≤120 Hz), not an event-replay stream —
+  replays would reintroduce evaluation (and drift) in the replica.
+- **ADR — Live source abstraction**: `SourceRuntime` + `SourceCapabilities`
+  (seekable/deterministic/exportable/temporalHistory) behind the existing
+  `TemporalSource` seam; file loading extracted from engineBridge into the
+  same contract, behavior-identical.
+- **ADR — Live export semantics**: compositions on a non-exportable source
+  disable sequence/movie export with an explicit reason; still export stays
+  allowed as an honest capture of "now". No frozen-frame fakery.
+- **ADR — Output persistence**: display/fullscreen _preferences_ may
+  persist; _active output state never does_ — opening a project must not
+  seize a projector.
+- **ADR — macOS liveness**: `prevent-app-suspension` becomes a refcounted
+  reason set — `transportPlaying ∨ liveSourceActive ∨ outputWindowOpen` —
+  replacing the transport-only boolean.
+- **ADR — texImage3D FLIP_Y warning**: root-caused to Three.js placeholder
+  textures (`TEXTURE_3D/2D_ARRAY` defaults created while `UNPACK_FLIP_Y`
+  persists from flipped 2D uploads). Harmless to output; not a v0.3
+  blocker; track upstream, no local workaround.
