@@ -8,6 +8,7 @@ import { reportError, useUiStore } from '@/state/uiStore';
 import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { allParams, type TechniqueRenderer } from '@/techniques/types';
 import { evalSources, type SourceContext } from '@/modulation/sources';
+import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { applyModulations, SmoothingState, shapeMappingValue } from '@/modulation/evaluator';
 import { applyPulses } from '@/signals/pulseEngine';
 import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
@@ -80,6 +81,9 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
     beatsPerBar: project.timeline.beatsPerBar,
+    // P4: same handles/seed path as preview — no export-only pattern code.
+    patterns: resolvePatternHandles(project.patternSources),
+    projectSeed: working.seed,
   };
   const triggerCtx: TriggerContext = {
     bpm: project.timeline.bpm,
@@ -239,6 +243,10 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     const techniqueId = overlay?.techniqueId ?? working.techniqueId;
     const definition = techniqueId ? getTechnique(techniqueId) : null;
     if (!definition) return { timeSec, params: working.params, techniqueId };
+    // A replayed look apply can change the working seed mid-export; live
+    // preview reconfigures its context on the same store change, so mirror
+    // it here for exact parity.
+    sourceCtx.projectSeed = working.seed;
     const sources = evalSources(timeSec, sourceCtx);
     lastSources = sources;
     // Macro values are project state (deterministic snapshot); live macro

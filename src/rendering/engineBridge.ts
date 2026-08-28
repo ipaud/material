@@ -7,6 +7,7 @@ import { audioEngine } from '@/audio/AudioEngine';
 import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
+import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { configureTriggers } from '@/signals/triggerRuntime';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import { FileImageSource } from '@/sources/FileImageSource';
@@ -198,6 +199,10 @@ function configureModulation(): void {
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
     beatsPerBar: project.timeline.beatsPerBar,
+    // P4: compile-on-change (cached); the pure engine never reads stores —
+    // seed and handles are supplied here, at the store boundary.
+    patterns: resolvePatternHandles(project.patternSources),
+    projectSeed: project.explore.lastSeed ?? 1,
   });
   modulationRuntime.configureMacros(project.macros);
   configureTriggers(project.triggers, {

@@ -81,6 +81,12 @@ export function applyModulations(
   for (const mapping of active) {
     const def = paramDefs.get(mapping.target);
     if (!def) continue;
+    // True neutral (P4): a source that emitted NO value this frame (an
+    // inactive/degrade-gated pattern, an unknown source id) contributes
+    // nothing at all — the mapping is skipped, so invert/curve/min cannot
+    // manufacture a contribution from silence. A FROZEN mapping still holds
+    // its captured value regardless of the live source.
+    if (mapping.frozenValue === null && sourceValues[mapping.source] === undefined) continue;
     const shaped = shapeMappingValue(mapping, sourceValues, smoothingState, dtSec);
     const span = def.max - def.min;
     const current = typeof out[mapping.target] === 'number' ? (out[mapping.target] as number) : def.default;

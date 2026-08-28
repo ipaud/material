@@ -50,6 +50,61 @@ export const modulationMappingSchema = z.object({
 });
 export type ModulationMapping = z.infer<typeof modulationMappingSchema>;
 
+// ---- Pattern sources (P4) ----------------------------------------------
+// Serialized mirror of src/pattern/patternTypes.ts. The zod layer keeps the
+// STRUCTURE honest; compilePattern remains the semantic authority (ranges,
+// pulses≤steps, nesting) — a definition that parses but fails compile yields
+// a neutral source, never a crash.
+
+export const patternValueSchema = z.union([z.number().finite(), z.boolean()]);
+
+export const patternDefinitionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('constant'), value: patternValueSchema }),
+  z.object({ type: z.literal('sequence'), values: z.array(patternValueSchema) }),
+  z.object({
+    type: z.literal('euclidean'),
+    pulses: z.number(),
+    steps: z.number(),
+    rotation: z.number(),
+    activeValue: patternValueSchema,
+    inactiveValue: patternValueSchema,
+  }),
+]);
+export type PatternDefinitionJson = z.infer<typeof patternDefinitionSchema>;
+
+const simplePatternTransformSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('fast'), factor: z.number() }),
+  z.object({ type: z.literal('slow'), factor: z.number() }),
+  z.object({ type: z.literal('reverse') }),
+  z.object({ type: z.literal('rotate'), steps: z.number() }),
+]);
+
+export const patternTransformSchema = z.union([
+  simplePatternTransformSchema,
+  z.object({
+    type: z.literal('every'),
+    cycles: z.number(),
+    transform: simplePatternTransformSchema,
+  }),
+  z.object({ type: z.literal('degrade'), probability: z.number() }),
+]);
+export type PatternTransformJson = z.infer<typeof patternTransformSchema>;
+
+/**
+ * A pattern modulation source. Mapping-owned fields (amount/range/curve/
+ * invert/smoothing) deliberately do NOT exist here — mappings reference the
+ * source as `pattern:<id>` like any other source id.
+ */
+export const patternSourceSchema = z.object({
+  id: z.string(),
+  enabled: z.boolean(),
+  pattern: patternDefinitionSchema,
+  transforms: z.array(patternTransformSchema).default([]),
+  /** Cycle length in beats — independent from beatsPerBar (P1 contract). */
+  beatsPerCycle: z.number().positive().default(4),
+});
+export type PatternSource = z.infer<typeof patternSourceSchema>;
+
 export const triggerActionSchema = z.enum([
   'pulse',
   'freeze',
@@ -274,6 +329,8 @@ export const projectSchema = z.object({
   morphEvents: z.array(morphEventSchema).default([]),
   /** Optional (defaulted) — v2 projects without it stay valid. */
   midiMappings: z.array(midiMappingSchema).default([]),
+  /** Optional (defaulted) — additive like midiMappings, no version bump. */
+  patternSources: z.array(patternSourceSchema).default([]),
   macros: z.array(macroSchema).default([]),
   performancePads: z.array(performancePadSchema).default([]),
   /** Global quantization for performance actions (look apply, morph, pads). */
@@ -314,6 +371,7 @@ export function createEmptyProject(name = 'Untitled'): Project {
     activeLookId: null,
     morphEvents: [],
     midiMappings: [],
+    patternSources: [],
     macros: [],
     performancePads: [],
     performanceQuantize: 'bar' as const,

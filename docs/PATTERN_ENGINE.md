@@ -7,8 +7,8 @@ exactly this composition time?_ Same inputs → same output, for preview,
 playback, seek, the Output replica, offline export and project reload.
 
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
-probability / Degrade) shipped.** P4+ (modulation integration, persistence,
-mini-notation, UI) land in later phases.
+probability / Degrade) + P4 (modulation integration) shipped.** P5+ (parity
+hardening, persistence, mini-notation, UI) land in later phases.
 
 ## Architectural position
 
@@ -25,8 +25,8 @@ resolved parameters → FrameState → editor pixels → Output replica pixels
 ```
 
 The Output replica evaluates nothing (Phase 18B contract). Export uses the
-same pure functions as preview (the export evaluator already shares
-`beatGrid`/`evalSources`; patterns join that path in P4).
+same pure functions as preview — since P4 both call the same
+`evalSources(timeSec, ctx)` with pattern handles in the context.
 
 ## PatternClock (P1)
 
@@ -182,10 +182,68 @@ Measured: degrade adds ~37 ns/eval (same-run: 50 ns/eval for a
 fast+every+reverse chain without degrade, 87 ns/eval with; 1M-eval probe,
 heap delta negative — zero sustained allocation).
 
+## Modulation integration (P4)
+
+Pattern is **just another modulation source**. The full path:
+
+```
+project.patternSources (serialized definitions; additive defaulted field, no version bump)
+    ↓ resolvePatternHandles()        compile-on-change cache (patternSourceRuntime)
+SourceContext.patterns + projectSeed  ← built at the store boundary
+    ↓ evalSources(timeSec, ctx)      ONE evaluation per authority pass
+values['pattern:<id>'] ∈ [0,1] — or ABSENT when the pattern is inactive
+    ↓ applyModulations()             existing mapping/amount/range/clamp/stacking
+final params → FrameState → Editor pixels → passive Output replica
+```
+
+- **Source taxonomy**: mappings reference `pattern:<id>` — a plain source id
+  string, like `bass` or `beat:bar`. Amount/range/curve/invert/smoothing/
+  freeze all belong to the mapping, never to the pattern.
+- **True neutral**: an inactive pattern (degrade-gated, boolean value, compile
+  error, no BPM) emits NO key; `applyModulations` skips a mapping whose
+  source produced no value this frame (unless FROZEN — a frozen mapping holds
+  its captured value regardless). Skipping means invert/curve/min cannot
+  manufacture a contribution from silence — the base parameter is untouched.
+- **Timing**: `SourceContext` is structurally a `PatternTiming` — patterns
+  read the same resolved bpm/beatOffset/beatsPerBar as beat sources and can
+  never drift. No BPM → `patternClockAt` returns null → neutral (no 120
+  fallback). `beatsPerCycle` lives on the pattern source (default 4),
+  independent from `beatsPerBar`.
+- **Identity**: `PatternSource.id` (uid('pat'), standard entity convention)
+  is both the mapping source key and the deterministic probability lane;
+  `projectSeed = project.explore.lastSeed ?? 1` is supplied by the caller at
+  the store boundary (engineBridge / export evaluator) — the pure engine
+  still reads no stores. The export evaluator mirrors mid-export seed changes
+  from replayed look applies for exact preview parity.
+- **Compile cache** (`patternSourceRuntime.ts`): keyed by pattern id,
+  validated by `JSON.stringify({pattern, transforms})` content identity.
+  `beatsPerCycle`/`enabled`/seed changes never recompile; removed, disabled
+  or replaced sources are pruned at configure time — no stale compiled
+  pattern survives a project switch. Compile failure → handle carries the
+  error, source stays neutral, nothing throws in the render loop, NaN cannot
+  reach params.
+- **Numeric-only in P4**: pattern values are clamped to [0,1] as source
+  convention; boolean-valued steps stay engine-internal (visible in
+  diagnostics) and contribute nothing. Discrete/boolean targets are a later
+  phase; booleans are NOT implicitly 0/1.
+- **No renderer path**: `src/pattern` imports no rendering/three/output code
+  and the Output replica imports no pattern code (both test-locked). FrameState
+  gained no fields — patterns are visible only as final param values.
+- **Trigger firing deferred**: the P3 `event` seam is preserved in
+  diagnostics; wiring events into TriggerScheduler's interval API needs
+  inverse coordinate mapping (transformed event times in (t0,t1]) and is
+  deliberately not part of P4.
+
+Measured (full `evalSources`+`applyModulations`, mosaic): 0 patterns
+0.0007 ms/frame · 10 → 0.005 · 100 → 0.021 · 250 → **0.052 ms/frame**.
+Final-params payload bytes identical with/without pattern modulation.
+
 ## DevTools
 
-`__dev.patternEngine` — `compilePattern` / `evaluatePattern` / `patternRandom01`
-(pure, read-only). `__dev.patternClock.at(timeSec?, beatsPerCycle?)` — inspects the clock at any
+`__dev.patternEngine` — `compilePattern` / `evaluatePattern` /
+`patternRandom01` (pure, read-only) plus `sources()` (last-evaluated state of
+each live pattern source: compiled/error/cycle/active/event/value) and
+`compileCount()` (cache effectiveness). `__dev.patternClock.at(timeSec?, beatsPerCycle?)` — inspects the clock at any
 composition time (defaults to the live playhead) against the current
 project's grid. Dev-only, read-only.
 
