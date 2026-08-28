@@ -1,0 +1,293 @@
+/* PATTERNS — same graphite/hairline language as the rest of the Inspector.
+   Nothing here invents a new surface, radius or accent. */
+
+.pat-empty,
+.pat-list-hint {
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.pat-row-wrap + .pat-row-wrap {
+  border-top: 1px solid var(--border-0);
+}
+.pat-row-wrap.open {
+  background: var(--surface-2);
+}
+
+.pat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 22px;
+  padding: 0 var(--sp-4);
+}
+.pat-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  text-align: left;
+}
+.pat-row-name {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--text-0);
+  flex-shrink: 0;
+}
+.pat-row-summary {
+  font-size: 9px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pat-row-main:hover .pat-row-summary {
+  color: var(--text-1);
+}
+.pat-row-status {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+/* LIVE is the only status worth spending accent on. */
+.pat-row-wrap.open .pat-row-status,
+.pat-row-status:only-child {
+  color: var(--text-1);
+}
+
+.pat-editor {
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.pat-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.pat-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.pat-hint {
+  font-size: 9px;
+  color: var(--text-2);
+}
+.pat-empty-line {
+  font-size: 9px;
+  color: var(--text-2);
+  padding: 2px 0;
+}
+
+/* ---- Fields ---- */
+.pat-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.pat-top-fields {
+  justify-content: flex-start;
+}
+.pat-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pat-num-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+}
+.pat-num-suffix {
+  font-size: 8px;
+  color: var(--text-2);
+}
+.pat-num-input {
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  color: var(--text-0);
+  font-size: var(--text-xs);
+  padding: 1px 4px;
+  text-align: right;
+}
+.pat-num-input:hover {
+  border-color: var(--border-1);
+}
+.pat-num-input.invalid {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.pat-targets {
+  margin-left: auto;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* ---- Sequence text ---- */
+.pat-text {
+  width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  color: var(--text-0);
+  font-size: var(--text-xs);
+  padding: 3px 6px;
+}
+.pat-text:hover {
+  border-color: var(--border-1);
+}
+.pat-text.invalid {
+  border-color: var(--danger);
+}
+.pat-readonly {
+  font-size: var(--text-xs);
+  color: var(--text-1);
+  padding: 3px 6px;
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  background: var(--surface-1);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.pat-error {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pat-error-title {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+.pat-error-detail {
+  font-size: 9px;
+  color: var(--text-1);
+}
+
+/* ---- Step preview ---- */
+.pat-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.pat-step-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.pat-step {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--border-1);
+  flex-shrink: 0;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.pat-step.pulse {
+  background: var(--text-1);
+  border-color: var(--text-1);
+}
+/* The playhead is the one place accent earns its keep here. */
+.pat-step.at {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
+.pat-step.pulse.at {
+  background: var(--accent);
+}
+.pat-step-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--text-1);
+}
+
+/* ---- Transforms: an ordered list, never a row of toggles ---- */
+.pat-transforms {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pat-transform {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 20px;
+}
+.pat-transform-index {
+  font-size: 8px;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.pat-transform-name {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-0);
+  min-width: 62px;
+  flex-shrink: 0;
+}
+.pat-transform-args {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.pat-transform-order {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+}
+.pat-arrow {
+  font-size: 9px;
+  color: var(--text-2);
+}
+.pat-add-row {
+  display: flex;
+}
+
+/* ---- Destructive ---- */
+.pat-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-0);
+  padding-top: var(--sp-2);
+}
+.vp-btn.danger {
+  color: var(--danger);
+}
+.vp-btn.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.pat-confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.pat-confirm-text {
+  font-size: 9px;
+  color: var(--text-1);
+}

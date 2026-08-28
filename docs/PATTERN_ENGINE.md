@@ -9,7 +9,7 @@ playback, seek, the Output replica, offline export and project reload.
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
 probability / Degrade) + P4 (modulation integration) + P5 (parity
 hardening) + P6 (persistence contract) + P7 (mini-notation) shipped.**
-P8 (BUILD UI) lands next. There is still no pattern UI.
+P8 (BUILD UI) shipped. P9 (final QA) closes Pattern Engine v1.
 
 ## Architectural position
 
@@ -411,6 +411,54 @@ visuals must not blink out because someone typed `0 .5 1 .` on the way to
 Parsing runs on edit, never per frame: linear, ~107 ns per step (1 step
 0.18 µs, 64 steps 6.8 µs, 1024 steps 110 µs; formatting is about half
 that), and 10 000 evaluation passes invoke it zero times.
+
+## BUILD editor (P8)
+
+`src/patterns/` — the pattern editor lives in **BUILD → Inspector →
+SIGNALS**, beside modulation, triggers, macros and MIDI. There is no fifth
+workspace and no pattern controls in PERFORM, EXPLORE or OUTPUT: a pattern
+is a signal source, mapped onto parameters through the existing modulation
+system like any other.
+
+```
+PATTERNS                                   + ADD
+● PAT 01   SEQ · 4 steps                   LIVE
+● PAT 02   EUCLID · 5/16 · 3T              LIVE
+    TYPE [Euclidean]  CYCLE [4] beats        1 TARGET
+    EUCLIDEAN                                 5 of 16
+    PULSES [5]  STEPS [16]  ROTATE [0]
+    ● · · ● · · ● · · ● · · ● · · ·
+    STEP 14 / 16   0.00
+    TRANSFORMS                        applied in order
+    01 FAST         FACTOR [2] ×        ↑ ↓ ✕
+    02 EVERY        CYCLES [4] → [Reverse]
+    03 PROBABILITY  CHANCE [63] %       ↑ ↓ ✕
+    [+ Add transform]
+    DUPLICATE   DELETE
+```
+
+- **Labels are positional** (`PAT 01`); the stable id never appears in the
+  UI — it is creative identity, not something to read or type. Mapping rows
+  show `PAT 01`, never `pattern:pat_9f31c2ab`.
+- **Status is text**, never colour alone: LIVE · DISABLED · INVALID ·
+  NO BPM · UNMAPPED.
+- **Transforms are an ordered list, not a set of toggles.** Positions are
+  numbered and reordering is explicit (↑ ↓), because P2 locked
+  `fast → reverse ≠ reverse → fast`. Nothing sorts them, ever. `degrade` is
+  presented as PROBABILITY in percent and stored as 0–1.
+- **Sequence editing** uses the P7 contract: an invalid draft stays on
+  screen with `Invalid · last valid active` while the committed pattern
+  keeps running; valid text commits ~320 ms after typing settles, and is
+  flushed on blur, Enter and unmount so a workspace switch cannot lose an
+  edit. Escape restores the committed text. A sequence with no text form
+  (booleans) is shown read-only rather than mangled.
+- **The step indicator writes to DOM refs on a 20 Hz timer** — the engine
+  still evaluates at full rate, but React commits nothing and the project
+  store is never touched. Measured while playing: 0 DOM mutations/s with the
+  editor closed, 20/s with a sequence open, 38/s with a running Euclidean —
+  against 120 fps of rendering, and **0 store writes**.
+- **The System Path collapses patterns to one `PATTERN` segment**; listing
+  PAT 01 / PAT 02 / PAT 03 would drown the path in instances of one idea.
 
 ## DevTools
 

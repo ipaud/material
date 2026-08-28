@@ -2,6 +2,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { MOD_SOURCES } from '@/modulation/sources';
+import { parsePatternSourceKey } from '@/pattern/patternSourceRuntime';
 import './system-path.css';
 
 const MAX_SIGNALS = 3;
@@ -109,7 +110,12 @@ function signalSegment(modulations: Modulations, triggers: Triggers): Segment {
   const labels: string[] = [];
   for (const m of modulations) {
     if (!m.enabled) continue;
-    const label = MOD_SOURCES.find((s) => s.id === m.source)?.label ?? m.source;
+    // Patterns collapse to one category segment: PAT 01 / PAT 02 / PAT 03
+    // would drown the path in instances of the same idea.
+    const label =
+      parsePatternSourceKey(m.source) !== null
+        ? 'PATTERN'
+        : (MOD_SOURCES.find((s) => s.id === m.source)?.label ?? m.source);
     if (!labels.includes(label.toUpperCase())) labels.push(label.toUpperCase());
   }
   for (const t of triggers) {

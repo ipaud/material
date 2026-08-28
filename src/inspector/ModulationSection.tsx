@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { MOD_SOURCES } from '@/modulation/sources';
+import { patternSourceKey } from '@/pattern/patternSourceRuntime';
+import { patternLabel } from '@/patterns/PatternsSection';
 import {
   addMapping,
   clearAllFreezes,
@@ -23,6 +25,7 @@ import './modulation.css';
 export function ModulationSection() {
   const mappings = useProjectStore((s) => s.project.modulations);
   const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
+  const patternSources = useProjectStore((s) => s.project.patternSources);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const definition = technique ? getTechnique(technique.techniqueId) : null;
@@ -71,6 +74,15 @@ export function ModulationSection() {
                     {s.label}
                   </option>
                 ))}
+                {patternSources.length > 0 && (
+                  <optgroup label="Pattern">
+                    {patternSources.map((p, i) => (
+                      <option key={p.id} value={patternSourceKey(p.id)}>
+                        {patternLabel(i)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
               <span className="mod-arrow">→</span>
               <select

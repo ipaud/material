@@ -165,6 +165,10 @@ export interface PatternDiagnostic {
   compiled: boolean;
   error: string | null;
   cycleIndex: number;
+  /** Presented step, or -1 when the pattern produced nothing this pass. */
+  stepIndex: number;
+  /** Step count of the compiled pattern (0 when it failed to compile). */
+  stepCount: number;
   active: boolean;
   event: boolean;
   value: number | boolean | null;
@@ -177,7 +181,7 @@ export function recordPatternDiagnostic(
   handle: PatternSourceHandle,
   cycleIndex: number,
   result:
-    | { active: true; value: number | boolean; event: boolean }
+    | { active: true; value: number | boolean; event: boolean; stepIndex: number }
     | { active: false },
 ): void {
   let d = diagnostics.get(handle.id);
@@ -188,6 +192,8 @@ export function recordPatternDiagnostic(
       compiled: false,
       error: null,
       cycleIndex: 0,
+      stepIndex: -1,
+      stepCount: 0,
       active: false,
       event: false,
       value: null,
@@ -197,6 +203,8 @@ export function recordPatternDiagnostic(
   d.compiled = handle.compiled !== null;
   d.error = handle.error;
   d.cycleIndex = cycleIndex;
+  d.stepIndex = result.active ? result.stepIndex : -1;
+  d.stepCount = handle.compiled?.values.length ?? 0;
   d.active = result.active;
   d.event = result.active ? result.event : false;
   d.value = result.active ? result.value : null;

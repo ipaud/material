@@ -11,6 +11,7 @@ import { ModulationSection } from './ModulationSection';
 import { TriggersSection } from './TriggersSection';
 import { MidiSection } from './MidiSection';
 import { MacrosSection } from './MacrosSection';
+import { PatternsSection } from '@/patterns/PatternsSection';
 import { MidiParamWrap } from './MidiParamWrap';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
@@ -140,6 +141,7 @@ export function InspectorPanel() {
             <CollapsibleSection label="Signals" count={modulatedTargets.size}>
               <div className="inspector-group">
                 <ModulationSection />
+                <PatternsSection />
                 <TriggersSection />
                 <MacrosSection />
                 <MidiSection />
