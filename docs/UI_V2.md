@@ -142,6 +142,50 @@ Three distinct jobs, one place each:
   real app needs the technique `<select>` (and BROWSE) to switch systems, so
   both are kept in the SYSTEM block.
 
+## EXPLORE (Phase C)
+
+EXPLORE is the discovery workspace: compare, mutate, keep. It deliberately does
+not reuse BUILD's Library/Inspector layout.
+
+```
+STAGE (live CURRENT)          CANDIDATE (thumbnail)   RAIL
+                              HOLD B TO AUDITION      MUTATION / LOCKS / LINEAGE
+──────────────────────────────────────────────────────────
+VARIATIONS filmstrip (existing Explore population)
+──────────────────────────────────────────────────────────
+LOW MED HIGH · MUTATE · MUTATE AGAIN · APPLY · PIN · DISCARD · RE-THUMBNAIL
+```
+
+### Rendering strategy — one live engine
+
+There is exactly one RenderEngine. The stage always shows the live output:
+CURRENT normally, and the candidate while B is held, through the existing pure
+overlay path (`candidateRuntime.resolveOverlay()` consumed by the modulation
+runtime). The CANDIDATE pane is the deterministic static thumbnail — never a
+second engine. Measured: 120 fps idle, 118.8 fps while auditioning with
+playback running, preview→frame 10.2 ms. Two live panes were rejected as pure
+cost: the comparison reads better with hold-to-audition on the big stage.
+
+### Semantics preserved
+
+- Candidate lives entirely outside the project; preview never mutates the
+  document (regression-tested at the UI path).
+- Hold-to-audition only — releasing B (or the pointer) always lands on
+  CURRENT. Preview state is also text (`PREVIEWING CANDIDATE`, `ON STAGE`,
+  `AUDITIONING`), never colour alone.
+- APPLY is the existing atomic commit (quantized only when a beat grid
+  exists — that behaviour is candidateRuntime's, untouched).
+- The candidate keyboard cluster (G, ⇧G, B, Enter, ⌫) now also works in
+  EXPLORE; it was PERFORM-only before. Same handlers, workspace-gated.
+- The population strip is the existing Explore population system (counts,
+  generate, mutate-around-selected, pin, apply, per-param locks untouched
+  under the hood).
+
+### Colour discipline
+
+Yellow = CURRENT / selection / primary action. Cyan = CANDIDATE only. No
+filled panels — hairline frames and text labels carry the state.
+
 ## Phase status
 
 | Phase | Scope                                                                      | State         |

@@ -43,7 +43,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
-    title: 'Candidate',
+    title: 'Candidate (Explore / Perform)',
     rows: [
       ['G', 'Mutate from CURRENT'],
       ['⇧G', 'Mutate again from the candidate'],
@@ -82,7 +82,12 @@ export function ShortcutsOverlay() {
 
   if (!open) return null;
   return (
-    <div className="shortcuts-backdrop" onClick={toggle} role="dialog" aria-label="Keyboard shortcuts">
+    <div
+      className="shortcuts-backdrop"
+      onClick={toggle}
+      role="dialog"
+      aria-label="Keyboard shortcuts"
+    >
       <div className="shortcuts-card" onClick={(e) => e.stopPropagation()}>
         <div className="shortcuts-head">
           <span className="label">Shortcuts</span>
@@ -104,8 +109,8 @@ export function ShortcutsOverlay() {
           ))}
         </div>
         <p className="shortcuts-foot">
-          Live controls — knobs, pads, keys — are not recorded. Exports render the
-          project&rsquo;s deterministic state.
+          Live controls — knobs, pads, keys — are not recorded. Exports render the project&rsquo;s
+          deterministic state.
         </p>
       </div>
     </div>

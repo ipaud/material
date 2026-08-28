@@ -50,9 +50,7 @@ function exploreRange(def: NumberParamDef): [number, number] {
 }
 
 function randomizableParams(definition: TechniqueDefinition, locks: ExploreLocks) {
-  return allParams(definition).filter(
-    (p) => p.explore?.randomizable && !locks.params.has(p.id),
-  );
+  return allParams(definition).filter((p) => p.explore?.randomizable && !locks.params.has(p.id));
 }
 
 /** Generate one variation patch from a seed (root generation). */

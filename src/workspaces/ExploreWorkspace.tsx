@@ -1,27 +1,70 @@
 import { useProjectStore } from '@/state/projectStore';
-import { EmptyState } from '@/components/EmptyState';
+import { useUiStore } from '@/state/uiStore';
 import { Viewport } from '@/viewport/Viewport';
-import { ExplorePanel } from '@/explore/ExplorePanel';
+import { StageHeader } from '@/explore/StageHeader';
+import { CandidatePane } from '@/explore/CandidatePane';
+import { ExploreRail } from '@/explore/ExploreRail';
+import { PopulationStrip } from '@/explore/PopulationStrip';
+import { ExploreActions } from '@/explore/ActionBar';
+import '@/explore/explore.css';
 
 interface Props {
   isDragOver: boolean;
 }
 
 /**
- * EXPLORE — discover variations. Phase A keeps the existing Explore/Candidate
- * panel intact; the CURRENT/CANDIDATE layout lands in Phase C.
+ * EXPLORE — discover variations. One live engine: the stage shows CURRENT,
+ * and holding B renders the candidate through the existing overlay path.
+ * The CANDIDATE pane is a static deterministic thumbnail, never a second
+ * render engine.
  */
 export function ExploreWorkspace({ isDragOver }: Props) {
-  const hasSources = useProjectStore((s) => s.project.sources.length > 0);
+  const hasSystem = useProjectStore(
+    (s) => s.project.composition.sourceId !== null && s.project.techniques.some((t) => t.enabled),
+  );
+
+  if (!hasSystem) {
+    return (
+      <div className="workspace workspace-explore">
+        <ExploreEmpty />
+        {isDragOver && <div className="drop-overlay" />}
+      </div>
+    );
+  }
 
   return (
-    <div className="workspace workspace-explore">
-      <main className="viewport-area">
-        <Viewport />
-        <ExplorePanel />
-        {!hasSources && <EmptyState isDragOver={isDragOver} />}
-        {isDragOver && <div className="drop-overlay" />}
-      </main>
+    <div className="workspace workspace-explore explore-shell">
+      <div className="explore-main">
+        <main className="explore-stage">
+          <StageHeader />
+          <div className="stage-well">
+            <Viewport />
+          </div>
+        </main>
+        <CandidatePane />
+        <ExploreRail />
+      </div>
+      <PopulationStrip />
+      <ExploreActions />
+      {isDragOver && <div className="drop-overlay" />}
+    </div>
+  );
+}
+
+/** No source or no technique: nothing real to explore — say so, offer BUILD. */
+export function ExploreEmpty() {
+  return (
+    <div className="explore-none">
+      <span className="explore-none-title">BUILD A SYSTEM FIRST</span>
+      <span className="explore-none-hint">
+        EXPLORE mutates the current source + technique — there is nothing to vary yet
+      </span>
+      <button
+        className="explore-btn strong"
+        onClick={() => useUiStore.getState().setWorkspace('build')}
+      >
+        GO TO BUILD
+      </button>
     </div>
   );
 }

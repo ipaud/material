@@ -28,17 +28,18 @@ const DURATION_VALUES: Record<string, MorphDuration> = {
  *   Shift+1–9  overwrite that slot with the current state
  *   P          pin current look
  *   F          freeze all / clear all (toggle)
+ * EXPLORE + PERFORM (candidate cluster):
+ *   G          mutate: generate a candidate from CURRENT
+ *   Shift+G    mutate again, using the candidate as parent
+ *   B (hold)   audition the candidate; release returns to CURRENT
+ *   Enter      apply the candidate (quantized when a grid exists)
+ *   Backspace  discard the candidate
  * PERFORM workspace only:
  *   Q          cycle quantization
  *   M          morph to the selected target look
  *   Z X C V    trigger pads 1–4
  *   Tab        minimal HUD
  *   Esc        cancel queued actions, else cancel-and-keep an armed morph
- *   G          mutate: generate a candidate from CURRENT
- *   Shift+G    mutate again, using the candidate as parent
- *   B (hold)   audition the candidate; release returns to CURRENT
- *   Enter      apply the candidate (quantized)
- *   Backspace  discard the candidate
  * Space (play), ` (A/B), ⌘-shortcuts owned elsewhere — no collisions.
  */
 export function usePerformanceKeys(): void {
@@ -48,7 +49,11 @@ export function usePerformanceKeys(): void {
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.isContentEditable)
         return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const isPerf = useUiStore.getState().workspace === 'perform';
+      const workspace = useUiStore.getState().workspace;
+      const isPerf = workspace === 'perform';
+      // The candidate cluster (G / Shift+G / B / Enter / Backspace) lives
+      // wherever CURRENT/CANDIDATE lives: PERFORM and the EXPLORE workspace.
+      const hasCandidateKeys = isPerf || workspace === 'explore';
 
       if (e.code.startsWith('Digit')) {
         const digit = Number(e.code.slice(5));
@@ -66,8 +71,8 @@ export function usePerformanceKeys(): void {
         }
       }
       if (e.shiftKey) {
-        // Shift+M: mutate again from the candidate (lineage step).
-        if (isPerf && e.code === 'KeyG') {
+        // Shift+G: mutate again from the candidate (lineage step).
+        if (hasCandidateKeys && e.code === 'KeyG') {
           e.preventDefault();
           candidateRuntime.generate({ fromCandidate: true });
         }
@@ -83,6 +88,30 @@ export function usePerformanceKeys(): void {
         e.preventDefault();
         toggleFreezeAll();
         return;
+      }
+      if (hasCandidateKeys) {
+        if (e.code === 'KeyG') {
+          e.preventDefault();
+          candidateRuntime.generate();
+          return;
+        }
+        if (e.code === 'KeyB') {
+          // B = the "other side": A is CURRENT, B is CANDIDATE (§5). Held,
+          // not toggled — releasing always lands back on CURRENT.
+          e.preventDefault();
+          if (!e.repeat) candidateRuntime.setPreview(true);
+          return;
+        }
+        if (e.code === 'Enter') {
+          e.preventDefault();
+          if (candidateRuntime.current) candidateRuntime.apply();
+          return;
+        }
+        if (e.code === 'Backspace' || e.code === 'Delete') {
+          e.preventDefault();
+          candidateRuntime.discard();
+          return;
+        }
       }
       if (!isPerf) return;
 
@@ -109,20 +138,6 @@ export function usePerformanceKeys(): void {
         if (cancelPendingActions() === 0 && morphRuntime.current) {
           morphRuntime.cancelKeep();
         }
-      } else if (e.code === 'KeyG') {
-        e.preventDefault();
-        candidateRuntime.generate();
-      } else if (e.code === 'KeyB') {
-        // B = the "other side": A is CURRENT, B is CANDIDATE (§5). Held, not
-        // toggled — releasing always lands back on CURRENT.
-        e.preventDefault();
-        if (!e.repeat) candidateRuntime.setPreview(true);
-      } else if (e.code === 'Enter') {
-        e.preventDefault();
-        if (candidateRuntime.current) candidateRuntime.apply();
-      } else if (e.code === 'Backspace' || e.code === 'Delete') {
-        e.preventDefault();
-        candidateRuntime.discard();
       } else if (PAD_CODES.includes(e.code)) {
         e.preventDefault();
         const index = PAD_CODES.indexOf(e.code);
