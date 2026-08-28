@@ -186,6 +186,67 @@ cost: the comparison reads better with hold-to-audition on the big stage.
 Yellow = CURRENT / selection / primary action. Cyan = CANDIDATE only. No
 filled panels — hairline frames and text labels carry the state.
 
+## PERFORM (Phase D)
+
+PERFORM is the instrument: output on top (60–70% of useful height), a status
+rail on the right, then three flat strips — LOOKS 1–9, MACROS, ACTIONS.
+
+```
+STAGE (live output + corner overlays)          STATUS RAIL
+                                               BAR (largest readout)
+                                               BEAT · BPM · TAP · ▶
+                                               queue / morph line
+                                               SIGNALS  BASS ONSET BEAT
+                                               MIDI
+LOOKS 01–09
+MACROS (large flat sliders)
+STATE | MORPH | PADS | CANDIDATE | SYNC
+```
+
+### Stage overlays — one chip, priority ordered
+
+Top-left: current look (slot · name · ● modified). Top-right: exactly one
+state chip, highest priority wins: `MEDIA OFFLINE > ■ FROZEN > PREVIEWING
+CANDIDATE > MORPH → target > QUEUED`. Detail (progress, beats-left) lives in
+the rail's queue line, so state never appears in three places.
+
+### Looks
+
+Flat slots separated by hairlines: small thumbnail (30px) kept above a
+number+name line — text-first, thumbnail as recognition aid. Active = yellow
+top border + yellow number; queued = dashed outline + QUEUED tag; morph
+target = cyan top border + MORPH tag; modified = ●; empty = dim number only.
+
+### Macros
+
+Large flat sliders (native range inputs — keyboard/ARIA preserved): name,
+big yellow value, and a CC status line in words — `CC21 · LIVE / PICKUP /
+FROZEN / OFFLINE` (engine `MappingStatus` mapped 1:1; `waiting` reads as
+PICKUP). Right-click learn/rename/reset unchanged.
+
+### Actions
+
+Grouped with 7px labels: STATE (FREEZE → `■ FROZEN` engaged, quiet PIN) ·
+MORPH (target, duration, launch) · PADS (Z/X/C/V, real payload names,
+imperative 120ms fire flash driven by a `material:pad-fired` DOM event — no
+React on the trigger path) · CANDIDATE (compact live shortcut: MUTATE +
+intensity/locks, or identity + B·HOLD + APPLY + AGAIN/PIN/✕; full workflow
+stays in EXPLORE) · SYNC (quantize segmented, sticky right so it never
+scrolls out of view).
+
+### HUD (Tab)
+
+Stage + one 28px line: look · BAR/BEAT/BPM · queue · PREVIEWING CANDIDATE ·
+`■ FROZEN` (still a working release button — regression-tested) · MIDI ·
+TAB EXIT HUD. Control strips disappear; all keyboard control remains.
+
+### Hot paths
+
+BAR/BEAT/queue/meters are imperative textContent writes at 10Hz; beat pulse
+and pad flash are CSS animations restarted imperatively; MIDI and macro
+engine paths untouched. Toasts shift left of the rail in PERFORM so they
+never cover the BAR readout.
+
 ## Phase status
 
 | Phase | Scope                                                                      | State         |

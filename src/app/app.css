@@ -244,6 +244,11 @@
      performance strip, and a toast must never cover a live control. */
   top: calc(var(--titlebar-height) + var(--sp-3));
   right: var(--sp-4);
+}
+/* In PERFORM the top-right corner is the status rail (BAR/BEAT) — a toast
+   must not cover the position readout mid-set. */
+.app:has(.workspace-perform:not(.hud)) .toasts {
+  right: 224px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);

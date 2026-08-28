@@ -88,6 +88,9 @@ export function firePad(padId: string): void {
   if (!pad?.trigger) return;
   const { ctx } = getTriggerState();
   liveScheduler.fireLive({ ...pad.trigger, source: 'manual' }, playback.getTime(), ctx);
+  // Presentation-only: lets pad buttons flash on keyboard/MIDI fires too,
+  // without any React state on this hot path.
+  window.dispatchEvent(new CustomEvent('material:pad-fired', { detail: padId }));
 }
 
 /** Esc: drop queued quantized actions (never fires them). */
@@ -131,8 +134,6 @@ export function deleteMacro(id: string): void {
   useProjectStore.getState().apply((p) => ({
     ...p,
     macros: p.macros.filter((m) => m.id !== id),
-    midiMappings: p.midiMappings.filter(
-      (m) => !(m.targetType === 'macro' && m.targetParam === id),
-    ),
+    midiMappings: p.midiMappings.filter((m) => !(m.targetType === 'macro' && m.targetParam === id)),
   }));
 }

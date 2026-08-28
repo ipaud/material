@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
-import { usePlaybackStore } from '@/state/playbackStore';
-import { playback } from '@/playback/PlaybackController';
 import { liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
 import { isLookDirty } from '@/performance/lookCore';
-import { modulationRuntime } from '@/modulation/runtime';
-import { musicalPosition } from '@/audio/beatGrid';
-import { tapTempoTap } from '@/audio/tempoActions';
 import { pinCurrentLook } from '@/projects/lookActions';
 import { toggleFreezeAll } from '@/modulation/modulationActions';
 import { midiEngine, useMidiStore } from '@/midi/midiEngine';
@@ -40,7 +35,11 @@ const QUANT_LABEL: Record<QuantizeMode, string> = {
   '4bars': '4 BARS',
 };
 
-const DURATIONS: { id: '1beat' | '2beats' | '1bar' | '2bars' | '4bars'; label: string; value: MorphDuration }[] = [
+const DURATIONS: {
+  id: '1beat' | '2beats' | '1bar' | '2bars' | '4bars';
+  label: string;
+  value: MorphDuration;
+}[] = [
   { id: '1beat', label: '1 BEAT', value: { mode: 'beats', beats: 1 } },
   { id: '2beats', label: '2 BEATS', value: { mode: 'beats', beats: 2 } },
   { id: '1bar', label: '1 BAR', value: { mode: 'bars', bars: 1 } },
@@ -50,22 +49,9 @@ const DURATIONS: { id: '1beat' | '2beats' | '1bar' | '2bars' | '4bars'; label: s
 
 const PAD_KEYS = ['Z', 'X', 'C', 'V'];
 
-export function PerformanceWorkspace() {
-  const hud = useUiStore((s) => s.perfHud);
-  return (
-    <div className={`perf-strip${hud ? ' hud' : ''}`}>
-      <LooksRow />
-      <MacrosRow />
-      {!hud && <ActionsRow />}
-      <CandidateRow />
-      <StatusRow compact={hud} />
-    </div>
-  );
-}
-
 // ---- LOOKS ------------------------------------------------------------
 
-function LooksRow() {
+export function LooksStrip() {
   const looks = useProjectStore((s) => s.project.pinnedLooks);
   const activeLookId = useProjectStore((s) => s.project.activeLookId);
   const project = useProjectStore((s) => s.project);
@@ -91,7 +77,8 @@ function LooksRow() {
   return (
     <div className="perf-looks" role="group" aria-label="Pinned looks">
       {Array.from({ length: 9 }, (_, i) => i + 1).map((slot) => {
-        const look = looks.find((l) => l.id === activeLookId && l.slot === slot) ??
+        const look =
+          looks.find((l) => l.id === activeLookId && l.slot === slot) ??
           looks.find((l) => l.slot === slot);
         const isActive = look != null && look.id === activeLookId;
         const isQueued = queuedSlot === slot;
@@ -119,18 +106,27 @@ function LooksRow() {
                 : `Slot ${slot} empty — press P to pin`
             }
           >
-            <span className="perf-look-num mono">{slot}</span>
             {look?.thumbnail ? (
               <img src={look.thumbnail} alt="" draggable={false} />
-            ) : (
+            ) : look ? (
               <span className="perf-look-blank" />
-            )}
-            <span className="perf-look-name">
-              {look?.label ?? '—'}
-              {isActive && dirty && <span className="perf-dirty" title="Modified since apply"> ●</span>}
+            ) : null}
+            <span className="perf-look-line">
+              <span className="perf-look-num mono">{slot}</span>
+              <span className="perf-look-name">
+                {look?.label ?? ''}
+                {isActive && dirty && (
+                  <span className="perf-dirty" title="Modified since apply">
+                    {' '}
+                    ●
+                  </span>
+                )}
+              </span>
+              {isQueued && <span className="perf-look-tag mono">QUEUED</span>}
+              {isMorphTarget && !isQueued && (
+                <span className="perf-look-tag morph mono">MORPH</span>
+              )}
             </span>
-            {isQueued && <span className="perf-look-tag mono">QUEUED</span>}
-            {isMorphTarget && !isQueued && <span className="perf-look-tag morph mono">MORPH</span>}
           </button>
         );
       })}
@@ -140,7 +136,7 @@ function LooksRow() {
 
 // ---- MACROS -----------------------------------------------------------
 
-function MacrosRow() {
+export function MacrosStrip() {
   const macros = useProjectStore((s) => s.project.macros);
   if (macros.length === 0) {
     return (
@@ -157,6 +153,15 @@ function MacrosRow() {
     </div>
   );
 }
+
+/** Engine status → performer word. 'waiting' is the pickup gap (§10). */
+const MACRO_STATUS_LABEL: Record<string, string> = {
+  live: 'LIVE',
+  waiting: 'PICKUP',
+  frozen: 'FROZEN',
+  morph: 'MORPH',
+  offline: 'OFFLINE',
+};
 
 function MacroControl({ macro }: { macro: Macro }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -176,8 +181,16 @@ function MacroControl({ macro }: { macro: Macro }) {
     await midiEngine.startLearn({ targetType: 'macro', targetParam: macro.id }, macro.name);
   };
 
+  const statusText = midiStatus ? (MACRO_STATUS_LABEL[midiStatus] ?? null) : null;
+
   return (
-    <div className="perf-macro" onContextMenu={(e) => { e.preventDefault(); setMenuOpen(true); }}>
+    <div
+      className="perf-macro"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenuOpen(true);
+      }}
+    >
       <div className="perf-macro-head">
         {renaming ? (
           <input
@@ -185,9 +198,15 @@ function MacroControl({ macro }: { macro: Macro }) {
             defaultValue={macro.name}
             autoFocus
             onFocus={(e) => e.target.select()}
-            onBlur={(e) => { renameMacro(macro.id, e.target.value); setRenaming(false); }}
+            onBlur={(e) => {
+              renameMacro(macro.id, e.target.value);
+              setRenaming(false);
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') { renameMacro(macro.id, (e.target as HTMLInputElement).value); setRenaming(false); }
+              if (e.key === 'Enter') {
+                renameMacro(macro.id, (e.target as HTMLInputElement).value);
+                setRenaming(false);
+              }
               if (e.key === 'Escape') setRenaming(false);
             }}
           />
@@ -197,11 +216,16 @@ function MacroControl({ macro }: { macro: Macro }) {
           </span>
         )}
         <span className="perf-macro-value mono">{macro.value.toFixed(2)}</span>
-        {midiMapping && (
-          <span className={`perf-macro-midi mono${midiStatus === 'waiting' ? ' waiting' : ''}`}>
+      </div>
+      <div className="perf-macro-sub mono">
+        {midiMapping ? (
+          <span className={`perf-macro-midi${midiStatus === 'waiting' ? ' waiting' : ''}`}>
             CC{midiMapping.control}
+            {statusText ? ` · ${statusText}` : ''}
             {midiStatus === 'waiting' ? ' ◌' : ''}
           </span>
+        ) : (
+          <span className="perf-macro-midi none">—</span>
         )}
       </div>
       <input
@@ -230,8 +254,22 @@ function MacroControl({ macro }: { macro: Macro }) {
           <div className="midi-menu-backdrop" onClick={() => setMenuOpen(false)} />
           <div className="midi-menu perf-macro-menu">
             <button onClick={() => void learn()}>MIDI Learn</button>
-            <button onClick={() => { setRenaming(true); setMenuOpen(false); }}>Rename</button>
-            <button onClick={() => { resetMacro(macro.id); setMenuOpen(false); }}>Reset to 0</button>
+            <button
+              onClick={() => {
+                setRenaming(true);
+                setMenuOpen(false);
+              }}
+            >
+              Rename
+            </button>
+            <button
+              onClick={() => {
+                resetMacro(macro.id);
+                setMenuOpen(false);
+              }}
+            >
+              Reset to 0
+            </button>
           </div>
         </>
       )}
@@ -241,222 +279,159 @@ function MacroControl({ macro }: { macro: Macro }) {
 
 // ---- ACTIONS ----------------------------------------------------------
 
-function ActionsRow() {
-  const anyFrozen = useProjectStore((s) => s.project.modulations.some((m) => m.frozenValue !== null));
+export function ActionsStrip() {
+  const anyFrozen = useProjectStore((s) =>
+    s.project.modulations.some((m) => m.frozenValue !== null),
+  );
   const quantize = useProjectStore((s) => s.project.performanceQuantize);
   const looks = useProjectStore((s) => s.project.pinnedLooks);
-  const pads = useProjectStore((s) => s.project.performancePads);
   const morphTargetId = useUiStore((s) => s.perfMorphTargetId);
   const durationId = useUiStore((s) => s.perfMorphDuration);
   const morphTarget = looks.find((l) => l.id === morphTargetId) ?? null;
 
   const launchMorph = () => {
     if (!morphTarget) return;
-    const duration = DURATIONS.find((d) => d.id === durationId)?.value ?? { mode: 'bars' as const, bars: 1 };
+    const duration = DURATIONS.find((d) => d.id === durationId)?.value ?? {
+      mode: 'bars' as const,
+      bars: 1,
+    };
     morphToLookQuantized(morphTarget.id, duration);
   };
 
   return (
     <div className="perf-actions">
-      <button
-        className={`perf-big-btn${anyFrozen ? ' engaged' : ''}`}
-        onClick={() => toggleFreezeAll()}
-        title="Freeze/release all modulated values (F)"
-      >
-        {anyFrozen ? '■ FROZEN' : 'FREEZE'}
-      </button>
-      <button className="perf-big-btn" onClick={() => void pinCurrentLook()} title="Pin current state as a Look (P)">
-        PIN
-      </button>
-
-      <div className="perf-morph-group">
-        <select
-          className="select"
-          value={morphTargetId ?? ''}
-          onChange={(e) => useUiStore.getState().setPerfMorphTarget(e.target.value || null)}
-          aria-label="Morph target look"
-        >
-          <option value="">MORPH TO…</option>
-          {looks.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.slot ? `[${l.slot}] ` : ''}
-              {l.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="select"
-          value={durationId}
-          onChange={(e) => useUiStore.getState().setPerfMorphDuration(e.target.value as typeof durationId)}
-          aria-label="Morph duration"
-        >
-          {DURATIONS.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-        <button className="perf-big-btn" disabled={!morphTarget} onClick={launchMorph} title="Launch morph (M)">
-          MORPH
-        </button>
-      </div>
-
-      <div className="perf-pads">
-        {pads.slice(0, 4).map((pad, i) => (
+      <div className="perf-group" role="group" aria-label="State">
+        <span className="perf-group-label">STATE</span>
+        <div className="perf-group-body">
           <button
-            key={pad.id}
-            className="perf-pad"
-            disabled={!pad.trigger}
-            onClick={() => firePad(pad.id)}
-            title={pad.trigger ? `${pad.label} (${PAD_KEYS[i]})` : 'Unassigned — set in BUILD'}
+            className={`perf-big-btn${anyFrozen ? ' engaged' : ''}`}
+            onClick={() => toggleFreezeAll()}
+            title="Freeze/release all modulated values (F)"
           >
-            <span className="perf-pad-key mono">{PAD_KEYS[i]}</span>
-            {pad.label}
+            {anyFrozen ? '■ FROZEN' : 'FREEZE'}
           </button>
-        ))}
-      </div>
-
-      <MutateButton />
-      <div className="perf-quant" role="group" aria-label="Performance quantization">
-        <span className="perf-quant-label">QUANT</span>
-        {(Object.keys(QUANT_LABEL) as QuantizeMode[]).map((mode) => (
           <button
-            key={mode}
-            className={`perf-quant-btn${quantize === mode ? ' active' : ''}`}
-            onClick={() => setPerformanceQuantize(mode)}
+            className="perf-big-btn quiet"
+            onClick={() => void pinCurrentLook()}
+            title="Pin current state as a Look (P)"
           >
-            {QUANT_LABEL[mode]}
+            PIN
           </button>
-        ))}
+        </div>
       </div>
 
+      <div className="perf-group" role="group" aria-label="Morph">
+        <span className="perf-group-label">MORPH</span>
+        <div className="perf-group-body">
+          <select
+            className="select"
+            value={morphTargetId ?? ''}
+            onChange={(e) => useUiStore.getState().setPerfMorphTarget(e.target.value || null)}
+            aria-label="Morph target look"
+          >
+            <option value="">TO…</option>
+            {looks.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.slot ? `${l.slot} · ` : ''}
+                {l.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="select"
+            value={durationId}
+            onChange={(e) =>
+              useUiStore.getState().setPerfMorphDuration(e.target.value as typeof durationId)
+            }
+            aria-label="Morph duration"
+          >
+            {DURATIONS.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+          <button
+            className="perf-big-btn"
+            disabled={!morphTarget}
+            onClick={launchMorph}
+            title="Launch morph (M)"
+          >
+            MORPH
+          </button>
+        </div>
+      </div>
+
+      <div className="perf-group" role="group" aria-label="Trigger pads">
+        <span className="perf-group-label">PADS</span>
+        <div className="perf-group-body">
+          <Pads />
+        </div>
+      </div>
+
+      <CandidateCluster />
+
+      <div className="perf-group perf-group-sync" role="group" aria-label="Quantization">
+        <span className="perf-group-label">SYNC</span>
+        <div className="perf-group-body">
+          {(Object.keys(QUANT_LABEL) as QuantizeMode[]).map((mode) => (
+            <button
+              key={mode}
+              className={`perf-quant-btn${quantize === mode ? ' active' : ''}`}
+              onClick={() => setPerformanceQuantize(mode)}
+              title="Quantization for look apply, morph, pads and candidate (Q)"
+            >
+              {QUANT_LABEL[mode]}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-// ---- STATUS -----------------------------------------------------------
+function Pads() {
+  const pads = useProjectStore((s) => s.project.performancePads);
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-function StatusRow({ compact }: { compact: boolean }) {
-  const anyFrozen = useProjectStore((s) => s.project.modulations.some((m) => m.frozenValue !== null));
-  const beatRef = useRef<HTMLDivElement>(null);
-  const queueRef = useRef<HTMLDivElement>(null);
-  const metersRef = useRef<HTMLDivElement>(null);
-  const bpm = useProjectStore((s) => s.project.timeline.bpm);
-  const playing = usePlaybackStore((s) => s.playing);
-  const midiDevices = useMidiStore((s) => s.devices);
-  const midiAvailability = useMidiStore((s) => s.availability);
-  const learn = useMidiStore((s) => s.learn);
-  const offlineMappings = useProjectStore((s) => s.project.midiMappings.length);
-
-  // Imperative UI-rate updates: beat readout + pulse, queue line, meters.
+  // Fire feedback stays imperative: a class pulse on a DOM event, no state.
   useEffect(() => {
-    let lastBeat = -1;
-    const timer = setInterval(() => {
-      const t = playback.getTime();
-      const { project } = useProjectStore.getState();
-      const { bpm: liveBpm, beatOffsetSec, beatsPerBar } = project.timeline;
-
-      const beatEl = beatRef.current;
-      if (beatEl) {
-        if (liveBpm) {
-          const pos = musicalPosition(t, liveBpm, beatOffsetSec, beatsPerBar);
-          beatEl.textContent = `BAR ${String(pos.bar).padStart(3, '0')} · BEAT ${pos.beat} / ${beatsPerBar}`;
-          const absBeat = pos.bar * beatsPerBar + pos.beat;
-          if (absBeat !== lastBeat) {
-            lastBeat = absBeat;
-            beatEl.classList.remove('pulse');
-            void beatEl.offsetWidth; // restart CSS animation
-            beatEl.classList.add('pulse');
-          }
-        } else {
-          beatEl.textContent = 'NO GRID — set BPM';
-        }
-      }
-
-      const queueEl = queueRef.current;
-      if (queueEl) {
-        const pending = liveScheduler.getPending()[0];
-        const morph = morphRuntime.current;
-        if (pending && liveBpm) {
-          const beatsLeft = ((pending.executeAt - t) * liveBpm) / 60;
-          const what =
-            pending.mapping.action === 'applyLook'
-              ? `LOOK ${pending.mapping.lookSlot ?? '?'}`
-              : pending.mapping.action.toUpperCase();
-          queueEl.textContent = `${what} QUEUED → ${Math.max(beatsLeft, 0).toFixed(1)} BEATS`;
-          queueEl.className = 'perf-queue mono queued';
-        } else if (morph) {
-          const raw = morphRuntime.progressAt(t) ?? 0;
-          const remainingSec = Math.max(morph.endTime - t, 0);
-          const remainingBars = liveBpm ? (remainingSec * liveBpm) / 60 / 4 : remainingSec;
-          const blocks = Math.round(raw * 10);
-          const unit = liveBpm ? 'BARS' : 'S';
-          queueEl.textContent =
-            raw === 0 && t < morph.startTime
-              ? `MORPH → ${morph.targetLabel} STARTS IN ${(((morph.startTime - t) * (liveBpm ?? 60)) / 60).toFixed(1)} BEATS`
-              : `MORPH → ${morph.targetLabel}  ${'█'.repeat(blocks)}${'░'.repeat(10 - blocks)} ${Math.round(raw * 100)}%  ${remainingBars.toFixed(1)} ${unit}`;
-          queueEl.className = 'perf-queue mono morphing';
-        } else {
-          queueEl.textContent = '';
-          queueEl.className = 'perf-queue mono';
-        }
-      }
-
-      const metersEl = metersRef.current;
-      if (metersEl) {
-        const v = modulationRuntime.lastSourceValues;
-        const bass = Math.round((v.bass ?? 0) * 8);
-        const onset = (v.onset ?? 0) > 0.5;
-        const beatOn = (v.beat ?? 0) > 0.5;
-        metersEl.textContent = `BASS ${'▮'.repeat(bass)}${'▯'.repeat(8 - bass)}  ONSET ${onset ? '●' : '○'}  BEAT ${beatOn ? '●' : '○'}`;
-      }
-    }, 100);
-    return () => clearInterval(timer);
+    const onFire = (e: Event) => {
+      const el = refs.current[(e as CustomEvent<string>).detail];
+      if (!el) return;
+      el.classList.remove('fired');
+      void el.offsetWidth;
+      el.classList.add('fired');
+    };
+    window.addEventListener('material:pad-fired', onFire);
+    return () => window.removeEventListener('material:pad-fired', onFire);
   }, []);
 
-  const midiLabel = learn
-    ? 'LEARNING'
-    : midiDevices.length > 0
-      ? midiDevices[0]?.name
-      : midiAvailability === 'ready' && offlineMappings > 0
-        ? 'OFFLINE'
-        : midiAvailability === 'ready'
-          ? 'READY'
-          : '—';
-  const midiState = learn ? 'learning' : midiDevices.length > 0 ? 'on' : 'off';
-
   return (
-    <div className={`perf-status${compact ? ' compact' : ''}`}>
-      <button
-        className="perf-transport"
-        onClick={() => playback.toggle()}
-        title="Play/Pause (Space)"
-        aria-label={playing ? 'Pause' : 'Play'}
-      >
-        {playing ? '❚❚' : '▶'}
-      </button>
-      <div ref={beatRef} className="perf-beat mono" />
-      <span className="perf-bpm mono">
-        {bpm ? `${bpm} BPM` : 'BPM —'}
-        <button className="perf-tap" onClick={() => tapTempoTap()} title="Tap tempo">
-          TAP
+    <>
+      {pads.slice(0, 4).map((pad, i) => (
+        <button
+          key={pad.id}
+          ref={(el) => {
+            refs.current[pad.id] = el;
+          }}
+          className="perf-pad"
+          disabled={!pad.trigger}
+          onClick={() => firePad(pad.id)}
+          aria-label={
+            pad.trigger ? `Pad ${PAD_KEYS[i]}: ${pad.label}` : `Pad ${PAD_KEYS[i]} unassigned`
+          }
+          title={pad.trigger ? `${pad.label} (${PAD_KEYS[i]})` : 'Unassigned — set in BUILD'}
+        >
+          <span className="perf-pad-key mono">{PAD_KEYS[i]}</span>
+          <span className="perf-pad-name">{pad.label}</span>
         </button>
-      </span>
-      <div ref={queueRef} className="perf-queue mono" />
-      <div ref={metersRef} className="perf-meters mono" />
-      {compact && anyFrozen && (
-        <button className="perf-big-btn engaged perf-frozen-mini" onClick={() => toggleFreezeAll()}>
-          ■ FROZEN
-        </button>
-      )}
-      <span className={`perf-midi mono ${midiState}`} title="Live controls are not recorded — export replays deterministic timeline state only">
-        MIDI <span className="perf-midi-dot" /> {midiLabel}
-      </span>
-    </div>
+      ))}
+    </>
   );
 }
 
-// ---- CANDIDATE (Phase 16) ---------------------------------------------
+// ---- CANDIDATE (compact live shortcut — full workflow lives in EXPLORE) --
 
 const INTENSITIES: { value: MutationIntensity; label: string }[] = [
   { value: 'low', label: 'LOW' },
@@ -469,61 +444,56 @@ const LOCK_KEYS: { key: keyof MutationLocks; label: string }[] = [
   { key: 'technique', label: 'TECH' },
   { key: 'timing', label: 'TIME' },
   { key: 'color', label: 'COLOR' },
-  { key: 'signals', label: 'SIGNALS' },
+  { key: 'signals', label: 'SIG' },
 ];
 
-function MutateButton() {
-  const candidate = useCandidateStore((s) => s.candidate);
-  const morphing = morphRuntime.current !== null;
-  return (
-    <button
-      className="perf-big-btn"
-      onClick={() => candidateRuntime.generate()}
-      disabled={morphing}
-      title={morphing ? 'MUTATE unavailable during Morph' : 'Generate a candidate from CURRENT (G)'}
-    >
-      {candidate ? 'REGENERATE' : 'MUTATE'}
-    </button>
-  );
-}
-
-function CandidateRow() {
+export function CandidateCluster() {
   const candidate = useCandidateStore((s) => s.candidate);
   const previewing = useCandidateStore((s) => s.previewing);
   const queuedId = useCandidateStore((s) => s.queuedId);
   const intensity = useCandidateStore((s) => s.intensity);
   const locks = useCandidateStore((s) => s.locks);
-  const activeLookId = useProjectStore((s) => s.project.activeLookId);
-  const looks = useProjectStore((s) => s.project.pinnedLooks);
-  const currentLabel = looks.find((l) => l.id === activeLookId)?.label ?? 'CURRENT STATE';
+  const morphing = morphRuntime.current !== null;
 
   if (!candidate) {
     return (
-      <div className="perf-candidate empty">
-        <span className="perf-cand-settings">
-          <span className="perf-quant-label">MUTATION</span>
-          {INTENSITIES.map((i) => (
-            <button
-              key={i.value}
-              className={`perf-quant-btn${intensity === i.value ? ' active' : ''}`}
-              onClick={() => setMutationIntensity(i.value)}
-            >
-              {i.label}
-            </button>
-          ))}
-          <span className="perf-quant-label" style={{ marginLeft: 10 }}>LOCK</span>
-          {LOCK_KEYS.map((l) => (
-            <button
-              key={l.key}
-              className={`perf-quant-btn${locks[l.key] ? ' active' : ''}`}
-              onClick={() => toggleMutationLock(l.key)}
-              title={locks[l.key] ? `${l.label} locked — mutation skips it` : `Lock ${l.label}`}
-            >
-              {locks[l.key] ? '■ ' : ''}
-              {l.label}
-            </button>
-          ))}
-        </span>
+      <div className="perf-group perf-group-cand" role="group" aria-label="Candidate">
+        <span className="perf-group-label">CANDIDATE</span>
+        <div className="perf-group-body">
+          <button
+            className="perf-big-btn"
+            onClick={() => candidateRuntime.generate()}
+            disabled={morphing}
+            title={
+              morphing ? 'MUTATE unavailable during Morph' : 'Generate a candidate from CURRENT (G)'
+            }
+          >
+            MUTATE
+          </button>
+          <span className="perf-cand-settings">
+            {INTENSITIES.map((i) => (
+              <button
+                key={i.value}
+                className={`perf-mini-btn${intensity === i.value ? ' active' : ''}`}
+                onClick={() => setMutationIntensity(i.value)}
+              >
+                {i.label}
+              </button>
+            ))}
+            <span className="perf-mini-sep" />
+            {LOCK_KEYS.map((l) => (
+              <button
+                key={l.key}
+                className={`perf-mini-btn${locks[l.key] ? ' active' : ''}`}
+                onClick={() => toggleMutationLock(l.key)}
+                title={locks[l.key] ? `${l.label} locked — mutation skips it` : `Lock ${l.label}`}
+              >
+                {locks[l.key] ? '■ ' : ''}
+                {l.label}
+              </button>
+            ))}
+          </span>
+        </div>
       </div>
     );
   }
@@ -531,70 +501,59 @@ function CandidateRow() {
   const queued = queuedId === candidate.id;
 
   return (
-    <div className={`perf-candidate${previewing ? ' previewing' : ''}`}>
-      <div className="perf-cand-side">
-        <span className="perf-cand-role mono">CURRENT</span>
-        <span className="perf-cand-name">{currentLabel}</span>
-      </div>
-
-      <span className="perf-cand-arrow">→</span>
-
-      <div className="perf-cand-card">
-        {candidate.thumbnail ? (
-          <img src={candidate.thumbnail} alt="" draggable={false} />
-        ) : (
-          <span className="perf-look-blank" />
-        )}
-        <div className="perf-cand-meta">
-          <span className="perf-cand-role mono">CANDIDATE</span>
-          <span className="perf-cand-name">{candidate.label}</span>
+    <div
+      className={`perf-group perf-group-cand has-candidate${previewing ? ' previewing' : ''}`}
+      role="group"
+      aria-label="Candidate"
+    >
+      <span className="perf-group-label cand">CANDIDATE</span>
+      <div className="perf-group-body">
+        <span className="perf-cand-id">
+          <span className="perf-cand-name mono">{candidate.label}</span>
           <span className="perf-cand-seed mono">
-            seed {candidate.seed} · gen {candidate.metadata.generation} ·{' '}
-            {candidate.metadata.changedParams}p/{candidate.metadata.changedModulations}m
+            GEN {candidate.metadata.generation}
+            {queued && <span className="perf-cand-queued"> · QUEUED</span>}
+            {previewing && <span className="perf-cand-previewing"> · ON OUTPUT</span>}
           </span>
-        </div>
-      </div>
-
-      <div className="perf-cand-actions">
+        </span>
         <button
-          className={`perf-big-btn${previewing ? ' engaged' : ''}`}
+          className={`perf-big-btn cand-preview${previewing ? ' engaged-cand' : ''}`}
           onPointerDown={() => candidateRuntime.setPreview(true)}
           onPointerUp={() => candidateRuntime.setPreview(false)}
           onPointerLeave={() => candidateRuntime.setPreview(false)}
           title="Hold to audition the candidate on output (hold B)"
         >
-          {previewing ? '◉ PREVIEWING' : 'PREVIEW'}
+          {previewing ? '◉ PREVIEWING' : 'B · HOLD'}
         </button>
-        <button className="perf-big-btn" onClick={() => candidateRuntime.apply()}>
+        <button
+          className="perf-big-btn"
+          onClick={() => candidateRuntime.apply()}
+          title="Apply the candidate (Enter; honors SYNC)"
+        >
           APPLY
         </button>
-        <button className="perf-big-btn" onClick={() => candidateRuntime.generate({ fromCandidate: true })} title="Mutate again from this candidate (Shift+M)">
-          MUTATE AGAIN
+        <button
+          className="perf-big-btn quiet"
+          onClick={() => candidateRuntime.generate({ fromCandidate: true })}
+          title="Mutate again from this candidate (Shift+G)"
+        >
+          AGAIN
         </button>
-        <button className="perf-big-btn" onClick={() => candidateRuntime.pin()} title="Pin as a Look without changing output">
+        <button
+          className="perf-big-btn quiet"
+          onClick={() => candidateRuntime.pin()}
+          title="Pin as a Look without changing output"
+        >
           PIN
         </button>
         <button
-          className={`perf-big-btn${candidate.darkThumbnail ? ' engaged' : ''}`}
-          onClick={() => candidateRuntime.rethumbnail()}
-          title={
-            candidate.darkThumbnail
-              ? 'Thumbnail captured on a very dark frame — re-render from the current frame'
-              : 'Re-render the thumbnail from the current frame'
-          }
+          className="perf-big-btn quiet danger"
+          onClick={() => candidateRuntime.discard()}
+          title="Discard candidate (Backspace)"
         >
-          ⟳
-        </button>
-        <button className="perf-big-btn danger" onClick={() => candidateRuntime.discard()} title="Discard candidate (Backspace)">
           ✕
         </button>
       </div>
-
-      {(previewing || queued) && (
-        <span className={`perf-cand-state mono${previewing ? ' preview' : ' queued'}`}>
-          {previewing ? 'PREVIEWING CANDIDATE' : 'CANDIDATE QUEUED'}
-        </span>
-      )}
     </div>
   );
 }
