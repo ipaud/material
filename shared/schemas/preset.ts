@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { materialStateSchema, modulationMappingSchema, paramRecordSchema } from './project';
+import {
+  materialStateSchema,
+  modulationMappingSchema,
+  paramRecordSchema,
+  triggerMappingSchema,
+} from './project';
 
 export const presetSchema = z.object({
   id: z.string(),
@@ -8,6 +13,7 @@ export const presetSchema = z.object({
   params: paramRecordSchema,
   material: materialStateSchema,
   modulations: z.array(modulationMappingSchema),
+  triggers: z.array(triggerMappingSchema).default([]),
   builtin: z.boolean(),
 });
 export type Preset = z.infer<typeof presetSchema>;

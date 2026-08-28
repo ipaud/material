@@ -2,6 +2,8 @@ import type { ModulationMapping, ParamRecord } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { evalSources, type SourceContext } from './sources';
 import { applyModulations, SmoothingState } from './evaluator';
+import { applyPulses } from '@/signals/pulseEngine';
+import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 
 /**
  * Live modulation runtime: the bridge feeds it project state; the render
@@ -38,14 +40,25 @@ class ModulationRuntime {
   }
 
   transform(base: ParamRecord, timeSec: number): ParamRecord {
-    if (!this.techniqueId || this.mappings.length === 0) return base;
+    if (!this.techniqueId) return base;
     const definition = getTechnique(this.techniqueId);
     if (!definition) return base;
     const dt = this.lastTime >= 0 ? Math.min(Math.abs(timeSec - this.lastTime), 0.1) : 1 / 60;
     this.lastTime = timeSec;
     const sources = evalSources(timeSec, this.sourceCtx);
     this.lastSourceValues = sources;
-    return applyModulations(base, this.mappings, sources, definition, this.smoothing, dt);
+    // Evaluation order (docs/PARAMETER_EVALUATION.md):
+    // base → continuous modulation (freeze inside) → trigger pulses → clamp.
+    const modulated = applyModulations(base, this.mappings, sources, definition, this.smoothing, dt);
+    const { triggers, ctx } = getTriggerState();
+    return applyPulses(
+      modulated,
+      triggers,
+      timeSec,
+      ctx,
+      definition,
+      liveScheduler.livePulseContributions(timeSec),
+    );
   }
 
   reset(): void {

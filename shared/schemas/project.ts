@@ -50,6 +50,53 @@ export const modulationMappingSchema = z.object({
 });
 export type ModulationMapping = z.infer<typeof modulationMappingSchema>;
 
+export const triggerActionSchema = z.enum([
+  'pulse',
+  'freeze',
+  'unfreeze',
+  'toggleFreeze',
+  'pinLook',
+  'applyLook',
+  'nextLook',
+  'prevLook',
+  'resetParam',
+  'toggleMapping',
+]);
+export type TriggerAction = z.infer<typeof triggerActionSchema>;
+
+export const quantizeModeSchema = z.enum(['off', 'beat', 'bar', '2bars', '4bars']);
+export type QuantizeMode = z.infer<typeof quantizeModeSchema>;
+
+/**
+ * An event-driven mapping: TRIGGER SOURCE → ACTION.
+ * Sources: 'beat' | 'bar' | 'div:1/2..1/16' | 'onset' | 'marker:<id>' | 'manual'.
+ * 'manual' is the live class (UI button, future keyboard/MIDI) — everything
+ * else is deterministic and reproduced in export.
+ */
+export const triggerMappingSchema = z.object({
+  id: z.string(),
+  enabled: z.boolean(),
+  source: z.string(),
+  action: triggerActionSchema,
+  /** Pulse / resetParam: technique parameter id. */
+  targetParam: z.string().nullable().default(null),
+  /** Freeze / toggleMapping: modulation mapping id, or '*' for all. */
+  targetMappingId: z.string().nullable().default(null),
+  /** applyLook: pinned-look slot (1-based). */
+  lookSlot: z.number().int().min(1).max(9).nullable().default(null),
+  quantize: quantizeModeSchema.default('off'),
+  /** Minimum seconds between firings (0 = every event). */
+  cooldownSec: z.number().min(0).default(0),
+  // Pulse envelope (used when action === 'pulse'):
+  attackSec: z.number().min(0).default(0),
+  holdSec: z.number().min(0).default(0),
+  decaySec: z.number().min(0).default(0.18),
+  /** Signed: negative amount pulses the parameter downward (polarity). */
+  amount: z.number().min(-1).max(1).default(0.35),
+  curve: z.enum(['linear', 'exponential', 'easeOut']).default('easeOut'),
+});
+export type TriggerMapping = z.infer<typeof triggerMappingSchema>;
+
 export const timelineMarkerSchema = z.object({
   id: z.string(),
   timeSec: z.number().nonnegative(),
@@ -96,6 +143,7 @@ export const projectSchema = z.object({
   techniques: z.array(techniqueInstanceSchema),
   material: materialStateSchema,
   modulations: z.array(modulationMappingSchema),
+  triggers: z.array(triggerMappingSchema).default([]),
   timeline: timelineStateSchema,
   pinnedLooks: z.array(pinnedLookSchema),
   explore: z.object({
@@ -120,6 +168,7 @@ export function createEmptyProject(name = 'Untitled'): Project {
     techniques: [],
     material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
     modulations: [],
+    triggers: [],
     timeline: {
       inSec: null,
       outSec: null,

@@ -6,9 +6,13 @@ import { usePlaybackStore } from '@/state/playbackStore';
 import { useExportStore } from '@/state/exportStore';
 import { reportError, useUiStore } from '@/state/uiStore';
 import { getTechnique } from '@/techniques/registry';
+import { allParams } from '@/techniques/types';
 import { evalSources, type SourceContext } from '@/modulation/sources';
-import { applyModulations, SmoothingState } from '@/modulation/evaluator';
-import type { ParamRecord } from '@shared/schemas/project';
+import { applyModulations, SmoothingState, shapeMappingValue } from '@/modulation/evaluator';
+import { applyPulses } from '@/signals/pulseEngine';
+import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
+import type { TriggerContext } from '@/signals/triggerSources';
+import type { ModulationMapping, ParamRecord, PinnedLook } from '@shared/schemas/project';
 import type { ExportFormat } from '@shared/ipc';
 
 export interface AnimationExportRequest {
@@ -27,30 +31,126 @@ export interface AnimationExportRequest {
  * Deterministic per-frame parameter evaluation for export (§33/§63):
  * frameTime = start + i/fps; a FRESH smoothing state stepped with fixed
  * dt = 1/fps. The same function drives the determinism verification.
+ *
+ * Discrete trigger actions from DETERMINISTIC sources (beat/bar/onset/
+ * marker) are replayed against a WORKING COPY of the project — freezes and
+ * look switches mutate the copy, never the live store. Live-class sources
+ * (manual/keyboard/MIDI) are absent from export by design; see
+ * docs/PARAMETER_EVALUATION.md.
  */
 export function createFrameEvaluator(startSec: number, fps: number) {
   const { project } = useProjectStore.getState();
-  const instance = project.techniques.find((t) => t.enabled) ?? null;
-  const definition = instance ? getTechnique(instance.techniqueId) : null;
-  const base: ParamRecord = instance?.params ?? {};
-  const mappings = project.modulations;
+  const analysis = useAudioStore.getState().analysis;
+
+  // Mutable working copy — trigger actions operate on this, not the store.
+  const working: {
+    techniqueId: string | null;
+    params: ParamRecord;
+    modulations: ModulationMapping[];
+    looks: PinnedLook[];
+    lookIndex: number;
+  } = {
+    techniqueId: project.techniques.find((t) => t.enabled)?.techniqueId ?? null,
+    params: { ...(project.techniques.find((t) => t.enabled)?.params ?? {}) },
+    modulations: project.modulations.map((m) => ({ ...m })),
+    looks: project.pinnedLooks,
+    lookIndex: -1,
+  };
+
   const sourceCtx: SourceContext = {
-    analysis: useAudioStore.getState().analysis,
+    analysis,
     durationSec: usePlaybackStore.getState().durationSec,
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
     beatsPerBar: project.timeline.beatsPerBar,
   };
+  const triggerCtx: TriggerContext = {
+    bpm: project.timeline.bpm,
+    beatOffsetSec: project.timeline.beatOffsetSec,
+    beatsPerBar: project.timeline.beatsPerBar,
+    analysis,
+    markers: project.timeline.markers,
+  };
   const smoothing = new SmoothingState();
   const dt = 1 / fps;
+  let lastSources: Record<string, number> = {};
+
+  const applyLookToWorking = (look: PinnedLook | undefined) => {
+    if (!look) return;
+    const active = look.techniques.find((t) => t.enabled);
+    if (active) {
+      working.techniqueId = active.techniqueId;
+      working.params = { ...active.params };
+    }
+    working.modulations = look.modulations.map((m) => ({ ...m }));
+  };
+
+  const virtualTarget: ActionTarget = {
+    freeze: (mappingId) => {
+      for (const m of working.modulations) {
+        if (mappingId && mappingId !== '*' && m.id !== mappingId) continue;
+        m.frozenValue = shapeMappingValue(m, lastSources, smoothing, 0);
+      }
+    },
+    unfreeze: (mappingId) => {
+      for (const m of working.modulations) {
+        if (mappingId && mappingId !== '*' && m.id !== mappingId) continue;
+        m.frozenValue = null;
+      }
+    },
+    toggleFreeze: (mappingId) => {
+      for (const m of working.modulations) {
+        if (mappingId && mappingId !== '*' && m.id !== mappingId) continue;
+        m.frozenValue = m.frozenValue === null ? shapeMappingValue(m, lastSources, smoothing, 0) : null;
+      }
+    },
+    pinLook: () => undefined, // pinning mutates the project; no-op in export replay
+    applyLook: (slot) => {
+      working.lookIndex = slot - 1;
+      applyLookToWorking(working.looks[slot - 1]);
+    },
+    nextLook: () => {
+      if (working.looks.length === 0) return;
+      working.lookIndex = (working.lookIndex + 1) % working.looks.length;
+      applyLookToWorking(working.looks[working.lookIndex]);
+    },
+    prevLook: () => {
+      if (working.looks.length === 0) return;
+      working.lookIndex = (working.lookIndex - 1 + working.looks.length) % working.looks.length;
+      applyLookToWorking(working.looks[working.lookIndex]);
+    },
+    resetParam: (paramId) => {
+      const definition = working.techniqueId ? getTechnique(working.techniqueId) : null;
+      const def = definition ? allParams(definition).find((d) => d.id === paramId) : null;
+      if (def) working.params = { ...working.params, [paramId]: def.default };
+    },
+    toggleMapping: (mappingId) => {
+      for (const m of working.modulations) {
+        if (m.id === mappingId) m.enabled = !m.enabled;
+      }
+    },
+  };
+  const scheduler = new TriggerScheduler(virtualTarget);
+  scheduler.reset(startSec);
 
   return (frameIndex: number): { timeSec: number; params: ParamRecord } => {
     const timeSec = startSec + frameIndex / fps;
-    if (!definition) return { timeSec, params: base };
+    scheduler.advanceTo(timeSec, project.triggers, triggerCtx);
+    const definition = working.techniqueId ? getTechnique(working.techniqueId) : null;
+    if (!definition) return { timeSec, params: working.params };
     const sources = evalSources(timeSec, sourceCtx);
+    lastSources = sources;
+    const modulated = applyModulations(
+      working.params,
+      working.modulations,
+      sources,
+      definition,
+      smoothing,
+      dt,
+    );
     return {
       timeSec,
-      params: applyModulations(base, mappings, sources, definition, smoothing, dt),
+      params: applyPulses(modulated, project.triggers, timeSec, triggerCtx, definition),
     };
   };
 }

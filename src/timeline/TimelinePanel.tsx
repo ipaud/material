@@ -6,6 +6,7 @@ import { playback } from '@/playback/PlaybackController';
 import { beatTimes, musicalPosition } from '@/audio/beatGrid';
 import { runTempoDetection, tapTempoTap } from '@/audio/tempoActions';
 import { useUiStore } from '@/state/uiStore';
+import { uid } from '@/utils/id';
 import { Meters } from './Meters';
 import './timeline.css';
 
@@ -111,6 +112,25 @@ export function TimelinePanel() {
         >
           SIG
         </button>
+        <button
+          className="vp-btn"
+          onClick={() => {
+            const t = playback.getTime();
+            apply((p) => ({
+              ...p,
+              timeline: {
+                ...p.timeline,
+                markers: [
+                  ...p.timeline.markers,
+                  { id: uid('mk'), timeSec: t, label: `M${p.timeline.markers.length + 1}` },
+                ],
+              },
+            }));
+          }}
+          title="Add marker at playhead"
+        >
+          +MARK
+        </button>
         <span className="label">BPM</span>
         <input
           className="timeline-num mono"
@@ -185,8 +205,69 @@ export function TimelinePanel() {
         <div className="timeline-progress" style={{ width: `${frac * 100}%` }} />
         <WaveformCanvas />
         <BeatGrid />
+        <Markers durationSec={durationSec} />
         <div className="timeline-playhead" style={{ left: `${frac * 100}%` }} />
       </div>
+    </div>
+  );
+}
+
+/** Timeline markers: labeled flags; drag to move, double-click to delete. */
+function Markers({ durationSec }: { durationSec: number }) {
+  const markers = useProjectStore((s) => s.project.timeline.markers);
+  const apply = useProjectStore((s) => s.apply);
+  if (durationSec === 0 || markers.length === 0) return null;
+
+  const moveMarker = (id: string, timeSec: number) => {
+    apply((p) => ({
+      ...p,
+      timeline: {
+        ...p.timeline,
+        markers: p.timeline.markers.map((m) =>
+          m.id === id ? { ...m, timeSec: Math.min(Math.max(timeSec, 0), durationSec) } : m,
+        ),
+      },
+    }));
+  };
+
+  return (
+    <div className="timeline-markers">
+      {markers.map((m) => (
+        <div
+          key={m.id}
+          className="timeline-marker"
+          style={{ left: `${(m.timeSec / durationSec) * 100}%` }}
+          title={`${m.label} — drag to move, double-click to delete`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            const strip = e.currentTarget.parentElement;
+            if (!strip) return;
+            const rect = strip.getBoundingClientRect();
+            const onMove = (ev: PointerEvent) => {
+              const frac2 = Math.min(Math.max((ev.clientX - rect.left) / rect.width, 0), 1);
+              moveMarker(m.id, frac2 * durationSec);
+            };
+            const onUp = () => {
+              window.removeEventListener('pointermove', onMove);
+              window.removeEventListener('pointerup', onUp);
+            };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            apply((p) => ({
+              ...p,
+              timeline: {
+                ...p.timeline,
+                markers: p.timeline.markers.filter((mm) => mm.id !== m.id),
+              },
+            }));
+          }}
+        >
+          <span className="timeline-marker-label mono">{m.label}</span>
+        </div>
+      ))}
     </div>
   );
 }

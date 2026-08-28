@@ -8,6 +8,7 @@ import { audioEngine } from '@/audio/AudioEngine';
 import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
+import { configureTriggers } from '@/signals/triggerRuntime';
 import { StaticTemporalSource, VideoTemporalSource } from './temporal/sources';
 import type { TemporalSource } from './temporal/TemporalFrameProvider';
 import type { TechniqueRenderer } from '@/techniques/types';
@@ -178,6 +179,13 @@ function configureModulation(): void {
     bpm: project.timeline.bpm,
     beatOffsetSec: project.timeline.beatOffsetSec,
     beatsPerBar: project.timeline.beatsPerBar,
+  });
+  configureTriggers(project.triggers, {
+    bpm: project.timeline.bpm,
+    beatOffsetSec: project.timeline.beatOffsetSec,
+    beatsPerBar: project.timeline.beatsPerBar,
+    analysis: useAudioStore.getState().analysis,
+    markers: project.timeline.markers,
   });
   engine.invalidate();
 }

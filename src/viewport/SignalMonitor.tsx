@@ -4,6 +4,8 @@ import { useProjectStore } from '@/state/projectStore';
 import { sampleTrack, type TrackId } from '@/audio/analysis';
 import { divisionPhase, musicalPosition } from '@/audio/beatGrid';
 import { playback } from '@/playback/PlaybackController';
+import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
+import { activePulseCount } from '@/signals/pulseEngine';
 
 const CONTINUOUS: { id: TrackId; label: string }[] = [
   { id: 'master', label: 'MASTER' },
@@ -66,6 +68,17 @@ export function SignalMonitor() {
           posEl.textContent = `BAR ${pos.bar} · BEAT ${pos.beat}`;
         }
       }
+      // Trigger diagnostics (§15): last event, pending quantized, active pulses.
+      const trigEl = rowRefs.current.triggers;
+      if (trigEl) {
+        const { triggers, ctx } = getTriggerState();
+        const diag = liveScheduler.getDiagnostics();
+        const pulses = activePulseCount(triggers, t, ctx);
+        const last = diag.lastTriggerSource
+          ? `${diag.lastTriggerSource} @ ${diag.lastTriggerTime?.toFixed(2)}s`
+          : '—';
+        trigEl.textContent = `LAST ${last} · PULSES ${pulses} · PENDING ${diag.pendingCount}`;
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -122,6 +135,12 @@ export function SignalMonitor() {
       >
         {bpm ? '' : 'SET BPM FOR BEAT SIGNALS'}
       </div>
+      <div
+        className="sig-trigger-diag"
+        ref={(el) => {
+          rowRefs.current.triggers = el;
+        }}
+      />
     </div>
   );
 }

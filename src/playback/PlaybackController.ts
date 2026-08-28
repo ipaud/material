@@ -1,6 +1,7 @@
 import { usePlaybackStore } from '@/state/playbackStore';
 import { engine } from '@/rendering/RenderEngine';
 import { audioEngine } from '@/audio/AudioEngine';
+import { resetTriggers, tickTriggers } from '@/signals/triggerRuntime';
 
 const UI_TICK_MS = 100;
 /** Video is re-synced to the audio clock when drift exceeds this. */
@@ -98,8 +99,10 @@ class PlaybackController {
 
   seek(timeSec: number): void {
     const clamped = Math.min(Math.max(timeSec, 0), this.getDuration());
-    // Frames before a seek are not history for what comes after it (§13).
+    // Frames before a seek are not history for what comes after it (§13);
+    // the same goes for trigger events and pending quantized actions.
     engine.resetTemporal();
+    resetTriggers(clamped);
     if (this.audioMaster) audioEngine.seek(clamped);
     if (this.video) {
       this.video.currentTime = Math.min(clamped, this.video.duration || 0);
@@ -124,6 +127,8 @@ class PlaybackController {
       this.rafId = requestAnimationFrame(tick);
       const time = this.getTime();
       engine.setTime(time); // invalidates → live texture refresh
+      // Discrete trigger actions fire on composition-time crossings.
+      tickTriggers(time);
 
       // Slave video to the audio clock.
       if (this.audioMaster && this.video && this.video.duration > 0) {

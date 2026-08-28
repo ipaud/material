@@ -13,6 +13,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     params: { columns: 64, rows: 36, scale: 1, spacing: 0.15, lumToScale: 0.9 },
     material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
     modulations: [],
+    triggers: [],
     builtin: true,
   },
   {
@@ -22,6 +23,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     params: { columns: 160, rows: 90, scale: 1.1, spacing: 0, lumToScale: 1, contrast: 1.3 },
     material: { materialId: 'circle', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
     modulations: [],
+    triggers: [],
     builtin: true,
   },
   {
@@ -41,6 +43,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     },
     material: { materialId: 'rectangle', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
     modulations: [],
+    triggers: [],
     builtin: true,
   },
   {
@@ -50,6 +53,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     params: { columns: 96, rows: 54, scale: 1.3, spacing: 0.1, lumToScale: 1, gamma: 1.4 },
     material: { materialId: 'dot', colorMode: 'mono', params: { aspect: 1 }, assetPath: null },
     modulations: [],
+    triggers: [],
     builtin: true,
   },
   {
@@ -88,6 +92,7 @@ export const BUILTIN_PRESETS: Preset[] = [
         frozenValue: null,
       },
     ],
+    triggers: [],
     builtin: true,
   },
   {
@@ -123,6 +128,7 @@ export const BUILTIN_PRESETS: Preset[] = [
         frozenValue: null,
       },
     ],
+    triggers: [],
     builtin: true,
   },
   {
@@ -184,29 +190,163 @@ export const BUILTIN_PRESETS: Preset[] = [
         frozenValue: null,
       },
     ],
+    triggers: [],
     builtin: true,
   },
   {
-    // Official system preset (Phase 5 creative review): beat-quarter pump —
-    // invert + exponential gives the rise-and-snap. Needs BPM set.
+    // Official system preset — the pump as a beat-triggered pulse envelope.
+    // Replaced the Phase 5 continuous-phase version after a measured
+    // comparison (Phase 12): pulse holds a stable base and snaps on the hit;
+    // the continuous version smeared 0.58-0.88 with no resting state.
     id: 'builtin-pump',
     name: 'Pump',
     techniqueId: 'mosaic',
-    params: { columns: 64, rows: 36, scale: 1, spacing: 0.12, lumToScale: 0.9 },
+    params: { columns: 64, rows: 36, scale: 0.85, spacing: 0.12, lumToScale: 0.9 },
     material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
-    modulations: [
+    modulations: [],
+    triggers: [
       {
-        id: 'pump-beat-scale',
+        id: 'pump2-beat-scale',
         enabled: true,
-        source: 'beat:1/4',
-        target: 'scale',
-        amount: -0.3,
-        min: 0,
-        max: 1,
-        invert: true,
-        smoothing: 0.05,
+        source: 'beat',
+        action: 'pulse',
+        targetParam: 'scale',
+        targetMappingId: null,
+        lookSlot: null,
+        quantize: 'off',
+        cooldownSec: 0,
+        attackSec: 0,
+        holdSec: 0.02,
+        decaySec: 0.22,
+        amount: 0.28,
         curve: 'exponential',
-        frozenValue: null,
+      },
+    ],
+    builtin: true,
+  },
+  {
+    // HIT (§25): reacts to discrete musical attacks, not continuous loudness.
+    id: 'builtin-hit',
+    name: 'Hit',
+    techniqueId: 'mosaic',
+    params: { columns: 72, rows: 40, scale: 1, spacing: 0.1, lumToScale: 0.9 },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [],
+    triggers: [
+      {
+        id: 'hit-onset-jx',
+        enabled: true,
+        source: 'onset',
+        action: 'pulse',
+        targetParam: 'jitterX',
+        targetMappingId: null,
+        lookSlot: null,
+        quantize: 'off',
+        cooldownSec: 0,
+        attackSec: 0,
+        holdSec: 0.02,
+        decaySec: 0.18,
+        amount: 0.4,
+        curve: 'easeOut',
+      },
+      {
+        id: 'hit-onset-jy',
+        enabled: true,
+        source: 'onset',
+        action: 'pulse',
+        targetParam: 'jitterY',
+        targetMappingId: null,
+        lookSlot: null,
+        quantize: 'off',
+        cooldownSec: 0,
+        attackSec: 0,
+        holdSec: 0.02,
+        decaySec: 0.18,
+        amount: 0.3,
+        curve: 'easeOut',
+      },
+    ],
+    builtin: true,
+  },
+  {
+    // MEMORY HIT (§19C): every musical attack throws the tiles into the past.
+    id: 'builtin-memory-hit',
+    name: 'Memory Hit',
+    techniqueId: 'mosaic',
+    params: {
+      columns: 16,
+      rows: 10,
+      scale: 1,
+      spacing: 0.06,
+      lumToScale: 0.3,
+      tileMode: 'tile',
+      offsetMode: 'radial',
+      temporalDirection: 'outward',
+      maxOffsetSec: 0.15,
+      falloff: 1,
+    },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [],
+    triggers: [
+      {
+        id: 'memory-onset-offset',
+        enabled: true,
+        source: 'onset',
+        action: 'pulse',
+        targetParam: 'maxOffsetSec',
+        targetMappingId: null,
+        lookSlot: null,
+        quantize: 'off',
+        cooldownSec: 0.15,
+        attackSec: 0,
+        holdSec: 0.05,
+        decaySec: 0.45,
+        amount: 0.5,
+        curve: 'easeOut',
+      },
+    ],
+    builtin: true,
+  },
+  {
+    // BAR SHIFT (§19D): once per bar the whole system leans and deepens.
+    id: 'builtin-bar-shift',
+    name: 'Bar Shift',
+    techniqueId: 'mosaic',
+    params: { columns: 56, rows: 32, scale: 1, spacing: 0.1, lumToScale: 0.8, perspective: 0.5 },
+    material: { materialId: 'square', colorMode: 'source', params: { aspect: 1 }, assetPath: null },
+    modulations: [],
+    triggers: [
+      {
+        id: 'barshift-rotation',
+        enabled: true,
+        source: 'bar',
+        action: 'pulse',
+        targetParam: 'rotation',
+        targetMappingId: null,
+        lookSlot: null,
+        quantize: 'off',
+        cooldownSec: 0,
+        attackSec: 0.03,
+        holdSec: 0.1,
+        decaySec: 0.6,
+        amount: 0.08,
+        curve: 'easeOut',
+      },
+      {
+        id: 'barshift-depth',
+        enabled: true,
+        source: 'bar',
+        action: 'pulse',
+        targetParam: 'depth',
+        targetMappingId: null,
+        lookSlot: null,
+        quantize: 'off',
+        cooldownSec: 0,
+        attackSec: 0.03,
+        holdSec: 0.1,
+        decaySec: 0.6,
+        amount: 0.3,
+        curve: 'exponential',
       },
     ],
     builtin: true,
@@ -221,10 +361,15 @@ const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transi
  */
 export function presetRequirements(preset: Preset): { video: boolean; audio: boolean; bpm: boolean } {
   const temporalTechniques = new Set(['echo', 'step-print', 'slit-scan']);
+  const gridTriggerSources = new Set(['beat', 'bar', 'div:1/2', 'div:1/4', 'div:1/8', 'div:1/16']);
   return {
     video: preset.params.tileMode === 'tile' || temporalTechniques.has(preset.techniqueId),
-    audio: preset.modulations.some((m) => AUDIO_SOURCES.has(m.source)),
-    bpm: preset.modulations.some((m) => m.source.startsWith('beat:')),
+    audio:
+      preset.modulations.some((m) => AUDIO_SOURCES.has(m.source)) ||
+      preset.triggers.some((t) => t.source === 'onset'),
+    bpm:
+      preset.modulations.some((m) => m.source.startsWith('beat:')) ||
+      preset.triggers.some((t) => gridTriggerSources.has(t.source)),
   };
 }
 
@@ -264,6 +409,7 @@ export function applyPreset(preset: Preset): void {
       ),
       material: preset.material,
       modulations: preset.modulations,
+      triggers: preset.triggers,
     };
   });
 }
@@ -282,6 +428,7 @@ export async function saveCurrentAsPreset(name: string): Promise<Preset | null> 
     params: technique.params,
     material: project.material,
     modulations: project.modulations,
+    triggers: project.triggers,
     builtin: false,
   };
   try {

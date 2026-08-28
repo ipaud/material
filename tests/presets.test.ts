@@ -60,12 +60,13 @@ describe('system presets', () => {
     expect(echo?.modulations[0]).toMatchObject({ source: 'bass', target: 'maxOffsetSec' });
   });
 
-  test('Pump uses the beat grid with invert + exponential', () => {
+  test('Pump is a beat-triggered scale pulse (Phase 12 replacement)', () => {
     const pump = BUILTIN_PRESETS.find((p) => p.id === 'builtin-pump');
-    expect(pump?.modulations[0]).toMatchObject({
-      source: 'beat:1/4',
-      target: 'scale',
-      invert: true,
+    expect(pump?.modulations).toHaveLength(0);
+    expect(pump?.triggers[0]).toMatchObject({
+      source: 'beat',
+      action: 'pulse',
+      targetParam: 'scale',
       curve: 'exponential',
     });
   });

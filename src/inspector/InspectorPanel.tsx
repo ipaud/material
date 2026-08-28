@@ -6,6 +6,7 @@ import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
+import { TriggersSection } from './TriggersSection';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
 import type { ParamValue } from '@shared/schemas/project';
@@ -98,6 +99,7 @@ export function InspectorPanel() {
               </div>
             </div>
             <ModulationSection />
+            <TriggersSection />
             <div className="inspector-section">
               <div className="inspector-section-header">
                 <span className="label">Material</span>
