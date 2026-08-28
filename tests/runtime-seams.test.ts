@@ -21,6 +21,8 @@ describe('RuntimeBus', () => {
       compWidth: 1920,
       compHeight: 1080,
       background: '#000000',
+      source: null,
+      generation: 0,
     });
   });
 
@@ -31,6 +33,8 @@ describe('RuntimeBus', () => {
       compWidth: 1920,
       compHeight: 1080,
       background: '#000000',
+      source: null,
+      generation: 0,
     });
     runtimeBus.emitFrame(1.25, { columns: 48 }, false);
     const frame = runtimeBus.latest();
@@ -55,6 +59,8 @@ describe('RuntimeBus', () => {
       compWidth: 1,
       compHeight: 1,
       background: '#000',
+      source: null,
+      generation: 0,
     });
     runtimeBus.emitFrame(1, {}, false);
     expect(runtimeBus.latest()!.techniqueId).toBe('mosaic');
@@ -65,6 +71,8 @@ describe('RuntimeBus', () => {
       compWidth: 1,
       compHeight: 1,
       background: '#000',
+      source: null,
+      generation: 0,
     });
     runtimeBus.emitFrame(2, { strips: 96 }, true);
     const frame = runtimeBus.latest()!;

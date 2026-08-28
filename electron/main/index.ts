@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, shell } from 'electron';
 import path from 'node:path';
 import { registerIpcHandlers, SESSION_ID } from '../ipc/handlers';
+import { closeOutputWindow } from './outputWindow';
 import { clearRecovery } from '../filesystem/recovery';
 import { buildAppMenu } from './menu';
 import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from './protocol';
@@ -61,6 +62,8 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    // The editor is the authority — without it the replica has nothing to show.
+    closeOutputWindow();
   });
 }
 
@@ -89,6 +92,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  console.log('[main] window-all-closed — quitting');
   app.quit();
 });
 

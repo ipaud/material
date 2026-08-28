@@ -5,6 +5,7 @@ import { engine } from './rendering/RenderEngine';
 import { useProjectStore } from './state/projectStore';
 import { useUiStore } from './state/uiStore';
 import { runtimeBus } from './runtime/RuntimeBus';
+import { useOutputStore } from './state/outputStore';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
 import { modulationRuntime } from './modulation/runtime';
 import * as modulationActions from './modulation/modulationActions';
@@ -33,6 +34,7 @@ if (import.meta.env.DEV) {
     __dev: {
       engine,
       runtimeBus,
+      useOutputStore,
       useProjectStore,
       useUiStore,
       importMediaPaths,

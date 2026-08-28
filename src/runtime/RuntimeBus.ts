@@ -30,6 +30,16 @@ export interface RenderInputs {
   compWidth: number;
   compHeight: number;
   background: string;
+  /** Structured-clone-safe source identity — a replica rebuilds its own media. */
+  source: { kind: 'file-image' | 'file-video'; path: string } | null;
+  /** Project generation — replicas drop state when it changes. */
+  generation: number;
+}
+
+/** Transport notifications from the one clock (play/pause/seek). */
+export interface TransportEvent {
+  action: 'play' | 'pause' | 'seek';
+  timeSec: number;
 }
 
 /** High-rate evaluated frame — everything a replica needs to draw. */
@@ -56,6 +66,8 @@ export interface ClockSync {
 }
 
 type FrameListener = (frame: FrameState) => void;
+type InputsListener = (inputs: RenderInputs) => void;
+type TransportListener = (event: TransportEvent) => void;
 
 class RuntimeBus {
   private inputs: RenderInputs = {
@@ -64,14 +76,35 @@ class RuntimeBus {
     compWidth: 0,
     compHeight: 0,
     background: '#000000',
+    source: null,
+    generation: -1,
   };
   private lastFrame: FrameState | null = null;
   private listeners = new Set<FrameListener>();
+  private inputsListeners = new Set<InputsListener>();
+  private transportListeners = new Set<TransportListener>();
   private frameCount = 0;
 
   /** engineBridge: project-shaped inputs changed. */
   setRenderInputs(inputs: RenderInputs): void {
     this.inputs = inputs;
+    for (const listener of this.inputsListeners) listener(inputs);
+  }
+
+  subscribeInputs(listener: InputsListener): () => void {
+    this.inputsListeners.add(listener);
+    return () => this.inputsListeners.delete(listener);
+  }
+
+  /** PlaybackController: transport changed (synchronization only — the
+   *  clock's semantics are untouched; this is a notification seam). */
+  emitTransport(action: TransportEvent['action'], timeSec: number): void {
+    for (const listener of this.transportListeners) listener({ action, timeSec });
+  }
+
+  subscribeTransport(listener: TransportListener): () => void {
+    this.transportListeners.add(listener);
+    return () => this.transportListeners.delete(listener);
   }
 
   getRenderInputs(): RenderInputs {

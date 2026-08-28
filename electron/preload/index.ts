@@ -1,4 +1,16 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
+
+// MessagePorts cannot pass through the contextBridge — forward them to the
+// main world via window.postMessage (the documented Electron pattern).
+
+// Preloads are typed under the node tsconfig (no DOM lib), but run in the
+// renderer with a real window. Narrow, explicit escape hatch:
+const rendererWindow = globalThis as unknown as {
+  postMessage(message: unknown, targetOrigin: string, transfer?: unknown[]): void;
+};
+ipcRenderer.on('output:runtime-port', (event) => {
+  rendererWindow.postMessage({ type: 'material:output-port' }, '*', event.ports);
+});
 import {
   IPC,
   type ExportProgressEvent,
@@ -33,6 +45,12 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
     return () => ipcRenderer.removeListener(IPC.exportProgress, listener);
   },
   setLiveness: (reason, active) => ipcRenderer.invoke(IPC.setLiveness, reason, active),
+  outputOpen: () => ipcRenderer.invoke(IPC.outputOpen),
+  outputClose: () => ipcRenderer.invoke(IPC.outputClose),
+  onOutputStatus: (callback) => {
+    ipcRenderer.on(IPC.outputStatus, (_event, status: string) => callback(status));
+  },
+
   getSessionId: () => ipcRenderer.invoke(IPC.sessionId),
   writeRecovery: (projectPath, project) =>
     ipcRenderer.invoke(IPC.recoveryWrite, projectPath, project),

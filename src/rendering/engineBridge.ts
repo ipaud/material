@@ -153,6 +153,10 @@ function syncFromProject(): void {
     compWidth: composition.width,
     compHeight: composition.height,
     background: composition.background,
+    source: source
+      ? { kind: source.kind === 'image' ? 'file-image' : 'file-video', path: source.path }
+      : null,
+    generation: projectGeneration,
   });
 
   // Custom material texture (SVG or raster image).

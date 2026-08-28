@@ -53,15 +53,7 @@ export async function runFfprobeJson(filePath: string): Promise<unknown> {
   if (!ffprobePath) throw new Error('ffprobe not found on this system');
   const { stdout } = await execFileAsync(
     ffprobePath,
-    [
-      '-v',
-      'error',
-      '-print_format',
-      'json',
-      '-show_format',
-      '-show_streams',
-      filePath,
-    ],
+    ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', filePath],
     { timeout: 30_000, maxBuffer: 16 * 1024 * 1024 },
   );
   return JSON.parse(stdout);

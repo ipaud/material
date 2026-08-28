@@ -28,6 +28,10 @@ export const IPC = {
   recoveryDiscard: 'recovery:discard',
   menuEvent: 'menu:event',
   setLiveness: 'power:liveness',
+  outputOpen: 'output:open',
+  outputClose: 'output:close',
+  outputStatus: 'output:status',
+  outputRuntimePort: 'output:runtime-port',
 } as const;
 
 export interface RecoveryEntry {
@@ -71,6 +75,8 @@ export interface AppInfo {
   ffmpegAvailable: boolean;
   ffprobeAvailable: boolean;
   availableEncoders: string[];
+  /** Diagnostic: whether the app-suspension blocker is currently held. */
+  livenessActive: boolean;
 }
 
 export type MenuEventId =
@@ -111,6 +117,10 @@ export interface MaterialApi {
   /** Stable id for this app run; scopes the autosave file. */
   /** Hold/release the macOS App Nap inhibitor while the live engine runs. */
   setLiveness(reason: string, active: boolean): Promise<boolean>;
+  outputOpen(): Promise<boolean>;
+  outputClose(): Promise<void>;
+  onOutputStatus(callback: (status: string) => void): void;
+
   getSessionId(): Promise<string>;
   /** Autosave — writes to userData/recovery, never to the user's project. */
   writeRecovery(projectPath: string | null, project: Project): Promise<void>;

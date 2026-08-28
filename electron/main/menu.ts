@@ -48,7 +48,11 @@ export function buildAppMenu(getWindow: () => BrowserWindow | null): void {
     {
       label: 'View',
       submenu: [
-        { label: 'Toggle Debug Overlay', accelerator: 'CmdOrCtrl+D', click: send('toggle-debug-overlay') },
+        {
+          label: 'Toggle Debug Overlay',
+          accelerator: 'CmdOrCtrl+D',
+          click: send('toggle-debug-overlay'),
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(process.env.NODE_ENV === 'development'

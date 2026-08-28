@@ -11,6 +11,7 @@ import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { WorkspaceRouter } from '@/workspaces/WorkspaceRouter';
 import { ExportDialog } from '@/export/ExportDialog';
 import { startAutosave } from '@/projects/autosave';
+import { startOutputBridge } from '@/output/outputBridge';
 import { midiEngine } from '@/midi/midiEngine';
 import { WebMidiTransport } from '@/midi/transport';
 import './app.css';
@@ -20,6 +21,7 @@ export function App() {
   usePerformanceKeys();
   useWorkspaceKeys();
   useEffect(() => startAutosave(), []);
+  useEffect(() => startOutputBridge(), []);
   // §25: request MIDI only when needed — a project that ships MIDI mappings
   // needs the controller live; otherwise the user opts in from the panel.
   useEffect(() => {

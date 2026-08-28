@@ -21,7 +21,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       lib: {
-        entry: resolve(__dirname, 'electron/preload/index.ts'),
+        entry: {
+          index: resolve(__dirname, 'electron/preload/index.ts'),
+          output: resolve(__dirname, 'electron/preload/output.ts'),
+        },
       },
       rollupOptions: {
         // Sandboxed preload scripts must be CommonJS.
@@ -39,7 +42,10 @@ export default defineConfig({
     plugins: [react()],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'src/index.html'),
+        input: {
+          index: resolve(__dirname, 'src/index.html'),
+          output: resolve(__dirname, 'src/output-window/output.html'),
+        },
       },
     },
     resolve: {

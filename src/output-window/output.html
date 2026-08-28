@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' material: data: blob:; media-src 'self' material: blob:; connect-src 'self' material: blob: data:; object-src 'none'; base-uri 'none'"
+    />
+    <title>MATERIAL OUTPUT</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+      #stage {
+        position: absolute;
+        inset: 0;
+        -webkit-app-region: drag;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #status {
+        position: absolute;
+        left: 8px;
+        bottom: 6px;
+        z-index: 10;
+        font:
+          9px ui-monospace,
+          monospace;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.28);
+        pointer-events: none;
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><canvas id="output-canvas"></canvas></div>
+    <div id="status"></div>
+    <script type="module" src="/output-window/main.ts"></script>
+  </body>
+</html>

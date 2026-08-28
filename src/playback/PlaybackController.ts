@@ -4,6 +4,7 @@ import { isExporting } from '@/export/exportGuard';
 import { audioEngine } from '@/audio/AudioEngine';
 import { resetTriggers, tickTriggers } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
+import { runtimeBus } from '@/runtime/RuntimeBus';
 
 const UI_TICK_MS = 100;
 /** Video is re-synced to the audio clock when drift exceeds this. */
@@ -87,6 +88,7 @@ class PlaybackController {
     }
     usePlaybackStore.getState().setPlaying(true);
     this.startTicking();
+    runtimeBus.emitTransport('play', this.getTime());
   }
 
   pause(): void {
@@ -96,6 +98,7 @@ class PlaybackController {
     usePlaybackStore.getState().setPlaying(false);
     this.stopTicking();
     engine.invalidate();
+    runtimeBus.emitTransport('pause', this.getTime());
   }
 
   toggle(): void {
@@ -123,6 +126,7 @@ class PlaybackController {
     usePlaybackStore.getState().setTime(clamped);
     engine.setTime(clamped);
     engine.invalidate();
+    runtimeBus.emitTransport('seek', clamped);
   }
 
   setLoop(loop: boolean): void {

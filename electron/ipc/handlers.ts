@@ -1,5 +1,7 @@
 import { app, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
 import { isLivenessReason, reduceLiveness, type LivenessReason } from '../../shared/liveness';
+import { closeOutputWindow, configureOutputWindow, openOutputWindow } from '../main/outputWindow';
+import type { OutputWindowStatus } from '../../shared/outputChannel';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -50,6 +52,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       ffmpegAvailable: ffmpegPath !== null,
       ffprobeAvailable: ffprobePath !== null,
       availableEncoders: await detectEncoders(),
+      livenessActive: liveEngineBlockerId !== null,
     };
   });
 
@@ -147,11 +150,8 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
    * `prevent-app-suspension` is the documented inhibitor. It is held only
    * while playback runs, so an idle editor still naps normally.
    */
-  ipcMain.handle(IPC.setLiveness, (_event, rawReason: unknown, rawActive: unknown) => {
-    // Refcounted reason set (Phase 18A): transport is one of several
-    // realtime requirements in v0.3 — see shared/liveness.ts.
-    if (!isLivenessReason(rawReason)) return liveEngineBlockerId !== null;
-    const shouldBlock = reduceLiveness(livenessReasons, rawReason, rawActive === true);
+  const applyLiveness = (reason: LivenessReason, active: boolean): boolean => {
+    const shouldBlock = reduceLiveness(livenessReasons, reason, active);
     if (shouldBlock) {
       if (liveEngineBlockerId === null || !powerSaveBlocker.isStarted(liveEngineBlockerId)) {
         liveEngineBlockerId = powerSaveBlocker.start('prevent-app-suspension');
@@ -161,7 +161,24 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       liveEngineBlockerId = null;
     }
     return liveEngineBlockerId !== null;
+  };
+
+  ipcMain.handle(IPC.setLiveness, (_event, rawReason: unknown, rawActive: unknown) => {
+    // Refcounted reason set (Phase 18A): transport is one of several
+    // realtime requirements in v0.3 — see shared/liveness.ts.
+    if (!isLivenessReason(rawReason)) return liveEngineBlockerId !== null;
+    return applyLiveness(rawReason, rawActive === true);
   });
+
+  // ---- Output window (Phase 18B): open/close + status push ----------------
+  configureOutputWindow({
+    setLiveness: (reason, active) => void applyLiveness(reason, active),
+    notifyEditor: (status: OutputWindowStatus) => {
+      getWindow()?.webContents.send(IPC.outputStatus, status);
+    },
+  });
+  ipcMain.handle(IPC.outputOpen, () => openOutputWindow(getWindow));
+  ipcMain.handle(IPC.outputClose, () => closeOutputWindow());
 
   ipcMain.handle(IPC.sessionId, () => SESSION_ID);
   ipcMain.handle(IPC.recoveryWrite, async (_event, rawPath: unknown, rawProject: unknown) => {

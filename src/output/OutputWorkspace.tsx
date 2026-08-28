@@ -3,6 +3,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { useExportStore } from '@/state/exportStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { useUiStore } from '@/state/uiStore';
+import { useOutputStore } from '@/state/outputStore';
 import { Viewport } from '@/viewport/Viewport';
 import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import './output.css';
@@ -80,6 +81,8 @@ export function OutputDestinations({
         </span>
       </button>
 
+      <OutputWindowRow />
+
       <span className="output-rail-head future">LIVE OUTPUT — v0.3</span>
       {FUTURE_LIVE.map((d) => (
         <FutureRow key={d.name} name={d.name} state="NOT AVAILABLE · v0.3" hint={d.hint} />
@@ -90,6 +93,29 @@ export function OutputDestinations({
         <FutureRow key={d.name} name={d.name} state="RESEARCH" hint={d.hint} />
       ))}
     </aside>
+  );
+}
+
+function OutputWindowRow() {
+  const status = useOutputStore((s) => s.status);
+  const open = status === 'open';
+  return (
+    <button
+      className={`output-dest${open ? ' selected' : ''}`}
+      onClick={() => {
+        if (open) void window.material.outputClose();
+        else void window.material.outputOpen();
+      }}
+      title={open ? 'Close the output window' : 'Open a dedicated clean output window'}
+    >
+      <span className={`output-dest-dot${open ? ' live' : ''}`} aria-hidden="true" />
+      <span className="output-dest-text">
+        <span className="output-dest-name">OUTPUT WINDOW</span>
+        <span className="output-dest-state">
+          {open ? 'LIVE — CLICK TO CLOSE' : status === 'error' ? 'ERROR — REOPEN' : 'OPEN'}
+        </span>
+      </span>
+    </button>
   );
 }
 

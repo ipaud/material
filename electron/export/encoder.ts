@@ -39,11 +39,16 @@ function sendProgress(win: BrowserWindow | null, event: ExportProgressEvent): vo
 function buildFfmpegArgs(config: ExportConfig): string[] {
   const args = [
     '-y',
-    '-f', 'rawvideo',
-    '-pix_fmt', 'rgba',
-    '-s', `${config.width}x${config.height}`,
-    '-r', String(config.fps),
-    '-i', '-',
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    'rgba',
+    '-s',
+    `${config.width}x${config.height}`,
+    '-r',
+    String(config.fps),
+    '-i',
+    '-',
   ];
   if (config.format === 'png-sequence') {
     // PNG sequence into the chosen directory; RGBA is preserved as-is.
@@ -65,11 +70,16 @@ function buildFfmpegArgs(config: ExportConfig): string[] {
 
   if (config.format === 'h264') {
     args.push(
-      '-c:v', 'libx264',
-      '-pix_fmt', 'yuv420p',
-      '-crf', '18',
-      '-preset', 'medium',
-      '-movflags', '+faststart',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-crf',
+      '18',
+      '-preset',
+      'medium',
+      '-movflags',
+      '+faststart',
     );
   } else if (config.format === 'prores422') {
     // ProRes 422 HQ — no alpha channel in this profile.
@@ -77,11 +87,16 @@ function buildFfmpegArgs(config: ExportConfig): string[] {
   } else {
     // ProRes 4444, the profile that actually carries alpha.
     args.push(
-      '-c:v', 'prores_ks',
-      '-profile:v', '4444',
-      '-pix_fmt', config.alpha ? 'yuva444p10le' : 'yuv444p10le',
-      '-vendor', 'apl0',
-      '-alpha_bits', config.alpha ? '16' : '0',
+      '-c:v',
+      'prores_ks',
+      '-profile:v',
+      '4444',
+      '-pix_fmt',
+      config.alpha ? 'yuva444p10le' : 'yuv444p10le',
+      '-vendor',
+      'apl0',
+      '-alpha_bits',
+      config.alpha ? '16' : '0',
     );
   }
 
@@ -195,7 +210,11 @@ export async function finishExport(
   });
   sessions.delete(sessionId);
   if (session.cancelled) {
-    sendProgress(getWindow(), { sessionId, phase: 'cancelled', framesWritten: session.framesWritten });
+    sendProgress(getWindow(), {
+      sessionId,
+      phase: 'cancelled',
+      framesWritten: session.framesWritten,
+    });
     throw new Error('Export cancelled');
   }
   if (code !== 0) {
