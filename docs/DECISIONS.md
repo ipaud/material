@@ -213,3 +213,53 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   between machines must not carry a display id. Deliberately absent from
   that file: whether the output was open — restoring that would make
   MATERIAL seize a projector on launch.
+
+## Camera source (Phase 18D)
+
+- **ADR — Output camera fan-out = same-device dual acquisition**: the Output
+  replica opens its OWN `getUserMedia` on the SAME deviceId instead of
+  receiving the editor's stream. Measured on hardware before deciding
+  (spike, 18D §50): transferring a `MediaStream`/`MediaStreamTrack` over the
+  MessagePort broker throws `DataCloneError` (not transferable across
+  renderers — impossible, not just undesirable); a second same-device
+  acquisition joins Chromium's shared capture service in ~21 ms (editor cold
+  start was ~844 ms) with both sides at 30 fps and one physical capture —
+  the OS indicator does not double. Rejected: stream transfer (measured
+  impossible), pixel transport over IPC (prohibited by the replica
+  architecture), editor-canvas `captureStream` (prohibited — the Output
+  must render, not replay compressed pixels).
+- **ADR — Intent-gated camera permission**: the main process answers
+  Chromium `media` permission checks with a deny-by-default gate that is
+  armed only between an explicit START CAMERA action and the matching
+  stop/teardown (`camera:intent` IPC). Requests that include audio are
+  always denied — MATERIAL never captures microphone. Consequences: a saved
+  project with a camera source can be opened, browsed and edited forever
+  without a permission prompt; the macOS TCC dialog appears the first time
+  the user presses START and never at launch. The replica's join inherits
+  the same gate: with intent disarmed its `getUserMedia` fails, so the
+  Output can never initiate acquisition on its own (verified by test and by
+  the packaged-app QA pass).
+- **ADR — Replica mirrors acquisition, not selection**: the RuntimeInputs
+  source descriptor says `live-camera` only while the editor capture is
+  actually LIVE. STOP on the editor therefore releases the replica's join
+  too (its tracks stop, the OS indicator goes off), even though the project
+  still selects the camera source. The alternative — deriving the
+  descriptor from the project — left the Output holding the sensor after
+  the editor stopped, which contradicts "the editor is the sole realtime
+  authority".
+- **Live sources render continuously**: `RenderEngine` is
+  invalidation-driven, which starves a sensor that produces new pixels
+  outside the app's own state changes. While a camera is live the loop
+  bypasses the dirty check (`setLiveSourceActive`), and stops doing so the
+  moment the capture ends — file projects keep the lazy render model
+  untouched.
+- **Camera capabilities are honest**: `seekable:false, deterministic:false,
+  exportable:false, temporalHistory:'realtime'`. Sequence/movie export is
+  disabled for a live source (a still capture of "now" stays available);
+  temporal techniques show a plain limitation note (realtime history
+  accumulation is 18F). The transport never pauses, seeks or rate-controls
+  the sensor.
+- **Packaged manifest is honest**: `NSCameraUsageDescription` is declared;
+  the default `NSMicrophoneUsageDescription` electron-builder injects is
+  stripped in `scripts/after-pack.mjs` because MATERIAL never requests
+  audio capture and the gate denies it unconditionally.

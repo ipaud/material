@@ -130,3 +130,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 18D: live sources cannot be exported deterministically */
+.export-live-note {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--danger);
+  max-width: 260px;
+  line-height: 1.4;
+}

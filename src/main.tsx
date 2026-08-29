@@ -32,6 +32,7 @@ import * as mutation from './performance/mutation';
 import * as triggerRuntime from './signals/triggerRuntime';
 import { midiEngine, useMidiStore } from './midi/midiEngine';
 import { FakeMidiTransport, WebMidiTransport } from './midi/transport';
+import { cameraManager, useCameraStore } from './sources/cameraManager';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -62,6 +63,9 @@ if (import.meta.env.DEV) {
         },
       },
       useProjectStore,
+      /** 18D: camera lifecycle (QA drives the same path as the UI). */
+      cameraManager,
+      useCameraStore,
       useUiStore,
       importMediaPaths,
       openProjectFromPath,

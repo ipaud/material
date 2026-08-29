@@ -16,12 +16,16 @@ import { MidiParamWrap } from './MidiParamWrap';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
 import type { ParamValue } from '@shared/schemas/project';
+import { techniqueNeedsTemporal } from '@/techniques/registry';
 import '@/components/parameter-slider.css';
 
 export function InspectorPanel() {
   const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
   const material = useProjectStore((s) => s.project.material);
   const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
+  const liveSource = useProjectStore(
+    (s) => s.project.sources.find((src) => src.id === s.project.composition.sourceId)?.kind === 'camera',
+  );
   const modulations = useProjectStore((s) => s.project.modulations);
   const apply = useProjectStore((s) => s.apply);
   const beginTransient = useProjectStore((s) => s.beginTransient);
@@ -51,6 +55,10 @@ export function InspectorPanel() {
   );
 
   const definition = technique ? getTechnique(technique.techniqueId) : null;
+  // 18D: cameras deliver only the current frame — temporal techniques need
+  // frame history that live capture does not accumulate yet (18F).
+  const temporalOnLive =
+    liveSource && technique !== null && techniqueNeedsTemporal(technique.techniqueId, technique.params);
   // Parameter ids currently driven by an enabled mapping.
   const modulatedTargets = new Set(modulations.filter((m) => m.enabled).map((m) => m.target));
 
@@ -68,6 +76,12 @@ export function InspectorPanel() {
         </button>
       </div>
       <div className="panel-body">
+        {temporalOnLive && (
+          <div className="inspector-live-note">
+            LIVE SOURCE — this technique uses frame history, which a camera does
+            not provide yet. Current frame only.
+          </div>
+        )}
         {!hasSource && (
           <div
             style={{

@@ -65,6 +65,9 @@ function sourceSegment(sources: Sources, sourceId: string | null): Segment {
   const source = sources.find((s) => s.id === sourceId) ?? null;
   if (!source)
     return { key: 'source', text: 'SOURCE', title: 'No source selected', placeholder: true };
+  if (source.kind === 'camera') {
+    return { key: 'source', text: 'CAMERA', title: 'Live camera source' };
+  }
   const name = source.metadata?.fileName ?? source.path.split('/').pop() ?? source.id;
   return { key: 'source', text: source.kind.toUpperCase(), title: name };
 }

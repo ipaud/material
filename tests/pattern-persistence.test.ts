@@ -130,10 +130,12 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('project format version', () => {
-  it('pattern sources are an additive v2 field — no version bump', () => {
-    expect(PROJECT_FORMAT_VERSION).toBe(2);
+  it('pattern sources are an additive field — v3 exists for LIVE sources, not patterns', () => {
+    // v3 was introduced by 18D for live source refs; patterns still never
+    // forced a bump and still parse from v2 files via migration.
+    expect(PROJECT_FORMAT_VERSION).toBe(3);
     const parsed = parseProject(JSON.parse(JSON.stringify(projectWith())));
-    expect(parsed.version).toBe(2);
+    expect(parsed.version).toBe(3);
   });
 
   it('a v2 project written before patterns existed still opens', () => {
@@ -153,7 +155,7 @@ describe('project format version', () => {
     delete v1.macros;
     v1.timeline = { inSec: null, outSec: null, loop: true, bpm: null, beatOffsetSec: 0 };
     const parsed = parseProject(v1);
-    expect(parsed.version).toBe(2);
+    expect(parsed.version).toBe(3);
     expect(parsed.patternSources).toEqual([]);
     expect(parsed.timeline.beatsPerBar).toBe(4);
   });

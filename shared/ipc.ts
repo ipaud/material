@@ -40,6 +40,7 @@ export const IPC = {
   outputTarget: 'output:target',
   outputEscape: 'output:escape',
   brandDockIcon: 'brand:dock-icon',
+  cameraIntent: 'camera:intent',
 } as const;
 
 export interface RecoveryEntry {
@@ -140,6 +141,12 @@ export interface MaterialApi {
   outputTarget(): Promise<{ displayId: number | null; mode: OutputMode }>;
   /** Dock icon signal position (0-8) — the project's brand fingerprint. */
   setDockIcon(position: number): Promise<void>;
+  /**
+   * Arm/disarm camera acquisition (18D). Video-capture permission is granted
+   * ONLY while armed, and arming happens ONLY from an explicit user action
+   * in the editor — never on launch, project open or source browsing.
+   */
+  setCameraIntent(active: boolean): Promise<void>;
 
   getSessionId(): Promise<string>;
   /** Autosave — writes to userData/recovery, never to the user's project. */

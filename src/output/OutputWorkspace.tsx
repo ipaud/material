@@ -183,11 +183,12 @@ export function OutputSettings() {
   const durationSec = usePlaybackStore((s) => s.durationSec);
   const { composition } = project;
   const source = project.sources.find((s) => s.id === composition.sourceId) ?? null;
-  const audio = project.sources.find((s) => s.id === composition.audioSourceId) ?? null;
+  const audioRef = project.sources.find((s) => s.id === composition.audioSourceId) ?? null;
+  const audio = audioRef && audioRef.kind !== 'camera' ? audioRef : null;
   const bpm = project.timeline.bpm;
 
   const sourceDims =
-    source?.metadata?.width && source.metadata.height
+    source && source.kind !== 'camera' && source.metadata?.width && source.metadata.height
       ? `${source.metadata.width} × ${source.metadata.height}`
       : null;
   const projectDims = `${composition.width} × ${composition.height}`;
@@ -203,9 +204,15 @@ export function OutputSettings() {
       <span className="output-rail-head">SOURCE</span>
       <Row
         label={source ? source.kind.toUpperCase() : 'SOURCE'}
-        value={source ? (source.metadata?.fileName ?? source.path.split('/').pop() ?? '—') : 'NONE'}
+        value={
+          source
+            ? source.kind === 'camera'
+              ? 'Live camera'
+              : (source.metadata?.fileName ?? source.path.split('/').pop() ?? '—')
+            : 'NONE'
+        }
       />
-      {source?.metadata?.frameRate != null && (
+      {source && source.kind !== 'camera' && source.metadata?.frameRate != null && (
         <Row label="SOURCE FPS" value={source.metadata.frameRate.toFixed(2)} />
       )}
 

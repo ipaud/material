@@ -251,7 +251,7 @@ describe('project format v2', () => {
     delete v1.timeline.beatsPerBar;
     delete v1.timeline.markers;
     const migrated = parseProject(v1);
-    expect(migrated.version).toBe(2);
+    expect(migrated.version).toBe(3); // v1 → v2 → v3 (18D live sources)
     expect(migrated.timeline.beatsPerBar).toBe(4);
     expect(migrated.timeline.markers).toEqual([]);
   });
@@ -262,7 +262,7 @@ describe('project format v2', () => {
   });
 
   test('newer versions are refused', () => {
-    const p = { ...createEmptyProject(), version: 3 };
+    const p = { ...createEmptyProject(), version: 4 };
     expect(() => parseProject(p)).toThrow(/version/i);
   });
 });

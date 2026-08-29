@@ -16,6 +16,7 @@ import type { TriggerContext } from '@/signals/triggerSources';
 import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
 import { lookToCore } from '@/performance/lookCore';
 import { applyMacros } from '@/performance/macros';
+import { isFileSource } from '@shared/schemas/project';
 import type {
   LookCore,
   ModulationMapping,
@@ -411,7 +412,9 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
   const alpha = request.alpha === true;
   const audioPath =
     request.includeAudio && request.format !== 'png-sequence'
-      ? (project.sources.find((s) => s.id === project.composition.audioSourceId)?.path ?? null)
+      ? (project.sources
+          .filter(isFileSource)
+          .find((s) => s.id === project.composition.audioSourceId)?.path ?? null)
       : null;
 
   playback.pause();

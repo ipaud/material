@@ -1,6 +1,7 @@
 import { RenderEngine } from '@/rendering/RenderEngine';
 import { getTechnique } from '@/techniques/registry';
 import { FileImageSource } from '@/sources/FileImageSource';
+import { OutputCameraSource } from './outputCameraSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { FrameStateMsg, OutputChannelMsg, RenderInputsMsg } from '@shared/outputChannel';
@@ -34,6 +35,7 @@ export class OutputReplica {
   private activeTechniqueId: string | null = null;
   private temporalActive = false;
   private source: SourceRuntime | null = null;
+  private camera: OutputCameraSource | null = null;
   private sourceKey: string | null = null;
   private generation = -999;
   private clock: ClockBase = { authorityTimeSec: 0, atWall: Date.now(), playing: false };
@@ -58,6 +60,7 @@ export class OutputReplica {
   dispose(): void {
     if (this.slaveTimer) clearInterval(this.slaveTimer);
     this.source?.dispose();
+    this.camera?.dispose();
     this.engine.dispose();
   }
 
@@ -115,14 +118,24 @@ export class OutputReplica {
       msg.materialState?.materialId === 'custom' ? msg.materialState.assetPath : null,
     );
 
-    const key = msg.source ? `${msg.source.kind}:${msg.source.path}:${msg.generation}` : null;
+    const key = msg.source
+      ? msg.source.kind === 'live-camera'
+        ? `live-camera:${msg.source.deviceId ?? 'default'}:${msg.generation}`
+        : `${msg.source.kind}:${msg.source.path}:${msg.generation}`
+      : null;
     if (key !== this.sourceKey) {
       this.sourceKey = key;
       this.source?.dispose();
       this.source = null;
+      this.camera?.dispose();
+      this.camera = null;
       this.engine.setSource(null);
       this.engine.setTemporalSource(null);
-      if (msg.source) void this.loadSource(msg.source.kind, msg.source.path, key);
+      if (msg.source?.kind === 'live-camera') {
+        void this.loadCamera(msg.source.deviceId ?? null, key);
+      } else if (msg.source) {
+        void this.loadSource(msg.source.kind, msg.source.path, key);
+      }
     }
 
     // First contact only: seed the renderer so a static scene shows before
@@ -130,6 +143,25 @@ export class OutputReplica {
     if (this.activeTechniqueId === null && msg.techniqueId) {
       this.syncTechnique(msg.techniqueId, false);
     }
+  }
+
+  /** 18D fan-out — see outputCameraSource.ts for the measured ADR. */
+  private async loadCamera(deviceId: string | null, key: string | null): Promise<void> {
+    const camera = new OutputCameraSource(deviceId);
+    try {
+      await camera.load();
+    } catch (err) {
+      console.warn('[replica] camera join failed:', err);
+      camera.dispose();
+      if (this.sourceKey === key) this.engine.setSource(null);
+      return;
+    }
+    if (this.sourceKey !== key) {
+      camera.dispose(); // superseded while joining (or stale generation)
+      return;
+    }
+    this.camera = camera;
+    this.engine.setSource(camera.texture());
   }
 
   private async loadSource(

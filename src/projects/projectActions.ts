@@ -56,6 +56,7 @@ async function checkOfflineSources(): Promise<void> {
   const { project } = useProjectStore.getState();
   const offline: string[] = [];
   for (const source of project.sources) {
+    if (source.kind === 'camera') continue; // live sources have no file to probe
     try {
       await window.material.probeMedia(source.path);
     } catch {
@@ -105,7 +106,7 @@ export async function importMediaPaths(paths: string[]): Promise<void> {
     const sourceId = uid('src');
     apply((p) => {
       // Skip duplicates by path.
-      if (p.sources.some((s) => s.path === path)) return p;
+      if (p.sources.some((s) => s.kind !== 'camera' && s.path === path)) return p;
       const sources = [...p.sources, { id: sourceId, kind: metadata.kind, path, metadata }];
       let composition = p.composition;
       // First visual source becomes the active composition source.

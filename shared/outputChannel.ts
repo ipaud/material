@@ -22,7 +22,10 @@ export interface RenderInputsMsg {
   compWidth: number;
   compHeight: number;
   background: string;
-  source: { kind: 'file-image' | 'file-video'; path: string } | null;
+  source:
+    | { kind: 'file-image' | 'file-video'; path: string }
+    | { kind: 'live-camera'; deviceId: string | null }
+    | null;
 }
 
 /** High rate — one evaluated frame from the authority's live render pass. */

@@ -131,3 +131,23 @@
 .looks-section {
   border-top: 1px solid var(--border-0);
 }
+
+/* ---- Camera source (18D) ---- */
+.library-head-spacer {
+  flex: 1;
+}
+.camera-row {
+  cursor: pointer;
+}
+.kind-camera.live {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+.camera-device {
+  margin-top: 2px;
+  max-width: 100%;
+}
+.camera-help {
+  white-space: normal;
+  line-height: 1.4;
+}

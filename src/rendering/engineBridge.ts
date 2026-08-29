@@ -8,6 +8,7 @@ import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
+import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { configureTriggers } from '@/signals/triggerRuntime';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import { FileImageSource } from '@/sources/FileImageSource';
@@ -45,21 +46,33 @@ function syncFromProject(): void {
 
   engine.setComposition(composition.width, composition.height, composition.background);
 
-  // Source texture: still image or video.
+  // Source texture: still image, video, or the live camera (18D).
   const source = project.sources.find(
-    (s) => s.id === composition.sourceId && (s.kind === 'image' || s.kind === 'video'),
+    (s) =>
+      s.id === composition.sourceId &&
+      (s.kind === 'image' || s.kind === 'video' || s.kind === 'camera'),
   );
-  const sourceKey = source ? `${source.kind}:${source.path}` : null;
+  const sourceKey = source
+    ? source.kind === 'camera'
+      ? `camera:${source.id}`
+      : `${source.kind}:${source.path}`
+    : null;
   if (sourceKey !== loadedSourcePath) {
     loadedSourcePath = sourceKey;
     const generation = ++loadGeneration;
     playback.detachVideo();
     activeSourceRuntime?.dispose();
     activeSourceRuntime = null;
+    if (source?.kind !== 'camera') cameraManager.detach();
     activeTemporalSource = null;
     engine.setTemporalSource(null);
     if (!source) {
       engine.setSource(null);
+      cameraManager.detach();
+    } else if (source.kind === 'camera') {
+      // The camera runtime is user-intent driven: selecting the source only
+      // ATTACHES it (idle until START CAMERA). Never auto-acquires.
+      cameraManager.attach(source.id, source.deviceId ?? null);
     } else if (source.kind === 'image') {
       const runtime = new FileImageSource(source.path);
       activeSourceRuntime = runtime;
@@ -110,7 +123,7 @@ function syncFromProject(): void {
   const audioSource = project.sources.find(
     (s) => s.id === composition.audioSourceId && s.kind === 'audio',
   );
-  const audioPath = audioSource?.path ?? null;
+  const audioPath = audioSource && audioSource.kind === 'audio' ? audioSource.path : null;
   if (audioPath !== loadedAudioPath) {
     loadedAudioPath = audioPath;
     if (audioPath) {
@@ -155,7 +168,14 @@ function syncFromProject(): void {
     compHeight: composition.height,
     background: composition.background,
     source: source
-      ? { kind: source.kind === 'image' ? 'file-image' : 'file-video', path: source.path }
+      ? source.kind === 'camera'
+        ? // The replica mirrors the editor's ACQUISITION, not the project
+          // selection: STOP on the editor must release the replica's join
+          // too, so the descriptor only says live-camera while live (18D).
+          cameraManager.isLive()
+          ? { kind: 'live-camera', deviceId: source.deviceId ?? null }
+          : null
+        : { kind: source.kind === 'image' ? 'file-image' : 'file-video', path: source.path }
       : null,
     generation: projectGeneration,
   });
@@ -218,6 +238,14 @@ function configureModulation(): void {
 /** Connect stores to the render engine. Returns a cleanup function. */
 export function startEngineBridge(): () => void {
   const unsubProject = useProjectStore.subscribe(syncFromProject);
+  let lastCameraLive = false;
+  const unsubCamera = useCameraStore.subscribe((s) => {
+    const live = s.status === 'live';
+    if (live !== lastCameraLive) {
+      lastCameraLive = live;
+      syncFromProject();
+    }
+  });
   const unsubUi = useUiStore.subscribe(syncFromUi);
   const unsubAudio = useAudioStore.subscribe(configureModulation);
   let lastDuration = -1;
@@ -232,6 +260,7 @@ export function startEngineBridge(): () => void {
   syncFromUi();
   return () => {
     unsubProject();
+    unsubCamera();
     unsubUi();
     unsubAudio();
     unsubPlayback();

@@ -410,3 +410,15 @@
   color: var(--accent);
   border-color: var(--border-active);
 }
+
+/* 18D: temporal technique on a live camera — honest limitation note */
+.inspector-live-note {
+  margin: var(--sp-3) var(--sp-4) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  color: var(--text-2);
+}

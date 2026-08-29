@@ -1,6 +1,6 @@
 import { app, BrowserWindow, session, shell } from 'electron';
 import path from 'node:path';
-import { registerIpcHandlers, SESSION_ID } from '../ipc/handlers';
+import { cameraIntentArmed, registerIpcHandlers, SESSION_ID } from '../ipc/handlers';
 import { closeOutputWindow } from './outputWindow';
 import { clearRecovery } from '../filesystem/recovery';
 import { buildAppMenu } from './menu';
@@ -90,13 +90,32 @@ app.whenReady().then(() => {
   // 'midiSysex' permission gate — even requestMIDIAccess({sysex:false}).
   // Granting the gate does NOT enable sysex data: the renderer only ever
   // requests sysex:false, so access.sysexEnabled stays false (verified in
-  // QA). All other permission requests stay denied (offline instrument).
+  // QA).
+  //
+  // Camera (18D): video capture is INTENT-GATED. getUserMedia is allowed
+  // only while the editor has explicitly armed camera intent (a user
+  // clicking START CAMERA) — never on launch, project open or browsing.
+  // The gate covers the output replica too: it may re-acquire the SAME
+  // device for fan-out, but only while the editor's intent is armed, so the
+  // replica can never initiate capture on its own. Audio capture stays
+  // denied — MATERIAL never asks for the microphone.
+  // All other permission requests stay denied (offline instrument).
   const isMidi = (permission: string): boolean =>
     permission === 'midi' || permission === 'midiSysex';
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) =>
-    callback(isMidi(permission)),
+  const mediaAllowed = (permission: string, details: { mediaTypes?: string[] }): boolean => {
+    if (permission !== 'media') return false;
+    if (!cameraIntentArmed()) return false;
+    const types = details.mediaTypes ?? [];
+    // Plain enumerateDevices probes arrive as 'media' with no types; a
+    // video-only getUserMedia arrives as ['video']. Audio is never allowed.
+    return !types.includes('audio');
+  };
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
+    callback(isMidi(permission) || mediaAllowed(permission, details as { mediaTypes?: string[] })),
   );
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => isMidi(permission));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission, _origin, details) =>
+    isMidi(permission) || mediaAllowed(permission, details as { mediaTypes?: string[] }),
+  );
 
   registerIpcHandlers(() => mainWindow);
   buildAppMenu(() => mainWindow);

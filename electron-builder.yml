@@ -1,5 +1,6 @@
 appId: com.pauavila.material
 productName: MATERIAL
+afterPack: scripts/after-pack.mjs
 directories:
   output: release
 files:
@@ -10,6 +11,10 @@ extraResources:
     to: dock
 mac:
   category: public.app-category.graphics-design
+  extendInfo:
+    NSCameraUsageDescription: >-
+      MATERIAL uses the camera as a live visual source when you enable
+      Camera.
   target:
     - target: dir
       arch: [arm64]

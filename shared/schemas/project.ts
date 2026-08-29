@@ -8,13 +8,35 @@ export type ParamValue = z.infer<typeof paramValueSchema>;
 export const paramRecordSchema = z.record(z.string(), paramValueSchema);
 export type ParamRecord = z.infer<typeof paramRecordSchema>;
 
-export const sourceRefSchema = z.object({
+/**
+ * v3 — sources split into FILE media (path on disk) and LIVE devices
+ * (camera; screen/window follow in 18E). This split is the whole reason the
+ * format moved to v3: a live source has no path and carries device
+ * preferences instead. Nothing runtime-ish is ever persisted — no stream
+ * ids, no permission state, no resolution, no labels-as-identity.
+ */
+export const fileSourceRefSchema = z.object({
   id: z.string(),
   kind: mediaKindSchema,
   path: z.string(),
   metadata: mediaMetadataSchema.nullable(),
 });
+export type FileSourceRef = z.infer<typeof fileSourceRefSchema>;
+
+export const cameraSourceRefSchema = z.object({
+  id: z.string(),
+  kind: z.literal('camera'),
+  /** Best-effort device preference — ids are not stable across profiles. */
+  deviceId: z.string().nullable().default(null),
+});
+export type CameraSourceRef = z.infer<typeof cameraSourceRefSchema>;
+
+export const sourceRefSchema = z.union([fileSourceRefSchema, cameraSourceRefSchema]);
 export type SourceRef = z.infer<typeof sourceRefSchema>;
+
+export function isFileSource(source: SourceRef): source is FileSourceRef {
+  return source.kind !== 'camera';
+}
 
 export const techniqueInstanceSchema = z.object({
   id: z.string(),
@@ -409,6 +431,16 @@ export function createEmptyProject(name = 'Untitled'): Project {
   };
 }
 
+/**
+ * v2 → v3: LIVE source configuration. File sources are untouched; the only
+ * change is that `sources[]` may now also hold live device refs. Every v2
+ * project is therefore already a valid v3 project — the migration is a
+ * version stamp, deliberately.
+ */
+function migrateV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, version: 3 };
+}
+
 /** v1 → v2: musical-clock fields appear, everything else is unchanged. */
 function migrateV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
   const timeline = (raw.timeline ?? {}) as Record<string, unknown>;
@@ -435,6 +467,9 @@ export function parseProject(raw: unknown): Project {
   let candidate = raw as Record<string, unknown>;
   if (candidate.version === 1) {
     candidate = migrateV1toV2(candidate);
+  }
+  if (candidate.version === 2) {
+    candidate = migrateV2toV3(candidate);
   }
   if (candidate.version !== PROJECT_FORMAT_VERSION) {
     throw new Error(`Unsupported project version: ${String(candidate.version)}`);

@@ -533,3 +533,37 @@ OUTPUT
 
 Fullscreen strategy and the disconnect policy are recorded as ADRs in
 [DECISIONS](DECISIONS.md).
+
+## 15. Camera source — as built (Phase 18D)
+
+Section 8's plan became code in 18D. What shipped, with the deltas:
+
+- **Editor side** — `src/sources/CameraSource.ts` (the first
+  `LiveSourceRuntime`; the ONLY editor-side `getUserMedia` call site) and
+  `src/sources/cameraManager.ts` (single-camera lifecycle authority:
+  `attach` = project selection, IDLE, acquires nothing; `start` = the user
+  action that arms the permission gate and acquires; `stop`/`detach`
+  symmetric teardown). Selecting a camera source in the library NEVER
+  acquires — a project can reference a camera forever without a prompt.
+- **Permission gate** — main process denies `media` permission unless
+  `camera:intent` is armed by the editor's START, and always denies
+  requests that include audio. Both `setPermissionRequestHandler` and
+  `setPermissionCheckHandler` route through it. The packaged app carries
+  `NSCameraUsageDescription` (and after-pack strips electron-builder's
+  default microphone string — MATERIAL never captures audio).
+- **Replica fan-out** — `src/output-window/outputCameraSource.ts` performs
+  a same-device join (measured: DataCloneError forbids stream transfer;
+  join costs ~21 ms vs ~844 ms cold; one physical capture, both sides
+  30 fps). The replica has no device enumeration, no retry policy and no
+  UI: it follows the RuntimeInputs descriptor, which says `live-camera`
+  only while the EDITOR's capture is live — editor STOP releases the
+  replica's tracks too.
+- **Render loop** — a live source bypasses the engine's dirty-check while
+  active (`setLiveSourceActive`); everything else keeps the invalidation
+  model.
+- **Capabilities enforced in UI** — sequence/movie export disabled for a
+  live source (still capture allowed); temporal techniques show a
+  limitation note; the transport never touches the sensor. Realtime
+  history accumulation for temporal techniques on live sources is 18F.
+- **Deferred to 18E/18F** — screen/window capture kinds, realtime
+  `TemporalFrameProvider` feeding, audio-reactive live sources.

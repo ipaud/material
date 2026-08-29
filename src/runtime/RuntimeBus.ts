@@ -31,7 +31,10 @@ export interface RenderInputs {
   compHeight: number;
   background: string;
   /** Structured-clone-safe source identity — a replica rebuilds its own media. */
-  source: { kind: 'file-image' | 'file-video'; path: string } | null;
+  source:
+    | { kind: 'file-image' | 'file-video'; path: string }
+    | { kind: 'live-camera'; deviceId: string | null }
+    | null;
   /** Project generation — replicas drop state when it changes. */
   generation: number;
 }

@@ -68,6 +68,7 @@ export class RenderEngine {
   }
 
   private dirty = true;
+  private liveSourceActive = false;
   private rafId = 0;
   private lastFrameTime = 0;
   private fpsEma = 0;
@@ -125,6 +126,12 @@ export class RenderEngine {
     if (this.sourceTexture && this.sourceTexture !== texture) this.sourceTexture.dispose();
     this.sourceTexture = texture;
     this.rebuildOriginalQuad();
+    this.invalidate();
+  }
+
+  /** 18D: live camera active — the loop renders every RAF while true. */
+  setLiveSourceActive(active: boolean): void {
+    this.liveSourceActive = active;
     this.invalidate();
   }
 
@@ -441,7 +448,9 @@ export class RenderEngine {
     // (e.g. MIDI) invalidating the preview could perturb export frames at
     // the LSB level. The dirty flag survives — preview repaints on finish.
     if (this.exportMode) return;
-    if (!this.dirty) return;
+    // 18D: a live source delivers new pixels every frame outside our
+    // invalidation model — while one is active, render continuously.
+    if (!this.dirty && !this.liveSourceActive) return;
     this.dirty = false;
     const start = performance.now();
     this.renderFrame();

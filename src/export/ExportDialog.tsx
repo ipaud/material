@@ -61,10 +61,17 @@ export function ExportDialog() {
   const estimatedFrames = Math.ceil(effectiveDuration * fps);
   const running = phase === 'running';
   const hasAudio = project.composition.audioSourceId !== null;
+  // 18D: a live camera is not seekable or deterministic — offline
+  // sequence/movie export is impossible by capability, not by policy. A
+  // still capture of "now" stays honest and allowed.
+  const activeSource = project.sources.find((s) => s.id === project.composition.sourceId) ?? null;
+  const liveSource = activeSource?.kind === 'camera';
+  const liveBlocked = liveSource && format !== 'png-still';
   const hasProRes = encoders.includes('prores_ks');
   const supportsAlpha = format === 'prores4444' || format === 'png-sequence';
 
   const startExport = async () => {
+    if (liveBlocked) return;
     if (format === 'png-still') {
       closeDialog();
       await exportPngStill();
@@ -205,7 +212,16 @@ export function ExportDialog() {
               </>
             )}
             <div className="export-actions">
-              <button className="titlebar-action primary" onClick={() => void startExport()}>
+              {liveBlocked && (
+                <span className="export-live-note">
+                  LIVE SOURCE — sequence/movie export unavailable. Still export captures now.
+                </span>
+              )}
+              <button
+                className="titlebar-action primary"
+                disabled={liveBlocked}
+                onClick={() => void startExport()}
+              >
                 Export…
               </button>
             </div>

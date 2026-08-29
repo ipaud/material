@@ -11,6 +11,7 @@ import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { WorkspaceRouter } from '@/workspaces/WorkspaceRouter';
 import { ExportDialog } from '@/export/ExportDialog';
 import { startAutosave } from '@/projects/autosave';
+import { cameraManager } from '@/sources/cameraManager';
 import { startOutputBridge } from '@/output/outputBridge';
 import { startDockIconSync } from '@/brand/dockIcon';
 import { midiEngine } from '@/midi/midiEngine';
@@ -24,6 +25,13 @@ export function App() {
   useEffect(() => startAutosave(), []);
   useEffect(() => startOutputBridge(), []);
   useEffect(() => startDockIconSync(), []);
+  // 18D: window teardown must stop camera tracks — the OS camera indicator
+  // must never outlive the editor (reload, quit, window close).
+  useEffect(() => {
+    const stopCamera = () => cameraManager.detach();
+    window.addEventListener('beforeunload', stopCamera);
+    return () => window.removeEventListener('beforeunload', stopCamera);
+  }, []);
   // §25: request MIDI only when needed — a project that ships MIDI mappings
   // needs the controller live; otherwise the user opts in from the panel.
   useEffect(() => {

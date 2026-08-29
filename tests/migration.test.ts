@@ -84,7 +84,7 @@ function v1Look(): Record<string, unknown> {
 describe('v1 → v2 migration', () => {
   test('a plain v1 project opens and keeps its visual state', () => {
     const migrated = parseProject(v1Project());
-    expect(migrated.version).toBe(2);
+    expect(migrated.version).toBe(3); // v1 → v2 → v3 (18D live sources)
     expect(migrated.techniques[0]!.params).toEqual({ columns: 32, rows: 18, scale: 1.2 });
     expect(migrated.material.materialId).toBe('square');
     expect(migrated.modulations[0]).toMatchObject({ source: 'bass', target: 'scale', amount: 0.6 });

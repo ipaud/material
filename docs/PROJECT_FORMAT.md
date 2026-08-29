@@ -5,7 +5,7 @@ They are meant to be readable and diffable.
 
 ```jsonc
 {
-  "version": 2,
+  "version": 3,
   "name": "Burnout",
   "sources": [
     {
@@ -118,6 +118,14 @@ They are meant to be readable and diffable.
 - **New v2 fields are defaulted, not required.** A v2 project written before a
   field existed still parses — which is how `macros`, `performancePads` and
   `performanceQuantize` were added inside v2 without a version bump.
+- **v2 → v3 (Phase 18D) is a version stamp for live sources.** v3 makes
+  `sources` a union: file refs (`image` / `video` / `audio`, with `path`) and
+  live refs (`kind: "camera"` with a nullable `deviceId`). No v2 field
+  changed shape, so the migration only stamps the version; every v1/v2
+  project opens unchanged. A camera ref persists CONFIGURATION only — never
+  stream, track, permission or resolution state — and opening a project with
+  one never touches the OS camera: acquisition happens exclusively on the
+  explicit START action.
 - Locked exploration parameters use bare param ids, and `mod:<id>` for
   modulation mappings.
 
