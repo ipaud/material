@@ -181,7 +181,7 @@ export function recordPatternDiagnostic(
   handle: PatternSourceHandle,
   cycleIndex: number,
   result:
-    | { active: true; value: number | boolean; event: boolean; stepIndex: number }
+    | { active: true; value: number | boolean | null; event: boolean; stepIndex: number }
     | { active: false },
 ): void {
   let d = diagnostics.get(handle.id);

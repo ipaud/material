@@ -520,7 +520,7 @@ describe('transform editor', () => {
     render(<PatternsSection />);
     openFirst();
     const nested = screen.getByLabelText(/Transform applied every N cycles/i) as HTMLSelectElement;
-    expect([...nested.options].map((o) => o.value)).toEqual(['reverse', 'rotate', 'fast', 'slow']);
+    expect([...nested.options].map((o) => o.value)).toEqual(['reverse', 'rotate', 'iter', 'fast', 'slow']);
     fireEvent.change(nested, { target: { value: 'rotate' } });
     expect(source().transforms).toEqual([
       { type: 'every', cycles: 4, transform: { type: 'rotate', steps: 1 } },

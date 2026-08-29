@@ -18,7 +18,7 @@ const seq = (values: (number | boolean)[]): PatternDefinition => ({ type: 'seque
 
 function valueAt(compiled: CompiledPattern, cycleIndex: number, cyclePhase: number) {
   const r = evaluatePattern(compiled, { cycleIndex, cyclePhase });
-  if (!r.active) throw new Error('unexpected inactive');
+  if (!r.active || r.value === null) throw new Error('unexpected inactive');
   return r.value;
 }
 

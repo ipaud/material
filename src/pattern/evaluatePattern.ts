@@ -1,10 +1,17 @@
 import type { CompiledPattern, CompiledSimpleTransform } from './compilePattern';
-import { LANE_DEGRADE, hashPatternId, patternRandom01 } from './patternRandom';
+import {
+  LANE_CHOICE,
+  LANE_DEGRADE,
+  hashPatternId,
+  patternPermutation,
+  patternRandom01,
+} from './patternRandom';
 import {
   PATTERN_INACTIVE,
   type PatternEvaluation,
   type PatternEvaluationContext,
   type PatternPosition,
+  type PatternValue,
 } from './patternTypes';
 
 /**
@@ -92,13 +99,43 @@ export function evaluatePattern(
       case 'rotate':
         mapB = mod(mapB - mapA * t.steps, n);
         break;
+      case 'iter': {
+        // The cycle's STARTING step advances by `steps` each cycle (cycle 1
+        // presents [2,3,4,1] for steps=1) — the opposite sign from ROTATE,
+        // which shifts the pattern forward. Reads the CURRENT transformed
+        // cycle at this chain position, like EVERY.
+        const cycle = Math.floor(pos + PHASE_EPSILON * Math.sign(pos));
+        mapB = mod(mapB + mapA * t.steps * cycle, n);
+        break;
+      }
     }
+  };
+
+  // MAYBE needs the deterministic context during the chain walk; resolve it
+  // lazily so degrade-free, maybe-free patterns pay nothing extra.
+  let chainSeed = 0;
+  let chainIdHash = 0;
+  let chainCtxReady = false;
+  const chainCtx = (): void => {
+    if (chainCtxReady) return;
+    chainCtxReady = true;
+    const ctx = context ?? ZERO_CONTEXT;
+    chainSeed = ctx.projectSeed;
+    chainIdHash = hashPatternId(ctx.patternId);
   };
 
   for (const t of compiled.transforms) {
     if (t.type === 'every') {
       const cycle = Math.floor(pos + PHASE_EPSILON * Math.sign(pos));
       if (mod(cycle, t.cycles) === t.cycles - 1) applyTransform(t.transform);
+    } else if (t.type === 'maybe') {
+      // One decision per (transformed) cycle, deterministic, on the CHOICE
+      // lane — independent from Degrade by construction, and independent
+      // between several maybes via the compile-time chain salt.
+      const cycle = Math.floor(pos + PHASE_EPSILON * Math.sign(pos));
+      chainCtx();
+      const sample = patternRandom01(chainSeed, chainIdHash, LANE_CHOICE, cycle, 0, t.salt);
+      if (sample < t.probability) applyTransform(t.transform);
     } else {
       applyTransform(t);
     }
@@ -112,12 +149,30 @@ export function evaluatePattern(
     phase = 0;
   }
 
-  const rawIndex = Math.min(Math.floor(phase * n), n - 1);
+  // ALTERNATE holds one value for the whole cycle: the "step" is the cycle
+  // index itself, still fed through reverse/rotate/iter and shuffle so the
+  // whole transform algebra keeps working on the value deck.
+  const rawIndex = compiled.perCycle
+    ? mod(cycle, n)
+    : Math.min(Math.floor(phase * n), n - 1);
   const stepIndex = mod(mapA * rawIndex + mapB, n);
-  const value = compiled.values[stepIndex];
-  if (value === undefined) return PATTERN_INACTIVE;
 
-  const event = compiled.events === null ? true : compiled.events[stepIndex] === true;
+  // SHUFFLE: deterministic per-cycle permutation of the final lookup. Pure
+  // function of (seed, patternId, cycle) — position in the chain carries no
+  // meaning, which compile documents.
+  let lookupIndex = stepIndex;
+  if (compiled.shuffle) {
+    chainCtx();
+    const perm = patternPermutation(chainSeed, chainIdHash, cycle, n);
+    lookupIndex = perm[stepIndex] ?? stepIndex;
+  }
+
+  const value = compiled.values[lookupIndex];
+  if (value === undefined) return PATTERN_INACTIVE;
+  // REST: the step exists, contributes nothing, and is never degrade-sampled.
+  if (value === null) return PATTERN_INACTIVE;
+
+  const event = compiled.events === null ? true : compiled.events[lookupIndex] === true;
 
   if (event && compiled.degrades.length > 0) {
     const ctx = context ?? ZERO_CONTEXT;
@@ -130,5 +185,30 @@ export function evaluatePattern(
     }
   }
 
-  return { active: true, value, stepIndex, cycleIndex: cycle, event };
+  // SMOOTH: lerp toward the NEXT presented step by intra-step phase.
+  // Stateless (unlike mapping smoothing), so seeks stay exact. Falls back to
+  // the plain step when either endpoint is not a number (rest/boolean), and
+  // is meaningless for perCycle patterns' intra-cycle phase — there the whole
+  // cycle interpolates toward the next cycle's value instead.
+  let out: PatternValue = value;
+  if (compiled.smooth && typeof value === 'number') {
+    const frac = compiled.perCycle ? phase : phase * n - rawIndex;
+    const nextRaw = compiled.perCycle ? mod(cycle + 1, n) : mod(rawIndex + 1, n);
+    const nextStep = mod(mapA * nextRaw + mapB, n);
+    let nextLookup = nextStep;
+    if (compiled.shuffle) {
+      chainCtx();
+      const nextCyclePerm = compiled.perCycle
+        ? patternPermutation(chainSeed, chainIdHash, cycle + 1, n)
+        : patternPermutation(chainSeed, chainIdHash, cycle, n);
+      nextLookup = nextCyclePerm[nextStep] ?? nextStep;
+    }
+    const next = compiled.values[nextLookup];
+    if (typeof next === 'number') {
+      const f = Math.min(Math.max(frac, 0), 1);
+      out = value + (next - value) * f;
+    }
+  }
+
+  return { active: true, value: out, stepIndex, cycleIndex: cycle, event };
 }

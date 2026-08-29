@@ -31,6 +31,7 @@ export function patternLabel(index: number): string {
 }
 
 const DEFAULT_SEQUENCE: PatternSource['pattern'] = { type: 'sequence', values: [0, 1] };
+const DEFAULT_ALTERNATE: PatternSource['pattern'] = { type: 'alternate', values: [0, 0.5, 1] };
 const DEFAULT_EUCLIDEAN: PatternSource['pattern'] = {
   type: 'euclidean',
   pulses: 3,
@@ -189,11 +190,14 @@ function PatternEditor({
                   ? DEFAULT_EUCLIDEAN
                   : e.target.value === 'constant'
                     ? ({ type: 'constant', value: 1 } as const)
-                    : DEFAULT_SEQUENCE;
+                    : e.target.value === 'alternate'
+                      ? DEFAULT_ALTERNATE
+                      : DEFAULT_SEQUENCE;
               updatePatternSource(source.id, { pattern: next });
             }}
           >
             <option value="sequence">Sequence</option>
+            <option value="alternate">Alternate</option>
             <option value="euclidean">Euclidean</option>
             <option value="constant">Constant</option>
           </select>
@@ -211,7 +215,7 @@ function PatternEditor({
         </span>
       </div>
 
-      {definition.type === 'sequence' && (
+      {(definition.type === 'sequence' || definition.type === 'alternate') && (
         <SequenceEditor source={source} definition={definition} />
       )}
       {definition.type === 'euclidean' && (
@@ -225,7 +229,7 @@ function PatternEditor({
           <div className="pat-fields">
             <NumberField
               label="value"
-              value={typeof definition.value === 'number' ? definition.value : 1}
+              value={definition.type === 'constant' && typeof definition.value === 'number' ? definition.value : 1}
               onCommit={(v) => updatePatternSource(source.id, { pattern: { type: 'constant', value: v } })}
             />
           </div>
@@ -242,6 +246,7 @@ function summarize(source: PatternSource): string {
   const d = source.pattern;
   const transforms = source.transforms.length > 0 ? ` · ${source.transforms.length}T` : '';
   if (d.type === 'sequence') return `SEQ · ${d.values.length} steps${transforms}`;
+  if (d.type === 'alternate') return `ALT · ${d.values.length} cycles${transforms}`;
   if (d.type === 'euclidean') return `EUCLID · ${d.pulses}/${d.steps}${transforms}`;
   return `CONST · ${String(d.value)}${transforms}`;
 }

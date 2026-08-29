@@ -32,14 +32,14 @@ import {
   type PatternSource,
   type Project,
 } from '@shared/schemas/project';
-import type { SequencePattern } from '@/pattern/patternTypes';
+import type { AlternatePattern, SequencePattern } from '@/pattern/patternTypes';
 
 /** P7 — mini-notation parser, formatter and live-edit semantics. */
 
 const mosaic = getTechnique('mosaic')!;
 const seq = (values: number[]): SequencePattern => ({ type: 'sequence', values });
 
-function mustParse(text: string): SequencePattern {
+function mustParse(text: string): SequencePattern | AlternatePattern {
   const result = parsePattern(text);
   if (!result.ok) throw new Error(`expected "${text}" to parse: ${result.error.message}`);
   return result.definition;
@@ -85,7 +85,7 @@ describe('parser — accepted forms', () => {
     const [value] = mustParse('-0').values;
     expect(value).toBe(0);
     expect(Object.is(value, -0)).toBe(false);
-    expect(mustParse('0 -0 -0.0').values.every((v: number | boolean) => Object.is(v, 0))).toBe(true);
+    expect(mustParse('0 -0 -0.0').values.every((v) => Object.is(v, 0))).toBe(true);
   });
 
   it('handles a long sequence', () => {
@@ -124,7 +124,7 @@ describe('parser — rejected input', () => {
     '1;2',
     '[]',
     '[0 1]',
-    '<1 2>',
+    '0 <1 2> 3', // alternation inside a sequence is NOT in the grammar
     '0*2',
     '5/16',
     'fast 2',
@@ -681,7 +681,9 @@ describe('performance and isolation', () => {
     // And the parser itself pulls in nothing but types.
     const parser = readFileSync(join(__dirname, '..', 'src', 'pattern', 'miniNotation.ts'), 'utf8');
     const imports = [...parser.matchAll(/^import .*$/gm)].map((m) => m[0]);
-    expect(imports).toEqual(["import type { SequencePattern } from './patternTypes';"]);
+    expect(imports).toEqual([
+      "import type { AlternatePattern, SequencePattern } from './patternTypes';",
+    ]);
   });
 });
 

@@ -56,11 +56,13 @@ export type ModulationMapping = z.infer<typeof modulationMappingSchema>;
 // pulses≤steps, nesting) — a definition that parses but fails compile yields
 // a neutral source, never a crash.
 
-export const patternValueSchema = z.union([z.number().finite(), z.boolean()]);
+/** `null` is a REST step (v1.5): present in the grid, contributes nothing. */
+export const patternValueSchema = z.union([z.number().finite(), z.boolean(), z.null()]);
 
 export const patternDefinitionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('constant'), value: patternValueSchema }),
   z.object({ type: z.literal('sequence'), values: z.array(patternValueSchema) }),
+  z.object({ type: z.literal('alternate'), values: z.array(patternValueSchema) }),
   z.object({
     type: z.literal('euclidean'),
     pulses: z.number(),
@@ -77,6 +79,7 @@ const simplePatternTransformSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('slow'), factor: z.number() }),
   z.object({ type: z.literal('reverse') }),
   z.object({ type: z.literal('rotate'), steps: z.number() }),
+  z.object({ type: z.literal('iter'), steps: z.number() }),
 ]);
 
 export const patternTransformSchema = z.union([
@@ -86,6 +89,13 @@ export const patternTransformSchema = z.union([
     cycles: z.number(),
     transform: simplePatternTransformSchema,
   }),
+  z.object({
+    type: z.literal('maybe'),
+    probability: z.number(),
+    transform: simplePatternTransformSchema,
+  }),
+  z.object({ type: z.literal('shuffle') }),
+  z.object({ type: z.literal('smooth') }),
   z.object({ type: z.literal('degrade'), probability: z.number() }),
 ]);
 export type PatternTransformJson = z.infer<typeof patternTransformSchema>;

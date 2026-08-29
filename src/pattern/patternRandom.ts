@@ -34,8 +34,11 @@ import { deriveSeed, mulberry32Once } from '@/utils/prng';
 
 /** Lane ids — reserved so future random features never shift Degrade. */
 export const LANE_DEGRADE = 0;
-export const LANE_CHOICE = 1; // reserved (future)
+/** v1.5 — MAYBE (probabilistic transform application). */
+export const LANE_CHOICE = 1;
 export const LANE_HUMANIZE = 2; // reserved (future)
+/** v1.5 — per-cycle step permutation. */
+export const LANE_SHUFFLE = 3;
 
 /** FNV-1a — stable across platforms/reloads, no runtime salt. */
 export function hashStringToUint32(s: string): number {
@@ -102,4 +105,26 @@ export function patternRandom01(
 /** Test seam: proves `derive` stays bit-exact with the sanctioned deriveSeed. */
 export function deriveMatchesSanctioned(parent: number, lane: number): boolean {
   return derive(parent, lane) === deriveSeed(parent, lane);
+}
+
+/**
+ * Deterministic Fisher–Yates permutation of [0..n) for one cycle. Pure
+ * function of its key — same cycle, same deck order, forever. O(n) samples;
+ * n is a step count (≤ a few dozen), so this stays far off any budget.
+ */
+export function patternPermutation(
+  projectSeed: number,
+  patternIdHash: number,
+  cycleIndex: number,
+  n: number,
+): number[] {
+  const perm = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const r = patternRandom01(projectSeed, patternIdHash, LANE_SHUFFLE, cycleIndex, i);
+    const j = Math.floor(r * (i + 1));
+    const tmp = perm[i] as number;
+    perm[i] = perm[j] as number;
+    perm[j] = tmp;
+  }
+  return perm;
 }

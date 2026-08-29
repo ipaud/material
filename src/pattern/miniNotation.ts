@@ -1,4 +1,4 @@
-import type { SequencePattern } from './patternTypes';
+import type { AlternatePattern, SequencePattern } from './patternTypes';
 
 /**
  * Pattern Engine P7 — mini-notation for Sequence patterns.
@@ -12,10 +12,16 @@ import type { SequencePattern } from './patternTypes';
  * later grammar change cannot invalidate saved work. Opening an editor
  * formats the definition back to canonical text.
  *
- * The grammar is deliberately boring and closed:
+ * The grammar is deliberately boring and closed (v1.5 additions marked):
  *
- *   sequence := number ( whitespace number )*
+ *   pattern  := sequence | alternation
+ *   sequence := step ( whitespace step )*
+ *   step     := number | '~'                       (v1.5: '~' is a REST)
+ *   alternation := '<' sequence '>'                (v1.5: one step per CYCLE)
  *   number   := '-'? ( digits ( '.' digits? )? | '.' digits )
+ *
+ * Alternation wraps the WHOLE pattern or nothing — `0 <1 2> 3` is not in
+ * this grammar (subdivision is a future, separate phase).
  *
  * Numbers only, dot decimal separator only (locale-independent by
  * construction), no exponents, no '+' sign, no brackets, no operators, no
@@ -39,22 +45,18 @@ export interface PatternParseError {
 }
 
 export type ParsePatternResult =
-  | { ok: true; definition: SequencePattern }
+  | { ok: true; definition: SequencePattern | AlternatePattern }
   | { ok: false; error: PatternParseError };
 
 const isDigit = (c: string): boolean => c >= '0' && c <= '9';
 /** Whitespace = anything JS considers space; only space/tab/newline documented. */
 const isSpace = (c: string): boolean => /\s/.test(c);
 
-function fail(token: string, index: number, message: string): ParsePatternResult {
-  return { ok: false, error: { message, index, length: token.length, token } };
+function mkError(token: string, index: number, message: string): PatternParseError {
+  return { message, index, length: token.length, token };
 }
-
-/** Read one whitespace-delimited chunk starting at `start`. */
-function readToken(text: string, start: number): string {
-  let end = start;
-  while (end < text.length && !isSpace(text[end]!)) end++;
-  return text.slice(start, end);
+function fail(token: string, index: number, message: string): ParsePatternResult {
+  return { ok: false, error: mkError(token, index, message) };
 }
 
 /**
@@ -88,29 +90,69 @@ function parseNumberToken(token: string): number | null {
   return value === 0 ? 0 : value;
 }
 
-/** Parse mini-notation into a Sequence definition. Never throws. */
+/** Parse mini-notation into a Sequence or Alternate definition. Never throws. */
 export function parsePattern(text: string): ParsePatternResult {
-  const values: number[] = [];
-  let i = 0;
-  while (i < text.length) {
+  const trimmed = text.trim();
+  // v1.5 alternation: '<' … '>' wrapping the WHOLE pattern.
+  if (trimmed.startsWith('<')) {
+    const open = text.indexOf('<');
+    if (!trimmed.endsWith('>')) {
+      return fail('<', open, 'Alternation "<" is missing its closing ">"');
+    }
+    const close = text.lastIndexOf('>');
+    const inner = parseSteps(text, open + 1, close);
+    if (!inner.ok) return inner;
+    return { ok: true, definition: { type: 'alternate', values: inner.values } };
+  }
+  const result = parseSteps(text, 0, text.length);
+  if (!result.ok) return result;
+  return { ok: true, definition: { type: 'sequence', values: result.values } };
+}
+
+function parseSteps(
+  text: string,
+  start: number,
+  end: number,
+): { ok: true; values: (number | null)[] } | { ok: false; error: PatternParseError } {
+  const values: (number | null)[] = [];
+  let i = start;
+  while (i < end) {
     if (isSpace(text[i]!)) {
       i++;
       continue;
     }
-    const token = readToken(text, i);
+    const token = readTokenBounded(text, i, end);
+    if (token === '~') {
+      // A rest: the step exists and contributes nothing.
+      values.push(null);
+      i += 1;
+      continue;
+    }
+    if (token.includes('<') || token.includes('>')) {
+      return { ok: false, error: mkError(token, i, `Alternation must wrap the whole pattern — "${token}" at position ${i}`) };
+    }
     const value = parseNumberToken(token);
     if (value === null) {
-      return fail(token, i, `Unexpected token "${token}" at position ${i}`);
+      return { ok: false, error: mkError(token, i, `Unexpected token "${token}" at position ${i}`) };
     }
     values.push(value);
     i += token.length;
   }
   if (values.length === 0) {
-    // An empty sequence would compile to nothing and silently kill the
+    // An empty pattern would compile to nothing and silently kill the
     // signal — an empty box is an error the editor can show, not a pattern.
-    return fail('', 0, 'Pattern is empty — type at least one number');
+    return { ok: false, error: mkError('', start, 'Pattern is empty — type at least one number') };
   }
-  return { ok: true, definition: { type: 'sequence', values } };
+  if (values.every((v) => v === null)) {
+    return { ok: false, error: mkError('~', start, 'A pattern of only rests never plays — add a number') };
+  }
+  return { ok: true, values };
+}
+
+function readTokenBounded(text: string, start: number, end: number): string {
+  let stop = start;
+  while (stop < end && !isSpace(text[stop]!)) stop++;
+  return text.slice(start, stop);
 }
 
 /**
@@ -131,17 +173,19 @@ function formatNumber(value: number): string {
  * form in P7 — P8 shows those sequences read-only rather than lying about
  * being editable.
  */
-export function canFormatSequence(definition: SequencePattern): boolean {
+export function canFormatSequence(definition: SequencePattern | AlternatePattern): boolean {
   return definition.values.every(
-    (v) => typeof v === 'number' && Number.isFinite(v) && !formatNumber(v).includes('e'),
+    (v) =>
+      v === null || (typeof v === 'number' && Number.isFinite(v) && !formatNumber(v).includes('e')),
   );
 }
 
-/** Structured definition → canonical editable text. */
-export function formatSequencePattern(definition: SequencePattern): string {
-  return definition.values
-    .map((v) => (typeof v === 'number' ? formatNumber(v) : String(v)))
+/** Structured definition → canonical editable text. Rests print as '~'. */
+export function formatSequencePattern(definition: SequencePattern | AlternatePattern): string {
+  const body = definition.values
+    .map((v) => (v === null ? '~' : typeof v === 'number' ? formatNumber(v) : String(v)))
     .join(' ');
+  return definition.type === 'alternate' ? `<${body}>` : body;
 }
 
 // ---- Live-edit draft ----------------------------------------------------
@@ -160,13 +204,13 @@ export function formatSequencePattern(definition: SequencePattern): string {
 export interface PatternDraft {
   text: string;
   /** Last successfully parsed definition — what the runtime should use. */
-  lastValid: SequencePattern;
+  lastValid: SequencePattern | AlternatePattern;
   error: PatternParseError | null;
   /** True when this update produced a NEW definition worth committing. */
   changed: boolean;
 }
 
-export function createPatternDraft(definition: SequencePattern): PatternDraft {
+export function createPatternDraft(definition: SequencePattern | AlternatePattern): PatternDraft {
   return {
     text: formatSequencePattern(definition),
     lastValid: definition,
@@ -180,7 +224,9 @@ export function updatePatternDraft(draft: PatternDraft, text: string): PatternDr
   if (!result.ok) {
     return { text, lastValid: draft.lastValid, error: result.error, changed: false };
   }
-  const changed = !sameValues(draft.lastValid, result.definition);
+  const changed =
+    draft.lastValid.type !== result.definition.type ||
+    !sameValues(draft.lastValid, result.definition);
   return {
     text,
     lastValid: changed ? result.definition : draft.lastValid,
@@ -189,7 +235,10 @@ export function updatePatternDraft(draft: PatternDraft, text: string): PatternDr
   };
 }
 
-function sameValues(a: SequencePattern, b: SequencePattern): boolean {
+function sameValues(
+  a: SequencePattern | AlternatePattern,
+  b: SequencePattern | AlternatePattern,
+): boolean {
   if (a.values.length !== b.values.length) return false;
   return a.values.every((v, i) => v === b.values[i]);
 }

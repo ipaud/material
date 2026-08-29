@@ -14,14 +14,18 @@ import { NumberField } from './NumberField';
 
 type Transform = PatternTransformJson;
 
-const NESTABLE = ['reverse', 'rotate', 'fast', 'slow'] as const;
+const NESTABLE = ['reverse', 'rotate', 'iter', 'fast', 'slow'] as const;
 
 const TYPE_LABEL: Record<string, string> = {
   fast: 'Fast',
   slow: 'Slow',
   reverse: 'Reverse',
   rotate: 'Rotate',
+  iter: 'Iter',
   every: 'Every',
+  maybe: 'Maybe',
+  shuffle: 'Shuffle',
+  smooth: 'Smooth',
   degrade: 'Probability',
 };
 
@@ -35,8 +39,16 @@ function defaultTransform(type: string): Transform {
       return { type: 'reverse' };
     case 'rotate':
       return { type: 'rotate', steps: 1 };
+    case 'iter':
+      return { type: 'iter', steps: 1 };
     case 'every':
       return { type: 'every', cycles: 4, transform: { type: 'reverse' } };
+    case 'maybe':
+      return { type: 'maybe', probability: 0.5, transform: { type: 'reverse' } };
+    case 'shuffle':
+      return { type: 'shuffle' };
+    case 'smooth':
+      return { type: 'smooth' };
     default:
       return { type: 'degrade', probability: 0.5 };
   }
@@ -118,7 +130,7 @@ export function TransformList({ source }: { source: PatternSource }) {
           }}
         >
           <option value="">+ Add transform</option>
-          {['fast', 'slow', 'reverse', 'rotate', 'every', 'degrade'].map((type) => (
+          {['fast', 'slow', 'reverse', 'rotate', 'iter', 'every', 'maybe', 'shuffle', 'smooth', 'degrade'].map((type) => (
             <option key={type} value={type}>
               {TYPE_LABEL[type]}
             </option>
@@ -157,8 +169,77 @@ function TransformArgs({
           onCommit={(steps) => onChange({ type: 'rotate', steps })}
         />
       );
+    case 'iter':
+      return (
+        <NumberField
+          label="steps/cycle"
+          value={transform.steps}
+          integer
+          onCommit={(steps) => onChange({ type: 'iter', steps })}
+        />
+      );
     case 'reverse':
+    case 'shuffle':
+    case 'smooth':
       return null;
+    case 'maybe':
+      return (
+        <>
+          <NumberField
+            label="chance"
+            suffix="%"
+            value={Math.round(transform.probability * 100)}
+            integer
+            validate={(v) => v >= 0 && v <= 100}
+            onCommit={(percent) => onChange({ ...transform, probability: percent / 100 })}
+          />
+          <span className="pat-arrow">→</span>
+          <select
+            className="select"
+            aria-label="Transform applied by chance"
+            value={transform.transform.type}
+            onChange={(e) =>
+              onChange({
+                ...transform,
+                transform: defaultTransform(e.target.value) as typeof transform.transform,
+              })
+            }
+          >
+            {NESTABLE.map((type) => (
+              <option key={type} value={type}>
+                {TYPE_LABEL[type]}
+              </option>
+            ))}
+          </select>
+          {(transform.transform.type === 'rotate' || transform.transform.type === 'iter') && (
+            <NumberField
+              label="steps"
+              value={transform.transform.steps}
+              integer
+              onCommit={(steps) =>
+                onChange({
+                  ...transform,
+                  transform: { type: transform.transform.type as 'rotate' | 'iter', steps },
+                })
+              }
+            />
+          )}
+          {(transform.transform.type === 'fast' || transform.transform.type === 'slow') && (
+            <NumberField
+              label="factor"
+              suffix="×"
+              value={transform.transform.factor}
+              validate={(v) => v > 0}
+              onCommit={(factor) =>
+                onChange({
+                  ...transform,
+                  transform: { type: transform.transform.type as 'fast' | 'slow', factor },
+                })
+              }
+            />
+          )}
+        </>
+      );
     case 'every':
       return (
         <>
@@ -187,12 +268,17 @@ function TransformArgs({
               </option>
             ))}
           </select>
-          {transform.transform.type === 'rotate' && (
+          {(transform.transform.type === 'rotate' || transform.transform.type === 'iter') && (
             <NumberField
               label="steps"
               value={transform.transform.steps}
               integer
-              onCommit={(steps) => onChange({ ...transform, transform: { type: 'rotate', steps } })}
+              onCommit={(steps) =>
+                onChange({
+                  ...transform,
+                  transform: { type: transform.transform.type as 'rotate' | 'iter', steps },
+                })
+              }
             />
           )}
           {(transform.transform.type === 'fast' || transform.transform.type === 'slow') && (

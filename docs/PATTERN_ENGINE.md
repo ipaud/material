@@ -9,7 +9,8 @@ playback, seek, the Output replica, offline export and project reload.
 Status: **P1 (PatternClock) + P2 (pure engine) + P3 (deterministic
 probability / Degrade) + P4 (modulation integration) + P5 (parity
 hardening) + P6 (persistence contract) + P7 (mini-notation) shipped.**
-**Pattern Engine v1 is complete** (P1–P9).
+**Pattern Engine v1 is complete** (P1–P9), plus the **v1.5 combinators**
+(smooth · alternate · rest · iter · maybe · shuffle).
 
 ## Architectural position
 
@@ -460,6 +461,47 @@ PATTERNS                                   + ADD
 - **The System Path collapses patterns to one `PATTERN` segment**; listing
   PAT 01 / PAT 02 / PAT 03 would drown the path in instances of one idea.
 
+## v1.5 combinators
+
+Semantics inspired by pattern live-coding systems (TidalCycles first among
+them); implementation, coordinate model and goldens are entirely ours — no
+ported code, because Tidal is GPL and Strudel is AGPL, and MATERIAL is
+neither.
+
+- **`smooth`** — post-value shaping: lerp from the current step's value to
+  the NEXT presented step's by intra-step phase. Staircases become waves,
+  statelessly — unlike mapping smoothing (an EMA with history), a seek lands
+  on the exact same value. Falls back to plain steps around rests and
+  booleans; on `alternate` it interpolates across the whole cycle toward the
+  next cycle's value. Position in the transform chain carries no meaning
+  (like degrade — documented, compile folds it to a flag).
+- **`alternate`** (`<a b c>` in mini-notation) — one value per CYCLE,
+  `values[mod(cycle, n)]`. The step-transform algebra (reverse/rotate/iter/
+  shuffle) applies to the cycle deck.
+- **rest** (`~`, `null` in the structured form) — a step that exists and
+  contributes nothing: `{active:false}`, mapping skipped, never
+  degrade-sampled. A constant cannot be a rest; a pattern of only rests
+  refuses to parse.
+- **`iter n`** — the cycle's starting step advances by `n` each cycle
+  (cycle 1 of `1 2 3 4` presents `2 3 4 1`). Opposite sign from `rotate`
+  by design: iter advances the start, rotate shifts the pattern. Reads the
+  current transformed cycle at its chain position, like every; nests inside
+  `every` and `maybe`.
+- **`maybe p → t`** — applies its nested transform on a cycle with
+  deterministic probability, sampled on **LANE_CHOICE** (reserved since P3),
+  so adding or removing a maybe can never shift Degrade decisions. Several
+  maybes in one chain decide independently via a compile-time salt.
+- **`shuffle`** — deterministic per-cycle Fisher–Yates permutation of the
+  step lookup, on **LANE_SHUFFLE (3)**. Every cycle plays the same multiset
+  in a new, reproducible order. Like smooth, a flag rather than a chain
+  entry.
+
+Mini-notation grew exactly two tokens — `~` and whole-pattern `<a b c>` —
+and nothing else: subdivision `[a b [c d]]` remains a future phase, and the
+grammar stays closed (no operators, no code). All new pieces persist as
+additive v2 schema (no bump); goldens for maybe samples, shuffle
+permutations and smooth lerps are locked like the P3 ones.
+
 ## v1 scope
 
 **In v1**: Constant · Sequence · Euclidean · Fast · Slow · Reverse · Rotate ·
@@ -467,7 +509,7 @@ Every · deterministic Probability · mini-notation for numeric sequences ·
 project persistence · BUILD editor · modulation mapping · preview/Output/
 export parity.
 
-**Not v1** (deliberately): pattern triggers, Choice, Alternate, Mask, Stack,
+**Not v1** (deliberately): pattern triggers, Mask, Stack, subdivision,
 full Tidal grammar, OSC, MIDI clock, a live-coding editor, external
 Tidal/Strudel integration, generated patterns.
 

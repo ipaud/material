@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PatternSource } from '@shared/schemas/project';
-import type { SequencePattern } from '@/pattern/patternTypes';
+import type { AlternatePattern, SequencePattern } from '@/pattern/patternTypes';
 import {
   canFormatSequence,
   createPatternDraft,
@@ -27,7 +27,7 @@ export function SequenceEditor({
   definition,
 }: {
   source: PatternSource;
-  definition: SequencePattern;
+  definition: SequencePattern | AlternatePattern;
 }) {
   const editable = canFormatSequence(definition);
   const [draft, setDraft] = useState<PatternDraft>(() => createPatternDraft(definition));
@@ -106,7 +106,9 @@ export function SequenceEditor({
     <div className="pat-block">
       <div className="pat-block-head">
         <span className="label">Pattern</span>
-        <span className="pat-hint">{definition.values.length} steps</span>
+        <span className="pat-hint">
+          {definition.values.length} {definition.type === 'alternate' ? 'cycles' : 'steps'}
+        </span>
       </div>
       <input
         className={`pat-text mono${draft.error ? ' invalid' : ''}`}
@@ -115,7 +117,7 @@ export function SequenceEditor({
         aria-label="Pattern steps"
         aria-invalid={draft.error !== null}
         {...(draft.error ? { 'aria-describedby': errorId } : {})}
-        placeholder="0 0.25 1 0.25"
+        placeholder={definition.type === 'alternate' ? '<0 0.5 1>' : '0 0.25 1 0.25'}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => flush.current()}
         onKeyDown={(e) => {

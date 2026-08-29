@@ -22,13 +22,27 @@ export type CompiledSimpleTransform =
   | { type: 'fast'; factor: number }
   | { type: 'slow'; factor: number }
   | { type: 'reverse' }
-  | { type: 'rotate'; steps: number };
-export type CompiledTransform = CompiledSimpleTransform | CompiledEvery;
+  | { type: 'rotate'; steps: number }
+  | { type: 'iter'; steps: number };
+export interface CompiledMaybe {
+  type: 'maybe';
+  probability: number;
+  transform: CompiledSimpleTransform;
+  /** Chain position — the CHOICE-lane salt, so several maybes stay independent. */
+  salt: number;
+}
+export type CompiledTransform = CompiledSimpleTransform | CompiledEvery | CompiledMaybe;
 
 export interface CompiledPattern {
   /** Unified step values — constant compiles to length 1, Euclidean to `steps`. */
   values: PatternValue[];
   transforms: CompiledTransform[];
+  /** v1.5 ALTERNATE: one value per CYCLE — index is mod(cycle, n), not phase. */
+  perCycle: boolean;
+  /** v1.5: deterministic per-cycle permutation of the step lookup. */
+  shuffle: boolean;
+  /** v1.5: lerp step→next-step by intra-step phase (post-value shaping). */
+  smooth: boolean;
   /**
    * P3: which steps are discrete EVENTS. `null` = every step (sequence,
    * constant). Euclidean marks pulse steps only — derived from the mask, not
@@ -44,7 +58,8 @@ export type CompileResult = { ok: true; pattern: CompiledPattern } | { ok: false
 const err = (error: string): CompileResult => ({ ok: false, error });
 
 function isValidValue(v: unknown): v is PatternValue {
-  return typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v));
+  // null is a REST — a step that exists but contributes nothing.
+  return v === null || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v));
 }
 
 function compileSimpleTransform(t: PatternTransform): CompiledSimpleTransform | string {
@@ -60,8 +75,17 @@ function compileSimpleTransform(t: PatternTransform): CompiledSimpleTransform | 
     case 'rotate':
       if (!Number.isInteger(t.steps)) return 'ROTATE steps must be an integer';
       return { type: 'rotate', steps: t.steps };
+    case 'iter':
+      if (!Number.isInteger(t.steps)) return 'ITER steps must be an integer';
+      return { type: 'iter', steps: t.steps };
     case 'every':
       return 'EVERY cannot nest another EVERY';
+    case 'maybe':
+      return 'MAYBE cannot nest MAYBE or EVERY';
+    case 'shuffle':
+      return 'SHUFFLE cannot be nested';
+    case 'smooth':
+      return 'SMOOTH cannot be nested';
     case 'degrade':
       // Degrade is a post-value event gate, not a coordinate transform —
       // "every 4 degrade" has no cycle-coordinate meaning in this model.
@@ -69,7 +93,7 @@ function compileSimpleTransform(t: PatternTransform): CompiledSimpleTransform | 
   }
 }
 
-function compileTransform(t: PatternTransform): CompiledTransform | string {
+function compileTransform(t: PatternTransform, index: number): CompiledTransform | string {
   if (t.type === 'every') {
     const every = t as EveryTransform;
     if (!Number.isInteger(every.cycles) || every.cycles < 1) {
@@ -78,6 +102,14 @@ function compileTransform(t: PatternTransform): CompiledTransform | string {
     const nested = compileSimpleTransform(every.transform);
     if (typeof nested === 'string') return nested;
     return { type: 'every', cycles: every.cycles, transform: nested };
+  }
+  if (t.type === 'maybe') {
+    if (!Number.isFinite(t.probability) || t.probability < 0 || t.probability > 1) {
+      return 'MAYBE probability must be within 0..1';
+    }
+    const nested = compileSimpleTransform(t.transform);
+    if (typeof nested === 'string') return nested;
+    return { type: 'maybe', probability: t.probability, transform: nested, salt: index };
   }
   return compileSimpleTransform(t);
 }
@@ -88,12 +120,24 @@ export function compilePattern(
 ): CompileResult {
   let values: PatternValue[];
   let events: boolean[] | null = null;
+  let perCycle = false;
 
   switch (definition.type) {
     case 'constant': {
-      if (!isValidValue(definition.value))
+      if (!isValidValue(definition.value) || definition.value === null)
         return err('CONSTANT value must be a finite number or boolean');
       values = [definition.value];
+      break;
+    }
+    case 'alternate': {
+      if (!Array.isArray(definition.values) || definition.values.length === 0) {
+        return err('ALTERNATE needs at least one value');
+      }
+      for (const v of definition.values) {
+        if (!isValidValue(v)) return err('ALTERNATE values must be finite numbers, booleans or rests');
+      }
+      values = definition.values.slice();
+      perCycle = true;
       break;
     }
     case 'sequence': {
@@ -137,7 +181,19 @@ export function compilePattern(
 
   const compiled: CompiledTransform[] = [];
   const degrades: number[] = [];
-  for (const t of transforms) {
+  let shuffle = false;
+  let smooth = false;
+  for (const [index, t] of transforms.entries()) {
+    if (t.type === 'shuffle') {
+      // Post-mapping deck permutation: a flag, not a chain entry — its
+      // position among coordinate transforms carries no meaning (documented).
+      shuffle = true;
+      continue;
+    }
+    if (t.type === 'smooth') {
+      smooth = true;
+      continue;
+    }
     if (t.type === 'degrade') {
       // Post-value gate: validated here, sampled at evaluation. Not part of
       // the coordinate transform chain (documented in evaluatePattern).
@@ -147,10 +203,13 @@ export function compilePattern(
       degrades.push(t.probability);
       continue;
     }
-    const c = compileTransform(t);
+    const c = compileTransform(t, index);
     if (typeof c === 'string') return err(c);
     compiled.push(c);
   }
 
-  return { ok: true, pattern: { values, transforms: compiled, events, degrades } };
+  return {
+    ok: true,
+    pattern: { values, transforms: compiled, events, degrades, perCycle, shuffle, smooth },
+  };
 }

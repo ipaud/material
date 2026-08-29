@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Pattern Engine v1.5 — combinators
+
+Six new pattern tools, all deterministic and seek-safe. Semantics inspired
+by pattern live-coding systems; the implementation is entirely MATERIAL's.
+
+- **Smooth** — steps become waves: values glide to the next step by phase,
+  with none of the lag of mapping smoothing.
+- **Alternate** — `<0 0.5 1>`: one value per cycle, rotating.
+- **Rest** — `~` in a sequence: a step that deliberately plays nothing.
+- **Iter** — the pattern starts one step later every cycle.
+- **Maybe** — apply a transform (reverse, rotate, iter, fast, slow) on a
+  cycle with deterministic probability — independent from PROBABILITY
+  (degrade) by construction.
+- **Shuffle** — every cycle deals the same steps in a new deterministic
+  order.
+
+All persist inside the existing v2 project format. Projects using the new
+pieces need a v1.5-aware build to open cleanly.
+
 ### Pattern Engine v1
 
 Native deterministic temporal patterns, authored in **BUILD → SIGNALS**. A

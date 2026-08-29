@@ -9,8 +9,8 @@ interface EuclideanDefinition {
   pulses: number;
   steps: number;
   rotation: number;
-  activeValue: number | boolean;
-  inactiveValue: number | boolean;
+  activeValue: number | boolean | null;
+  inactiveValue: number | boolean | null;
 }
 
 /**

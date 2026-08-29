@@ -5,7 +5,8 @@
  * compilePattern.ts) is the runtime form and is never persisted.
  */
 
-export type PatternValue = number | boolean;
+/** `null` is a REST: the step exists but contributes nothing (v1.5). */
+export type PatternValue = number | boolean | null;
 
 export interface ConstantPattern {
   type: 'constant';
@@ -26,7 +27,20 @@ export interface EuclideanPattern {
   inactiveValue: PatternValue;
 }
 
-export type PatternDefinition = ConstantPattern | SequencePattern | EuclideanPattern;
+/**
+ * v1.5 — one value per CYCLE, rotating (Tidal's `<a b c>` idea, ours by
+ * semantics only). The whole cycle holds values[mod(cycle, n)].
+ */
+export interface AlternatePattern {
+  type: 'alternate';
+  values: PatternValue[];
+}
+
+export type PatternDefinition =
+  | ConstantPattern
+  | SequencePattern
+  | EuclideanPattern
+  | AlternatePattern;
 
 // ---- Transforms ---------------------------------------------------------
 
@@ -45,11 +59,40 @@ export interface RotateTransform {
   type: 'rotate';
   steps: number;
 }
+/** v1.5 — rotation that advances `steps` per cycle (Tidal's iter). */
+export interface IterTransform {
+  type: 'iter';
+  steps: number;
+}
 /** Every wraps exactly ONE non-Every transform — bounded by construction. */
 export interface EveryTransform {
   type: 'every';
   cycles: number;
-  transform: FastTransform | SlowTransform | ReverseTransform | RotateTransform;
+  transform: FastTransform | SlowTransform | ReverseTransform | RotateTransform | IterTransform;
+}
+/**
+ * v1.5 — apply the nested transform on a cycle with deterministic
+ * probability (Tidal's sometimesBy, per cycle). Samples LANE_CHOICE, so it
+ * can never shift Degrade decisions.
+ */
+export interface MaybeTransform {
+  type: 'maybe';
+  probability: number;
+  transform: FastTransform | SlowTransform | ReverseTransform | RotateTransform | IterTransform;
+}
+/** v1.5 — deterministic per-cycle permutation of the steps. */
+export interface ShuffleTransform {
+  type: 'shuffle';
+}
+/**
+ * v1.5 — post-value shaping: linear interpolation from the current step's
+ * value to the NEXT step's, by intra-step phase. Turns staircases into
+ * waves, statelessly (unlike mapping smoothing, which is an EMA with
+ * history). Position in the chain does not matter — it always shapes the
+ * final looked-up value; rests and booleans fall back to steps.
+ */
+export interface SmoothTransform {
+  type: 'smooth';
 }
 /**
  * P3: probabilistic event gate. NOT a coordinate transform — it gates the
@@ -67,7 +110,11 @@ export type PatternTransform =
   | SlowTransform
   | ReverseTransform
   | RotateTransform
+  | IterTransform
   | EveryTransform
+  | MaybeTransform
+  | ShuffleTransform
+  | SmoothTransform
   | DegradeTransform;
 
 // ---- Evaluation ---------------------------------------------------------
