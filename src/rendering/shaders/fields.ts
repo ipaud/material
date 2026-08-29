@@ -24,6 +24,9 @@ export const FIELD_IDS = {
   noise: 4,
   luminance: 5,
   edges: 6,
+  /** CE1D: texture-backed kind — value = |flow| from the shared optical
+   * flow service; resolved by the consumer, not by evaluateField. */
+  motion: 7,
 } as const;
 
 export type FieldKind = keyof typeof FIELD_IDS;
@@ -139,6 +142,11 @@ export function evaluateFieldJs(
       const gy = luma(sample(u, v + e)) - luma(sample(u, v - e));
       return Math.min(Math.max(Math.hypot(gx, gy) * 4, 0), 1);
     }
+    case 'motion':
+      // Texture-backed kind: |flow| from the shared service. The mirror
+      // treats the sampler's R,G as signed uv-flow components.
+      if (!sample) return 0;
+      return Math.min(Math.hypot(...(([r, g]) => [r, g])(sample(u, v))) * 60, 1);
   }
 }
 

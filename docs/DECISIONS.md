@@ -449,3 +449,42 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   (persistence/injection/mix/drift/segments) mapped by meaning. Known
   cosmetic leftover: `depth` shares the legacy STRUCTURE mapping with
   mosaic's pixel-depth.
+
+## Optical flow (CE1D — forensic note, phase NOT accepted)
+
+**Status: primitive proven on GPU consumers; Motion Pack gated
+experimental (unregistered); acceptance gates NOT closed. CE1D-2 required.**
+
+What is proven and shipped (compiled, unit-covered, not user-visible):
+- `OpticalFlowField`: dense single-scale Lucas–Kanade over blurred packed
+  luminance (R=current, G=previous in ONE texture), 3 small passes at
+  ≤320-long-side, RGBA32F flow targets, shared-service architecture (one
+  instance per renderer, demand-driven, frame-identity cache).
+- rVFC source-frame gating in the engine: a 30fps source produced ~27
+  flow updates/s under the 120Hz loop (measured) — the §83 hard gate.
+- LIVE PROOF: camera + hue debug view showed 49k coherent moving pixels
+  at source cadence — the algorithm, service, cache and consumer binding
+  all work end-to-end on a real live source.
+- Real bug found and fixed on the way: Tikhonov regularization must be
+  applied to the NORMAL-EQUATION DIAGONAL; regularizing the determinant
+  collapses pure-aperture edges (a vertical edge has a22=0 → Cramer gives
+  vx = −a22·b1/det = 0 exactly). A flat moving square is ALL aperture
+  cases — the canonical fixture is adversarial for single-scale LK.
+
+Why the phase is not accepted (honest gates, §92-93 unmet):
+- The synthetic-fixture goldens could not be closed. Two full evenings of
+  measurement produced systematically contradictory CPU readbacks of
+  class-owned render targets (values impossible given the GPU state that
+  the working hue view displayed). Confirmed traps along the way: two
+  successive fixtures encoded with `-qp 0` decoded to pure black in this
+  Chromium (silently — metadata fine); QA scripts edited mid-session
+  poisoned the runtime via HMR twice; `readRenderTargetPixels` returns
+  silent zeros on any buffer/type mismatch.
+- Direction sanity (right⇒+X), noise floor and deterministic export for
+  motion techniques therefore remain UNVERIFIED numerically.
+
+Decision: the Motion Pack (Flow Displace/Feedback, Motion Mosh/Trails/
+RGB, Directional Smear) and Time Field's motion mode stay unregistered
+until CE1D-2 lands a GPU-verified golden harness (render the flow into an
+RGBA8 visualization target INSIDE the product renderer and assert on
+that — never raw CPU float readbacks of live class targets).

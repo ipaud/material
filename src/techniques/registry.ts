@@ -5,6 +5,7 @@ import { slitScanDefinition } from './slit-scan/definition';
 import { stepPrintDefinition } from './step-print/definition';
 import { feedbackDefinitions } from './feedback/definitions';
 import { timeFieldDefinition } from './time-field/definition';
+import { motionDefinitions } from './motion/definitions';
 
 const registry = new Map<string, TechniqueDefinition>();
 
@@ -25,6 +26,15 @@ registerTechnique(echoDefinition);
 registerTechnique(stepPrintDefinition);
 for (const d of feedbackDefinitions) registerTechnique(d);
 registerTechnique(timeFieldDefinition);
+// CE1D status: the optical-flow primitive is proven live on GPU consumers
+// (camera hue-view QA), but the numeric golden harness (CPU readback of
+// class-owned render targets) produced contradictory measurements and the
+// synthetic-fixture acceptance gates (§92-93) could not be closed. The
+// Motion Pack therefore stays UNREGISTERED — experimental, compiled and
+// unit-covered, shipped to users only after CE1D-2 lands a GPU-verified
+// golden harness. See docs/DECISIONS.md (CE1D forensic note).
+// for (const d of motionDefinitions) registerTechnique(d);
+void motionDefinitions;
 registerTechnique(slitScanDefinition);
 
 /** Techniques that need composition-time frame history. */

@@ -28,6 +28,7 @@ export const timeFieldDefinition: TechniqueDefinition = {
             { value: 'noise', label: 'Noise' },
             { value: 'luminance', label: 'Luminance' },
             { value: 'edges', label: 'Edges' },
+            // 'motion' joins when CE1D-2 closes the golden gates.
           ],
           default: 'radial',
           explore: { randomizable: true },

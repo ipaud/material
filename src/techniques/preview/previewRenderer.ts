@@ -113,6 +113,7 @@ export class TechniquePreviewRenderer {
         sourceTexture: this.source.currentTexture(),
         materialTexture: null,
         temporal: this.temporal.getUniforms(),
+        flow: null,
         compWidth: PREVIEW_W,
         compHeight: PREVIEW_H,
         material: PREVIEW_MATERIAL,

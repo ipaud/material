@@ -43,12 +43,20 @@ uniform float uAspect;
 uniform float uFieldScale;
 uniform float uFieldPhase;
 uniform float uDebugField; // dev-only: 1 shows the raw field as grayscale
+uniform sampler2D uFlowTex; // CE1D: motion field source
+
 
 in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-  float f = evaluateField(uField, vUv, uSource, uFieldCenter, uAspect, uFieldScale, uFieldPhase);
+  float f;
+  if (uField == 7) {
+    // Motion: magnitude of the shared flow, shaped by Scale as gain.
+    f = clamp(length(texture(uFlowTex, vUv).rg) * 60.0 * uFieldScale, 0.0, 1.0);
+  } else {
+    f = evaluateField(uField, vUv, uSource, uFieldCenter, uAspect, uFieldScale, uFieldPhase);
+  }
   f = clamp(mix(f, 1.0 - f, uInvert), 0.0, 1.0);
   if (uDebugField > 0.5) {
     fragColor = vec4(vec3(f), 1.0);
@@ -88,6 +96,7 @@ export class TimeFieldRenderer implements TechniqueRenderer {
         uFieldScale: { value: 1 },
         uFieldPhase: { value: 0 },
         uDebugField: { value: 0 },
+        uFlowTex: { value: null },
         uTemporalTex: { value: null },
         uTemporalCols: { value: 1 },
         uTemporalRows: { value: 1 },
@@ -100,8 +109,14 @@ export class TimeFieldRenderer implements TechniqueRenderer {
     this.object3d = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.shader);
   }
 
+  /** CE1D: only the motion mode consumes the shared flow service. */
+  wantsFlow(params: ParamRecord): boolean {
+    return params.field === 'motion';
+  }
+
   update(params: ParamRecord, ctx: TechniqueContext): void {
     const u = this.shader.uniforms;
+    u.uFlowTex!.value = ctx.flow;
     u.uCompW!.value = ctx.compWidth;
     u.uCompH!.value = ctx.compHeight;
     u.uAspect!.value = ctx.compWidth / Math.max(ctx.compHeight, 1);

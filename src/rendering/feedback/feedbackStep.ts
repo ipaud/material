@@ -16,7 +16,7 @@ import { FeedbackSurface } from './FeedbackSurface';
  * shapes the VIEW.
  */
 
-export type FeedbackVariant = 'affine' | 'displace' | 'kaleido' | 'rgb';
+export type FeedbackVariant = 'affine' | 'displace' | 'kaleido' | 'rgb' | 'flow' | 'mosh' | 'trails';
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
@@ -49,6 +49,12 @@ uniform float uSegments;
 uniform vec2 uShiftR;
 uniform vec2 uShiftG;
 uniform vec2 uShiftB;
+// CE1D flow-driven variants
+uniform sampler2D uFlowTex;
+uniform float uFlowAmt;
+uniform float uMotionThreshold;
+uniform float uBlockiness;
+uniform float uChromaDrift;
 
 float hash21(vec2 p) {
   p = fract(p * vec2(234.34, 435.345));
@@ -92,6 +98,21 @@ vec2 kaleidoUv(vec2 uv) {
 }
 #endif
 
+#if defined(VARIANT_FLOW) || defined(VARIANT_MOSH) || defined(VARIANT_TRAILS)
+vec2 flowAt(vec2 uv) {
+#ifdef VARIANT_MOSH
+  // Blockiness quantizes WHERE flow is read — evokes macroblocks without
+  // touching any codec (§44, honest naming).
+  float b = max(uBlockiness, 0.0);
+  if (b > 0.5) {
+    vec2 cells = vec2(mix(160.0, 12.0, clamp(b / 10.0, 0.0, 1.0)));
+    uv = (floor(uv * cells) + 0.5) / cells;
+  }
+#endif
+  return texture2D(uFlowTex, uv).rg;
+}
+#endif
+
 void main() {
   vec2 uv = vUv;
 #ifdef VARIANT_KALEIDO
@@ -104,6 +125,11 @@ void main() {
   uv += disp;
 #endif
   vec2 prevUv = affineUv(uv);
+#if defined(VARIANT_FLOW) || defined(VARIANT_MOSH) || defined(VARIANT_TRAILS)
+  vec2 fl = flowAt(uv);
+  // Advect the past ALONG its own motion: state flows with the image.
+  prevUv -= fl * uFlowAmt;
+#endif
 
 #ifdef VARIANT_RGB
   float pr = texture2D(uPrev, prevUv + uShiftR).r;
@@ -117,10 +143,37 @@ void main() {
   vec2 inb = step(vec2(0.0), prevUv) * step(prevUv, vec2(1.0));
   prev *= inb.x * inb.y;
 
+#ifdef VARIANT_MOSH
+  // Chroma drift: R and B ride slightly different advections.
+  if (uChromaDrift > 0.001) {
+    vec2 d = fl * uFlowAmt * uChromaDrift;
+    prev.r = texture2D(uPrev, prevUv - d).r;
+    prev.b = texture2D(uPrev, prevUv + d).b;
+  }
+#endif
+
   vec4 src = texture2D(uSource, vUv);
+#ifdef VARIANT_MOSH
+  // Datamosh grammar: MOVING regions keep dragging old pixels; fresh frame
+  // re-enters only where the scene is still (below the motion threshold).
+  float magM = length(fl) * 60.0;
+  float still = 1.0 - smoothstep(uMotionThreshold, uMotionThreshold + 0.15, magM);
+  vec3 state = prev.rgb * uPersistence;
+  state = mix(state, src.rgb, uInjection * still);
+  gl_FragColor = vec4(state, 1.0);
+#elif defined(VARIANT_TRAILS)
+  // Trails: MOVING regions persist (leave wake), still regions stay clean.
+  float magT = length(fl) * 60.0;
+  float moving = smoothstep(uMotionThreshold, uMotionThreshold + 0.2, magT);
+  float persistLocal = mix(0.15, uPersistence, moving);
+  vec3 state = prev.rgb * persistLocal;
+  state = mix(state, max(state, src.rgb), uInjection);
+  gl_FragColor = vec4(state, 1.0);
+#else
   vec3 state = prev.rgb * uPersistence;
   state = mix(state, max(state, src.rgb), uInjection);
   gl_FragColor = vec4(state, 1.0);
+#endif
 }
 `;
 
@@ -134,6 +187,9 @@ export class FeedbackStep {
     if (variant === 'displace') defines.VARIANT_DISPLACE = '1';
     if (variant === 'kaleido') defines.VARIANT_KALEIDO = '1';
     if (variant === 'rgb') defines.VARIANT_RGB = '1';
+    if (variant === 'flow') defines.VARIANT_FLOW = '1';
+    if (variant === 'mosh') defines.VARIANT_MOSH = '1';
+    if (variant === 'trails') defines.VARIANT_TRAILS = '1';
     this.material = new THREE.ShaderMaterial({
       defines,
       vertexShader: VERT,
@@ -158,6 +214,11 @@ export class FeedbackStep {
         uShiftR: { value: new THREE.Vector2(0, 0) },
         uShiftG: { value: new THREE.Vector2(0, 0) },
         uShiftB: { value: new THREE.Vector2(0, 0) },
+        uFlowTex: { value: null },
+        uFlowAmt: { value: 1 },
+        uMotionThreshold: { value: 0.15 },
+        uBlockiness: { value: 0 },
+        uChromaDrift: { value: 0 },
       },
     });
     this.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.material));

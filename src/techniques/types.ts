@@ -63,6 +63,9 @@ export interface TechniqueContext {
   materialTexture: THREE.Texture | null;
   /** Composition-time addressable frame history (null when unused). */
   temporal: TemporalUniforms | null;
+  /** CE1D: shared optical-flow texture (signed RG, uv/frame) — null unless
+   * the active technique declared it needs flow. */
+  flow: THREE.Texture | null;
   compWidth: number;
   compHeight: number;
   material: MaterialState;

@@ -72,6 +72,8 @@ export class FeedbackRenderer implements TechniqueRenderer {
   readonly object3d: THREE.Object3D;
   /** Engine marker: keeps the render loop alive while this technique runs. */
   readonly feedback = true as const;
+  /** CE1D: flow-driven variants consume the shared optical-flow service. */
+  readonly usesFlow: boolean;
 
   private surface: FeedbackSurface | null = null;
   private step: FeedbackStep;
@@ -95,6 +97,7 @@ export class FeedbackRenderer implements TechniqueRenderer {
     private variant: FeedbackVariant,
     private bloom = false,
   ) {
+    this.usesFlow = variant === 'flow' || variant === 'mosh' || variant === 'trails';
     this.step = new FeedbackStep(variant);
     this.viewMaterial = new THREE.ShaderMaterial({
       vertexShader: VIEW_VERT,
@@ -210,6 +213,11 @@ export class FeedbackRenderer implements TechniqueRenderer {
     u.uSegments!.value = num(p.segments, 6);
     const shift = (deg: number, len: number) =>
       new THREE.Vector2(Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)).multiplyScalar(len / 1000);
+    u.uFlowTex!.value = ctx.flow;
+    u.uFlowAmt!.value = num(p.flow, 1) * 8;
+    u.uMotionThreshold!.value = num(p.threshold, 0.15);
+    u.uBlockiness!.value = num(p.blockiness, 0);
+    u.uChromaDrift!.value = num(p.chromaDrift, 0);
     u.uShiftR!.value.copy(shift(num(p.redAngle, 0), num(p.redShift, 0)));
     u.uShiftG!.value.copy(shift(num(p.greenAngle, 120), num(p.greenShift, 0)));
     u.uShiftB!.value.copy(shift(num(p.blueAngle, 240), num(p.blueShift, 0)));

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
+import { OpticalFlowField } from './flow/OpticalFlowField';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import {
   TemporalFrameProvider,
@@ -103,6 +104,8 @@ export class RenderEngine {
   private onContextRestored = (): void => {
     // CE1B: feedback contents are gone with the context — fresh prime.
     this.resetFeedback();
+    // CE1D: flow pair is gone too.
+    this.flow?.reset();
     console.warn('[engine] WebGL context restored — rebuilding');
     this.temporal?.invalidate();
     this.invalidate();
@@ -129,6 +132,9 @@ export class RenderEngine {
     this.sourceTexture = texture;
     // CE1B: a new source identity must never inherit old feedback state.
     this.resetFeedback();
+    // CE1D: nor may flow compare frames from two different sources.
+    this.flow?.reset();
+    this.watchSourceFrames();
     this.rebuildOriginalQuad();
     this.invalidate();
   }
@@ -219,6 +225,98 @@ export class RenderEngine {
 
   getTemporalStats(): TemporalStats | null {
     return this.temporal?.getStats() ?? null;
+  }
+
+  // ---- CE1D: the shared optical-flow service. ONE per renderer; consumers
+  // receive ctx.flow. update() is gated by source-frame identity, so a
+  // 30fps source yields ~30 flow computes/s under a 120Hz loop.
+  private flow: OpticalFlowField | null = null;
+
+  private techniqueWantsFlow(): boolean {
+    const r = this.techniqueRenderer as {
+      usesFlow?: boolean;
+      wantsFlow?: (params: ParamRecord) => boolean;
+    } | null;
+    if (!r) return false;
+    if (r.usesFlow === true) return true;
+    return r.wantsFlow?.(this.paramTransform
+      ? this.paramTransform(this.techniqueParams, this.timeSec)
+      : this.techniqueParams) === true;
+  }
+
+  // Source-frame identity via requestVideoFrameCallback: one counter tick
+  // per DECODED frame, for file video and live capture alike. This is what
+  // gates flow recomputation — a 30fps source yields ~30 keys/s no matter
+  // how fast the render loop spins (§83 hard gate).
+  private sourceFrameCounter = 0;
+  private rvfcCancel: (() => void) | null = null;
+
+  private watchSourceFrames(): void {
+    this.rvfcCancel?.();
+    this.rvfcCancel = null;
+    const img = (this.sourceTexture as { image?: unknown } | null)?.image as
+      | (HTMLVideoElement & {
+          requestVideoFrameCallback?: (cb: () => void) => number;
+          cancelVideoFrameCallback?: (h: number) => void;
+        })
+      | undefined;
+    if (!img || typeof img.requestVideoFrameCallback !== 'function') return;
+    let live = true;
+    const tick = () => {
+      if (!live) return;
+      this.sourceFrameCounter++;
+      img.requestVideoFrameCallback!(tick);
+    };
+    img.requestVideoFrameCallback(tick);
+    this.rvfcCancel = () => {
+      live = false;
+    };
+  }
+
+  private sourceFrameKey(): string {
+    return `${this.sourceTexture?.uuid ?? 'none'}:${this.sourceFrameCounter}`;
+  }
+
+  private updateFlowService(renderer: THREE.WebGLRenderer, frameKey?: string): void {
+    if (!this.techniqueWantsFlow()) {
+      if (this.flow) {
+        // Demand-driven (§77): nothing needs flow — release the targets.
+        this.flow.dispose();
+        this.flow = null;
+      }
+      return;
+    }
+    if (!this.flow) this.flow = new OpticalFlowField();
+    const img = (this.sourceTexture as { image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number } } | null)?.image;
+    const w = img?.videoWidth ?? img?.width ?? 0;
+    const h = img?.videoHeight ?? img?.height ?? 0;
+    this.flow.update(renderer, this.sourceTexture, w, h, frameKey ?? this.sourceFrameKey());
+  }
+
+  /** Seek/loop discontinuity: invalidate the frame pair — for seekable
+   * sources only (a live sensor's pair stays valid across composition
+   * seeks, same rule as resetTemporal). */
+  resetFlowPair(): void {
+    if (this.liveSourceActive) return;
+    this.flow?.reset();
+  }
+
+  /** Export: advance flow deterministically for this frame (after the
+   * runner seeked the source). First frame resets so the pair primes. */
+  prepareFlowForExport(frameKey: string, isFirstFrame: boolean, params?: ParamRecord): void {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    if (params) this.syncScene(params);
+    if (!this.techniqueWantsFlow()) return;
+    if (isFirstFrame) this.flow?.reset();
+    this.updateFlowService(renderer, frameKey);
+    if (params) this.syncScene(params); // rebind ctx.flow after compute
+  }
+
+  get flowStats(): { updates: number; width: number; height: number; bytes: number } | null {
+    return this.flow
+      ? { updates: this.flow.updates, ...this.flow.resolution, bytes: this.flow.bytes }
+      : null;
   }
 
   /** CE1B: a feedback technique keeps the loop stepping (its state is a
@@ -472,6 +570,8 @@ export class RenderEngine {
     }
 
     this.updateCamera(this.compWidth / this.compHeight);
+    // CE1D: refresh the shared flow service first — syncScene binds ctx.flow.
+    if (!this.exportMode) this.updateFlowService(renderer);
     this.syncScene();
     // CE1B feedback prepass: preview steps on WALL time (live, paused
     // transport and static images all evolve — export steps separately and
@@ -508,6 +608,7 @@ export class RenderEngine {
           sourceTexture: this.sourceTexture,
           materialTexture: this.materialTexture,
           temporal: this.temporalEnabled && this.temporal ? this.temporal.getUniforms() : null,
+          flow: this.flow?.texture() ?? null,
           compWidth: this.compWidth,
           compHeight: this.compHeight,
           material: this.materialState,
