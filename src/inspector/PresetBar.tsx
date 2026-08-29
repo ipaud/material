@@ -11,6 +11,7 @@ import type { Preset } from '@shared/schemas/preset';
 /** CE1A curation order — families read from calm to aggressive. */
 const CATEGORY_ORDER = [
   'Minimal',
+  'Feedback',
   'Temporal',
   'Optical',
   'Geometry',

@@ -74,6 +74,7 @@ if (import.meta.env.DEV) {
       /** CE1A: preset QA drives the same actions as the PresetBar. */
       presets: { BUILTIN_PRESETS, applyPreset },
       importMediaPaths,
+      runAnimationExport,
       /** 18F: realtime temporal diagnostics (mode, atlas, source cadence). */
       liveTemporal() {
         return {
@@ -87,7 +88,6 @@ if (import.meta.env.DEV) {
       modulationActions,
       playback,
       createFrameEvaluator,
-      runAnimationExport,
       useExportStore,
       presetActions,
       analyzeBuffer,

@@ -3,6 +3,7 @@ import { mosaicDefinition } from './mosaic/definition';
 import { echoDefinition } from './echo/definition';
 import { slitScanDefinition } from './slit-scan/definition';
 import { stepPrintDefinition } from './step-print/definition';
+import { feedbackDefinitions } from './feedback/definitions';
 
 const registry = new Map<string, TechniqueDefinition>();
 
@@ -21,6 +22,7 @@ export function listTechniques(): TechniqueDefinition[] {
 registerTechnique(mosaicDefinition);
 registerTechnique(echoDefinition);
 registerTechnique(stepPrintDefinition);
+for (const d of feedbackDefinitions) registerTechnique(d);
 registerTechnique(slitScanDefinition);
 
 /** Techniques that need composition-time frame history. */

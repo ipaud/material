@@ -2061,6 +2061,508 @@ export const BUILTIN_PRESETS: Preset[] = [
       'clean'
     ]
   },
+  {
+    id: 'builtin-infinite-tunnel',
+    name: 'Infinite Tunnel',
+    techniqueId: 'feedback-zoom',
+    params: {
+      zoom: 1.045,
+      persistence: 0.965,
+      injection: 0.42,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'The frame falls forever into its own center.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-soft-memory',
+    name: 'Soft Memory',
+    techniqueId: 'feedback-zoom',
+    params: {
+      zoom: 0.985,
+      persistence: 0.94,
+      injection: 0.6,
+      mix: 0.85
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'The past swells gently outward and dissolves.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-collapse',
+    name: 'Collapse',
+    techniqueId: 'feedback-zoom',
+    params: {
+      zoom: 1.09,
+      persistence: 0.9,
+      injection: 0.75,
+      centerY: -0.12,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'collapse-bass',
+        enabled: true,
+        source: 'bass',
+        target: 'zoom',
+        amount: 0.4,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.15,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Hard inward pull; bass accelerates the fall.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-spiral-echo',
+    name: 'Spiral Echo',
+    techniqueId: 'feedback-rotate',
+    params: {
+      rotation: 2.6,
+      zoom: 1.012,
+      persistence: 0.95,
+      injection: 0.5,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Echoes corkscrew away from the center.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-slow-orbit',
+    name: 'Slow Orbit',
+    techniqueId: 'feedback-rotate',
+    params: {
+      rotation: 0.7,
+      zoom: 1.002,
+      persistence: 0.97,
+      injection: 0.35,
+      mix: 0.9
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'A long, patient rotation that never quite lets go.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-signal-drift',
+    name: 'Signal Drift',
+    techniqueId: 'feedback-drift',
+    params: {
+      driftX: 1.1,
+      driftY: 0,
+      persistence: 0.93,
+      injection: 0.6,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'The image bleeds steadily off to the right.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-falling-memory',
+    name: 'Falling Memory',
+    techniqueId: 'feedback-drift',
+    params: {
+      driftX: 0,
+      driftY: -1.4,
+      persistence: 0.94,
+      injection: 0.55,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Every frame sinks; the present floats on its own history.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-boiling-wall',
+    name: 'Boiling Wall',
+    techniqueId: 'feedback-displace',
+    params: {
+      amount: 1.8,
+      scale: 9,
+      speed: 1.6,
+      persistence: 0.9,
+      injection: 0.65,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'The surface simmers \u2014 detail churns without ever settling.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-slow-melt',
+    name: 'Slow Melt',
+    techniqueId: 'feedback-displace',
+    params: {
+      amount: 0.9,
+      scale: 3.5,
+      speed: 0.35,
+      persistence: 0.955,
+      injection: 0.5,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Long soft distortions drag the image downward into wax.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-living-mandala',
+    name: 'Living Mandala',
+    techniqueId: 'feedback-kaleido',
+    params: {
+      segments: 8,
+      rotation: 1.6,
+      zoom: 1.02,
+      persistence: 0.94,
+      injection: 0.55,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Eightfold symmetry that keeps inhaling the source.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-cathedral',
+    name: 'Cathedral',
+    techniqueId: 'feedback-kaleido',
+    params: {
+      segments: 4,
+      rotation: 0.4,
+      zoom: 1.006,
+      persistence: 0.96,
+      injection: 0.4,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Slow fourfold mirrors \u2014 architecture out of anything.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-phosphor-bloom',
+    name: 'Phosphor Bloom',
+    techniqueId: 'feedback-bloom',
+    params: {
+      threshold: 0.5,
+      radius: 2.4,
+      gain: 1.4,
+      zoom: 1.006,
+      persistence: 0.92,
+      injection: 0.6,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Highlights burn in and glow like an old scope.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-halo-burn',
+    name: 'Halo Burn',
+    techniqueId: 'feedback-bloom',
+    params: {
+      threshold: 0.72,
+      radius: 3.6,
+      gain: 2.0,
+      zoom: 1.012,
+      persistence: 0.9,
+      injection: 0.65,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'halo-highs',
+        enabled: true,
+        source: 'highs',
+        target: 'gain',
+        amount: 0.5,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.2,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Only the brightest edges survive \u2014 treble feeds the halo.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-channel-ghost',
+    name: 'Channel Ghost',
+    techniqueId: 'feedback-rgb',
+    params: {
+      redShift: 2.6,
+      greenShift: 0.8,
+      blueShift: 3.4,
+      zoom: 1.003,
+      persistence: 0.94,
+      injection: 0.5,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Color planes separate and haunt their own outlines.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-color-memory',
+    name: 'Color Memory',
+    techniqueId: 'feedback-rgb',
+    params: {
+      redShift: 1.2,
+      greenShift: 1.2,
+      blueShift: 1.2,
+      zoom: 0.994,
+      persistence: 0.96,
+      injection: 0.4,
+      mix: 0.9
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'A soft chromatic wake expanding behind the image.',
+    tags: [
+      'feedback'
+    ]
+  },
+  {
+    id: 'builtin-rgb-echo',
+    name: 'RGB Echo',
+    techniqueId: 'feedback-rgb',
+    params: {
+      redShift: 4.5,
+      greenShift: 2.2,
+      blueShift: 6,
+      zoom: 1.008,
+      persistence: 0.9,
+      injection: 0.7,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'rgbecho-flux',
+        enabled: true,
+        source: 'flux',
+        target: 'redShift',
+        amount: 0.6,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.1,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Feedback',
+    description: 'Aggressive channel tearing that answers the audio.',
+    tags: [
+      'feedback'
+    ]
+  },
 ];
 
 const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transients']);

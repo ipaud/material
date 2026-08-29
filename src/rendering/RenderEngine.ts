@@ -101,6 +101,8 @@ export class RenderEngine {
   };
 
   private onContextRestored = (): void => {
+    // CE1B: feedback contents are gone with the context — fresh prime.
+    this.resetFeedback();
     console.warn('[engine] WebGL context restored — rebuilding');
     this.temporal?.invalidate();
     this.invalidate();
@@ -125,6 +127,8 @@ export class RenderEngine {
   setSource(texture: THREE.Texture | null): void {
     if (this.sourceTexture && this.sourceTexture !== texture) this.sourceTexture.dispose();
     this.sourceTexture = texture;
+    // CE1B: a new source identity must never inherit old feedback state.
+    this.resetFeedback();
     this.rebuildOriginalQuad();
     this.invalidate();
   }
@@ -215,6 +219,48 @@ export class RenderEngine {
 
   getTemporalStats(): TemporalStats | null {
     return this.temporal?.getStats() ?? null;
+  }
+
+  /** CE1B: a feedback technique keeps the loop stepping (its state is a
+   * visual process — static image + static params still evolve, §24). */
+  get feedbackActive(): boolean {
+    return (
+      (this.techniqueRenderer as { feedback?: boolean } | null)?.feedback === true &&
+      !this.exportMode
+    );
+  }
+
+  /** CE1B: drop feedback state — source identity change, context restore,
+   * Candidate release. Next frame primes from the current image. */
+  resetFeedback(): void {
+    (this.techniqueRenderer as { resetFeedback?: () => void } | null)?.resetFeedback?.();
+  }
+
+  private lastFeedbackExportSec: number | null = null;
+
+  /** Export path: deterministic feedback stepping (preroll on first frame,
+   * incremental whole steps after). Mirrors prepareTemporalForExport. */
+  prepareFeedbackForExport(
+    compositionTime: number,
+    isFirstFrame: boolean,
+    params?: ParamRecord,
+  ): void {
+    const renderer = this.renderer;
+    const fb = this.techniqueRenderer as {
+      feedback?: boolean;
+      exportBegin?: (r: THREE.WebGLRenderer, t: number) => void;
+      exportAdvance?: (r: THREE.WebGLRenderer, from: number, to: number) => void;
+    } | null;
+    if (!renderer || fb?.feedback !== true) return;
+    // Make sure the renderer holds THIS frame's params/context before any
+    // stepping — a cold export (no preview ever ran) must still prime.
+    if (params) this.syncScene(params);
+    if (isFirstFrame || this.lastFeedbackExportSec === null) {
+      fb.exportBegin?.(renderer, compositionTime);
+    } else {
+      fb.exportAdvance?.(renderer, this.lastFeedbackExportSec, compositionTime);
+    }
+    this.lastFeedbackExportSec = compositionTime;
   }
 
   get isLiveTemporalMode(): boolean {
@@ -427,6 +473,16 @@ export class RenderEngine {
 
     this.updateCamera(this.compWidth / this.compHeight);
     this.syncScene();
+    // CE1B feedback prepass: preview steps on WALL time (live, paused
+    // transport and static images all evolve — export steps separately and
+    // deterministically via prepareFeedbackForExport).
+    if (this.feedbackActive) {
+      (
+        this.techniqueRenderer as unknown as {
+          feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
+        }
+      ).feedbackPrepass?.(renderer, performance.now() / 1000);
+    }
     renderer.render(this.scene, this.camera);
     renderer.setScissorTest(false);
   }
@@ -471,7 +527,7 @@ export class RenderEngine {
     if (this.exportMode) return;
     // 18D: a live source delivers new pixels every frame outside our
     // invalidation model — while one is active, render continuously.
-    if (!this.dirty && !this.liveSourceActive) return;
+    if (!this.dirty && !this.liveSourceActive && !this.feedbackActive) return;
     this.dirty = false;
     const start = performance.now();
     this.renderFrame();

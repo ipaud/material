@@ -182,6 +182,11 @@ class CandidateRuntime {
     if (on && !this.candidate) return;
     if (this.previewing === on) return;
     this.previewing = on;
+    // CE1B: feedback state is shared between the CURRENT and CANDIDATE
+    // branches (only one renders at a time — no double cost). Ending an
+    // audition re-primes it so CURRENT never keeps candidate residue;
+    // APPLY deliberately keeps the auditioned state (seamless takeover).
+    if (!on) engine.resetFeedback();
     engine.invalidate();
     this.sync();
   }

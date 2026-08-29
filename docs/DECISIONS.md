@@ -381,3 +381,38 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   going live is OS-blocked by the ad-hoc/TCC identity issue above (owner
   decision: documented, not worked around). Their full live flows are
   validated in dev builds, which share the same code paths.
+
+## Feedback primitive (CE1B)
+
+- **ADR — GPU ping-pong, not the temporal atlas**: feedback is previous
+  RENDERED state re-entering the pipeline; the atlas stores SOURCE history.
+  One `FeedbackSurface` (two RGBA8 SRGB targets at composition resolution,
+  ~16.6MB/pair @1080p; same color space as the whole pipeline so a neutral
+  loop cannot wash out) + one shared step shader; all seven techniques are
+  uniforms/defines over it. Read and write are structurally distinct.
+- **ADR — the feedback clock (the CE1B decision)**: state advances at a
+  fixed 60 steps/s. PREVIEW accumulates against WALL time — a 120Hz editor
+  and a 60Hz Output evolve at the same rate (measured: 60±2 steps/s at
+  both simulated rates); paused transport, static images and live sources
+  all keep evolving (feedback is a visual process, §20/24); interactive
+  catch-up capped at 4 steps/frame. EXPORT steps purely on COMPOSITION
+  time from the timeline origin: frame 0 prerolls 0→start, then exact
+  whole steps per frame. Measured: two identical exports hash identically,
+  and a full-range export matches a subrange export frame-for-frame
+  (12/12 byte-identical) — arbitrary-range determinism proven, not
+  claimed. Preview and export are therefore different clocks by design;
+  preview never pretends to be the export.
+- **Reset matrix**: source identity change (engine.setSource), project
+  switch (source null), technique switch (renderer dispose), context
+  restore, incompatible resize, export begin. NOT reset: parameter
+  changes, Pattern/MIDI/macros, seeks and loops in preview (wall clock
+  makes them meaningless to state).
+- **Candidate isolation**: one shared surface (only one branch renders —
+  no double cost); ending an audition re-primes so CURRENT keeps no
+  candidate residue; APPLY keeps the auditioned state (seamless).
+- **Freeze**: consistent with 18F — output freezes, the process keeps
+  stepping behind it.
+- **Measured trap**: `renderer.setPixelRatio()` before offscreen passes
+  forces an internal canvas resize; five calls/frame produced 77ms frames.
+  Render-target viewports in Three take raw pixels — no ratio needed.
+  Bloom went 13fps → 120fps on removing it.

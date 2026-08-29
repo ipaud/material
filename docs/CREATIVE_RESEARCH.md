@@ -36,8 +36,11 @@ glance"; presets as *performable starting points* (modulations included).
 
 ## Queued research (later CE phases — no implementation yet)
 
-- **Feedback (CE1B)**: classic analog video feedback literature; Hydra's
-  `src(o0)` composition model (concept only — Hydra is AGPL).
+- **Feedback (CE1B, done)**: classic analog video-feedback practice
+  (camera-at-monitor recursion) informed zoom/rotate semantics; Hydra's
+  `src(o0)` self-reference studied as vocabulary only (AGPL — no code).
+  Implementation is an original ping-pong shader; value noise in the
+  displace variant is the textbook lattice construction, written fresh.
 - **Fields (CE1C)**: displacement-map tradition; luminance-as-time from
   slit-scan photography practice.
 - **Optical flow (CE1D)**: Lucas-Kanade & Horn-Schunck papers (public

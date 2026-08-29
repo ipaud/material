@@ -79,7 +79,7 @@ export interface TechniqueRenderer {
 export interface TechniqueDefinition {
   id: string;
   name: string;
-  category: 'space' | 'time' | 'image' | 'material';
+  category: 'space' | 'time' | 'image' | 'material' | 'feedback';
   description: string;
   sections: ParamSection[];
   createRenderer(): TechniqueRenderer;

@@ -8,6 +8,12 @@ from what the engine already does.
 
 ## Families
 
+CE1B added **Feedback** (16 presets over the seven feedback techniques —
+Infinite Tunnel, Spiral Echo, Boiling Wall, Living Mandala, Phosphor
+Bloom, Channel Ghost…). Melt shipped as a *preset* of Feedback Displace
+(Slow Melt), not an eighth technique — it was a parameter sibling (§38).
+
+
 | Family | Count | Character |
 |---|---|---|
 | Minimal | 5 | Reduction, restraint, near-silence |

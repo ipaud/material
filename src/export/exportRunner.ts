@@ -459,6 +459,10 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         await engine.prepareTemporalForExport(timeSec, primeTemporal);
         primeTemporal = false;
       }
+      // CE1B feedback: deterministic stepping — frame 0 prerolls from the
+      // timeline origin to the export start, later frames advance by exact
+      // whole steps. Repeated exports of the same range hash identically.
+      engine.prepareFeedbackForExport(timeSec, i === 0, params);
       if (video) await seekVideoExact(video, timeSec, i === 0);
       const rgba = engine.renderStill(request.width, request.height, params, alpha);
       await window.material.exportFrame(sessionId, rgba);
