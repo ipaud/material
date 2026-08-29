@@ -41,8 +41,11 @@ glance"; presets as *performable starting points* (modulations included).
   `src(o0)` self-reference studied as vocabulary only (AGPL — no code).
   Implementation is an original ping-pong shader; value noise in the
   displace variant is the textbook lattice construction, written fresh.
-- **Fields (CE1C)**: displacement-map tradition; luminance-as-time from
-  slit-scan photography practice.
+- **Fields (CE1C, done)**: slit-scan photography practice (Davidhazy et
+  al., public technique literature) → generalized to arbitrary scalar
+  fields; luminance-as-time is the conceptual core (the image sculpts its
+  own history). Value noise: textbook lattice construction, original
+  code. No external shader code.
 - **Optical flow (CE1D)**: Lucas-Kanade & Horn-Schunck papers (public
   research); pyramidal GPU implementations as architecture reference;
   neural flow (RAFT et al.) explicitly out of scope for v1.

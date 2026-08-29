@@ -11,6 +11,8 @@ import type { ParamDef, TechniqueDefinition } from '@/techniques/types';
  * silently mislabelled when a new technique lands.
  */
 export const CONCEPTUAL_GROUPS = ['STRUCTURE', 'SAMPLING', 'TIME', 'BEHAVIOR'] as const;
+
+// CE1B/CE1C vocabulary (feedback + fields) — meaning-first grouping (§45).
 export type ConceptualGroup = (typeof CONCEPTUAL_GROUPS)[number];
 
 /** Parameter id → conceptual group. Ids repeat across techniques by meaning. */
@@ -44,11 +46,20 @@ const PARAM_GROUP: Record<string, ConceptualGroup> = {
   maxOffsetSec: 'TIME',
   falloff: 'TIME',
   temporalDirection: 'TIME',
-  centerX: 'TIME',
-  centerY: 'TIME',
+  centerX: 'STRUCTURE',
+  centerY: 'STRUCTURE',
   delaySec: 'TIME',
   decay: 'TIME',
   stepSec: 'TIME',
+  persistence: 'TIME',
+  injection: 'SAMPLING',
+  mix: 'SAMPLING',
+  zoom: 'BEHAVIOR',
+  driftX: 'BEHAVIOR',
+  driftY: 'BEHAVIOR',
+  segments: 'STRUCTURE',
+  field: 'STRUCTURE',
+  offset: 'TIME',
   hold: 'TIME',
   spanSec: 'TIME',
   offsetSec: 'TIME',

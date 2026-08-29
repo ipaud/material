@@ -4,6 +4,7 @@ import { echoDefinition } from './echo/definition';
 import { slitScanDefinition } from './slit-scan/definition';
 import { stepPrintDefinition } from './step-print/definition';
 import { feedbackDefinitions } from './feedback/definitions';
+import { timeFieldDefinition } from './time-field/definition';
 
 const registry = new Map<string, TechniqueDefinition>();
 
@@ -23,10 +24,11 @@ registerTechnique(mosaicDefinition);
 registerTechnique(echoDefinition);
 registerTechnique(stepPrintDefinition);
 for (const d of feedbackDefinitions) registerTechnique(d);
+registerTechnique(timeFieldDefinition);
 registerTechnique(slitScanDefinition);
 
 /** Techniques that need composition-time frame history. */
-const TEMPORAL_TECHNIQUES = new Set(['echo', 'step-print', 'slit-scan']);
+const TEMPORAL_TECHNIQUES = new Set(['echo', 'step-print', 'slit-scan', 'time-field']);
 
 export function techniqueNeedsTemporal(id: string | null, params: { tileMode?: unknown }): boolean {
   if (!id) return false;

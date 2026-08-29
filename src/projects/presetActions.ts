@@ -2563,6 +2563,304 @@ export const BUILTIN_PRESETS: Preset[] = [
       'feedback'
     ]
   },
+  {
+    id: 'builtin-deep-curtain',
+    name: 'Deep Curtain',
+    techniqueId: 'time-field',
+    params: {
+      field: 'horizontal',
+      depth: 2.29,
+      offset: 0
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'The full atlas stretched left-to-right \u2014 the deepest curtain the buffer allows.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-time-iris',
+    name: 'Time Iris',
+    techniqueId: 'time-field',
+    params: {
+      field: 'radial',
+      invert: true,
+      depth: 1.8
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'The center holds the oldest moment; now rings the edges. A temporal iris.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-memory-spiral',
+    name: 'Memory Spiral',
+    techniqueId: 'time-field',
+    params: {
+      field: 'spiral',
+      scale: 2,
+      depth: 1.6
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'Time winds around the center in a two-turn spiral.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-temporal-terrain',
+    name: 'Temporal Terrain',
+    techniqueId: 'time-field',
+    params: {
+      field: 'noise',
+      scale: 0.7,
+      speed: 0.15,
+      depth: 1.9
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'A slow-drifting landscape where every hill is a different moment.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-luma-memory',
+    name: 'Luma Memory',
+    techniqueId: 'time-field',
+    params: {
+      field: 'luminance',
+      depth: 1.6
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'Bright regions stay present; shadows sink into the past. The image sculpts its own time.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-chrono-noise',
+    name: 'Chrono Noise',
+    techniqueId: 'time-field',
+    params: {
+      field: 'noise',
+      scale: 3.2,
+      speed: 0.8,
+      depth: 1.1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'Fine, fast temporal grain \u2014 the surface boils between moments.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-time-veil',
+    name: 'Time Veil',
+    techniqueId: 'time-field',
+    params: {
+      field: 'vertical',
+      depth: 0.7,
+      offset: 0.9
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'A soft veil: the frame hangs about a second behind, deeper toward the floor.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-edge-of-time',
+    name: 'Edge of Time',
+    techniqueId: 'time-field',
+    params: {
+      field: 'edges',
+      depth: 1.8
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'Contours peel away into history while flat regions stay present.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-radial-memory',
+    name: 'Radial Memory',
+    techniqueId: 'time-field',
+    params: {
+      field: 'radial',
+      depth: 1.4
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'radmem-bass',
+        enabled: true,
+        source: 'bass',
+        target: 'depth',
+        amount: 0.6,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.2,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'Now at the center, the past blooming outward \u2014 bass deepens the reach.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
+  {
+    id: 'builtin-broken-time',
+    name: 'Broken Time',
+    techniqueId: 'time-field',
+    params: {
+      field: 'noise',
+      scale: 4.5,
+      speed: 0.05,
+      depth: 2.29
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'broken-beat',
+        enabled: true,
+        source: 'beat:1/4',
+        target: 'offset',
+        amount: 0.5,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.05,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Temporal',
+    description: 'Hard temporal shards; every quarter note re-deals the moments.',
+    tags: [
+      'time',
+      'field'
+    ]
+  },
 ];
 
 const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transients']);

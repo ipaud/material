@@ -416,3 +416,36 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   forces an internal canvas resize; five calls/frame produced 77ms frames.
   Render-target viewports in Three take raw pixels — no ratio needed.
   Bloom went 13fps → 120fps on removing it.
+
+## Field primitive (CE1C)
+
+- **ADR — FIELD is a contract, not a texture**: `field(uv) → 0..1`
+  implemented as one inline GLSL function (`evaluateField`) plus a
+  TS mirror locked by sample-point tests. Mathematical fields (horizontal,
+  vertical, radial, spiral, noise) cost nothing; image-derived fields
+  (luminance, edges) sample the already-bound source in the same pass.
+  Zero extra passes, zero persistent VRAM, no FieldTextureManager. A
+  future motion field (CE1D) enters as one more kind whose value reads a
+  flow texture — the contract is unchanged.
+- **Time Field**: `offsetSeconds = field(uv) * depth + offset` into the
+  EXISTING temporal atlas — the generalized slit scan, one pass, all 7
+  modes measured at 120fps. Depth/Offset are bounded to the real atlas
+  span (2.29s, §29); history is present→past only — no future sampling,
+  so file and live sources share semantics (§21-22). `Direction` was
+  rejected as a parameter: it duplicates Invert.
+- **Determinism**: noise phase = composition time × speed (never wall
+  clock); paused transport freezes the noise field (parameters remain
+  authority-driven even over live pixels, §13). Vertical is defined in
+  USER space (top→0) over Three's v-up UVs; radial/spiral are
+  aspect-correct (equal pixel distance → equal value, test-locked).
+- **Export honesty**: repeat exports hash identically. Full-vs-subrange
+  BYTE equality does not hold for file-video temporal techniques — H.264
+  decode after different seek paths is not bit-stable. Measured on both
+  Time Field AND Slit Scan (0/12 each): pre-existing pipeline behavior,
+  not a CE1C regression; the temporal sampling SCHEDULE is exact in both
+  paths. Feedback (CE1B) keeps its byte-exact guarantee because its state
+  never decodes video.
+- Param-group fix (§45): centerX/Y now STRUCTURE; feedback vocabulary
+  (persistence/injection/mix/drift/segments) mapped by meaning. Known
+  cosmetic leftover: `depth` shares the legacy STRUCTURE mapping with
+  mosaic's pixel-depth.
