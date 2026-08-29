@@ -478,7 +478,10 @@ export class RenderEngine {
     this.lastFrameTime = performance.now() - start;
     const now = performance.now();
     if (this.lastLoopTs > 0) {
-      const instFps = 1000 / Math.max(now - this.lastLoopTs, 0.1);
+      // Two renders can land in one vsync window (invalidate burst after
+      // Freeze release / param storms), producing a bogus multi-hundred-fps
+      // instantaneous sample — clamp to a plausible display rate (§18G).
+      const instFps = Math.min(1000 / Math.max(now - this.lastLoopTs, 0.1), 130);
       this.fpsEma = this.fpsEma === 0 ? instFps : this.fpsEma * 0.9 + instFps * 0.1;
     }
     this.lastLoopTs = now;

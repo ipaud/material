@@ -1,5 +1,71 @@
 # Release Notes
 
+## v0.3.0 — LIVE / OUTPUT
+
+### Live Sources
+
+MATERIAL can now play three live inputs alongside files:
+
+- **Camera** — any connected camera as a live visual source.
+- **Screen** — capture a physical display.
+- **Window** — capture one application window.
+
+Live sources are *live*: pixels are always "now". They cannot seek, they
+keep running while the transport is paused, and sequence/movie export is
+unavailable for them (a PNG still of the current frame remains available).
+Selecting a live source in a project never touches the camera or the
+screen — capture starts only from the explicit START action.
+
+### Output
+
+- **Display destination** — present the composition fullscreen on a chosen
+  monitor (or in a movable window). One output display at a time.
+- The output window is a passive replica driven by the editor: opening,
+  closing, or crashing it never interrupts the editor or a live capture,
+  and reopening rejoins the same live source with no extra prompt.
+
+### Live Temporal
+
+Temporal techniques (Echo, Step Print, Slit Scan, Mosaic video tile) now
+work on Camera / Screen / Window in realtime. History accumulates from the
+moment the source starts — it warms up over a couple of seconds, keeps
+accumulating while the transport is paused, never rewinds on seek, and
+resets when the source stops or changes. The Output display keeps its own
+local history, so it may look slightly different for the first moments
+after opening. File-video temporal rendering (and its deterministic
+export) is unchanged.
+
+### Pattern Engine v1 + v1.5
+
+First numbered release carrying the Pattern Engine: deterministic step
+sequences, euclidean rhythms, probability (degrade), mini-notation, the
+BUILD pattern editor, and the v1.5 combinators (smooth, alternate, rest,
+iter, maybe, shuffle). Patterns are seek-safe, export-deterministic and
+identical on the Output display.
+
+### Permissions
+
+- Camera permission is requested only when you press START on a camera
+  source — never on launch or when opening a project.
+- Screen recording permission is requested only when you start a Screen or
+  Window capture (or list windows). macOS grants it in
+  **System Settings → Privacy & Security → Screen & System Audio
+  Recording**; the OS asks for authentication and may require relaunching
+  MATERIAL.
+- MATERIAL never captures microphone or system audio.
+
+### Known limitations
+
+- One Output display at a time; no multi-output, no Syphon/NDI.
+- No audio capture of any kind.
+- No sequence/movie export from live sources.
+- Window capture identity does not persist across sessions — reselect the
+  window after reopening a project.
+- The Output warms its temporal history independently for a moment.
+- Internal build: ad-hoc signature, not notarized.
+
+---
+
 ## Unreleased
 
 ### Pattern Engine v1.5 — combinators

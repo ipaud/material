@@ -222,3 +222,70 @@ describe('structural wiring (§18F)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 18G release gates
+// ---------------------------------------------------------------------------
+
+describe('release gates (18G)', () => {
+  const read = (...parts: string[]) => readFileSync(join(__dirname, '..', ...parts), 'utf8');
+  const code = (...parts: string[]) =>
+    read(...parts)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+  it('recovery/autosave can never start a capture — managers stay out of it', () => {
+    for (const file of ['autosave.ts', 'projectActions.ts'] as const) {
+      const src = code('src', 'projects', file);
+      expect(src.includes('cameraManager'), `${file} must not touch cameraManager`).toBe(false);
+      expect(src.includes('captureManager'), `${file} must not touch captureManager`).toBe(false);
+    }
+  });
+
+  it('live runtime START/STOP cannot dirty the project — managers never import the store', () => {
+    for (const file of ['cameraManager.ts', 'captureManager.ts'] as const) {
+      const src = code('src', 'sources', file);
+      expect(src.includes('projectStore'), `${file} must not import projectStore`).toBe(false);
+    }
+  });
+
+  it('app version is 0.3.0 while the project schema stays v3', async () => {
+    const pkg = JSON.parse(read('package.json')) as { version: string };
+    expect(pkg.version).toBe('0.3.0');
+    const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
+    expect(PROJECT_FORMAT_VERSION).toBe(3);
+  });
+
+  it('fps meter clamps burst samples to a plausible display rate', () => {
+    const engine = code('src', 'rendering', 'RenderEngine.ts');
+    expect(engine.includes('Math.min(1000 / Math.max(now - this.lastLoopTs, 0.1), 130)')).toBe(
+      true,
+    );
+  });
+});
+
+describe('format rule: new-in-v2 fields stay defaulted (18G regression)', () => {
+  it('a mapping saved before Freeze 2.0 (no frozenValue) still parses', async () => {
+    const { createEmptyProject, parseProject } = await import('@shared/schemas/project');
+    const p = JSON.parse(JSON.stringify(createEmptyProject('old'))) as Record<string, never> & {
+      modulations: Record<string, unknown>[];
+    };
+    p.modulations = [
+      {
+        id: 'm1',
+        enabled: true,
+        source: 'audio:rms',
+        target: 't1.columns',
+        amount: 0.5,
+        min: 0,
+        max: 1,
+        invert: false,
+        smoothing: 0,
+        curve: 'linear',
+        // no frozenValue — written by a pre-Phase-13 build
+      },
+    ];
+    const parsed = parseProject(JSON.parse(JSON.stringify(p)));
+    expect(parsed.modulations[0]?.frozenValue).toBeNull();
+  });
+});

@@ -53,7 +53,7 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
 | Area       | Status                                                                                                        |
 | ---------- | ------------------------------------------------------------------------------------------------------------- |
-| Sources    | PNG/JPEG/WebP, MP4/MOV (H.264, HEVC), WAV/MP3/AAC/M4A, SVG                                                    |
+| Sources    | PNG/JPEG/WebP, MP4/MOV (H.264, HEVC), WAV/MP3/AAC/M4A, SVG — plus LIVE: Camera, Screen, Window                |
 | Techniques | Mosaic, Temporal Mosaic, Echo, Step Print, Slit Scan                                                          |
 | Materials  | Square, Circle, Line, Dot, Rectangle, Triangle, custom SVG, raster image                                      |
 | Audio      | Offline analysis — master, RMS, peak, bass, mids, highs, centroid, flux, onset; tempo detection and tap tempo |
@@ -66,7 +66,9 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | Mutate     | CURRENT / CANDIDATE — generate, audition, apply or pin without disturbing the output                          |
 | Explore    | Seeded variations, parameter locks, MUTATE around a pick                                                      |
 | Export     | PNG still, PNG sequence (alpha), H.264 MP4, ProRes 422 HQ, ProRes 4444 (alpha)                                |
-| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v2 migration                      |
+| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v3 migration                      |
+| Live       | Camera / Screen / Window sources, intent-gated permissions, realtime temporal history, no audio capture       |
+| Output     | Display destination: fullscreen on a chosen monitor, passive replica, live fan-out                            |
 
 ## Keyboard
 
@@ -91,9 +93,22 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 Full reference: [docs/SHORTCUTS.md](docs/SHORTCUTS.md), or press **?** in the
 title bar.
 
+## Permissions (macOS)
+
+- **Camera** is requested only when you press START on a camera source —
+  never on launch or project open. Grant in System Settings → Privacy &
+  Security → Camera.
+- **Screen / Window capture** asks for Screen Recording the first time you
+  start a capture or list windows: System Settings → Privacy & Security →
+  Screen & System Audio Recording (macOS asks you to authenticate, and may
+  ask to relaunch MATERIAL).
+- MATERIAL never requests microphone or system audio.
+
 ## Current limitations
 
 - macOS only. Nothing is deliberately Windows-hostile, but nothing is tested there.
+- One Output display at a time; live sources cannot be exported to
+  sequence/movie; window capture identity must be reselected per session.
 - Temporal history reaches **2.29 s** (56 slots at 1/24 s) at proxy resolution.
 - Colour is sRGB throughout. No Rec.709/linear/HDR pipeline yet.
 - Keyframes are modelled in the project format but have no UI.

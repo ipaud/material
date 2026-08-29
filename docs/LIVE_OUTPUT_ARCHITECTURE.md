@@ -7,6 +7,11 @@ Three 0.185.1, macOS 15.
 
 ---
 
+> **Status: AS BUILT.** Phases 18A–18F are complete and shipped in v0.3.
+> Sections below that read as planning ("v0.3 will…") describe decisions
+> that are now implemented; §15–17 document the as-built live source,
+> capture and temporal systems.
+
 ## 1. Current architecture (as audited, not as documented)
 
 ```

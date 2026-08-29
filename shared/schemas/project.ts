@@ -99,7 +99,7 @@ export const modulationMappingSchema = z.object({
   smoothing: z.number().min(0).max(1),
   curve: z.enum(['linear', 'exponential', 'logarithmic']),
   /** FREEZE: when non-null, evaluator holds this captured value. */
-  frozenValue: z.number().nullable(),
+  frozenValue: z.number().nullable().default(null),
 });
 export type ModulationMapping = z.infer<typeof modulationMappingSchema>;
 

@@ -19,7 +19,20 @@ slots, thumbnails and morph; Web MIDI with MIDI Learn and pickup; the
 Performance workspace with macros, trigger pads and quantized actions; and
 CURRENT/CANDIDATE mutation with non-destructive preview.
 
-## Next
+## v0.3 — shipped
+
+LIVE / OUTPUT: Camera / Screen / Window live sources with intent-gated
+permissions, Display fullscreen output on a chosen monitor, passive Output
+replica with live fan-out, realtime temporal history for live sources,
+Pattern Engine v1 + v1.5. Project schema v3.
+
+## Next — v0.4 candidate: IMAGE / MOTION SIGNALS
+
+Image-derived modulation sources: motion analysis, optical flow / movement
+metrics, luminance/region signals driving parameters the way audio does
+today. Not planned in detail yet.
+
+## Next (pre-v0.3 list)
 
 **Performance recording.** The single biggest gap. Every live gesture already
 passes through one timestampable chokepoint (see the readiness table in
