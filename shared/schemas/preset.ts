@@ -15,6 +15,10 @@ export const presetSchema = z.object({
   modulations: z.array(modulationMappingSchema),
   triggers: z.array(triggerMappingSchema).default([]),
   builtin: z.boolean(),
+  /** CE1A: curation metadata — defaulted, so v1 preset files keep parsing. */
+  category: z.string().default(''),
+  description: z.string().default(''),
+  tags: z.array(z.string()).default([]),
 });
 export type Preset = z.infer<typeof presetSchema>;
 

@@ -8,6 +8,19 @@ import {
 import { useProjectStore } from '@/state/projectStore';
 import type { Preset } from '@shared/schemas/preset';
 
+/** CE1A curation order — families read from calm to aggressive. */
+const CATEGORY_ORDER = [
+  'Minimal',
+  'Temporal',
+  'Optical',
+  'Geometry',
+  'Analog',
+  'Digital Damage',
+  'Studies',
+  'Live',
+  'Performance',
+];
+
 export function PresetBar() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [saving, setSaving] = useState(false);
@@ -61,13 +74,19 @@ export function PresetBar() {
           <option value="" disabled>
             Presets…
           </option>
-          <optgroup label="System">
-            {builtins.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </optgroup>
+          {CATEGORY_ORDER.filter((cat) => builtins.some((p) => p.category === cat)).map(
+            (cat) => (
+              <optgroup key={cat} label={cat}>
+                {builtins
+                  .filter((p) => p.category === cat)
+                  .map((p) => (
+                    <option key={p.id} value={p.id} title={p.description}>
+                      {p.name}
+                    </option>
+                  ))}
+              </optgroup>
+            ),
+          )}
           {userPresets.length > 0 && (
             <optgroup label="Yours">
               {userPresets.map((p) => (

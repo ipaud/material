@@ -34,6 +34,7 @@ import { midiEngine, useMidiStore } from './midi/midiEngine';
 import { FakeMidiTransport, WebMidiTransport } from './midi/transport';
 import { cameraManager, useCameraStore } from './sources/cameraManager';
 import { captureManager, useCaptureStore } from './sources/captureManager';
+import { BUILTIN_PRESETS, applyPreset } from './projects/presetActions';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -70,6 +71,9 @@ if (import.meta.env.DEV) {
       /** 18E: screen/window capture lifecycle (QA drives the UI path). */
       captureManager,
       useCaptureStore,
+      /** CE1A: preset QA drives the same actions as the PresetBar. */
+      presets: { BUILTIN_PRESETS, applyPreset },
+      importMediaPaths,
       /** 18F: realtime temporal diagnostics (mode, atlas, source cadence). */
       liveTemporal() {
         return {
@@ -78,7 +82,6 @@ if (import.meta.env.DEV) {
         };
       },
       useUiStore,
-      importMediaPaths,
       openProjectFromPath,
       modulationRuntime,
       modulationActions,
