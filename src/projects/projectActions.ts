@@ -4,7 +4,7 @@ import { uid } from '@/utils/id';
 import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
 import type { MediaMetadata } from '@shared/schemas/media';
-import type { Project } from '@shared/schemas/project';
+import { isFileSource, isLiveSource, type Project } from '@shared/schemas/project';
 
 /** Ensure the project has an enabled technique chain (defaults to Mosaic). */
 export function withTechniqueEnsured(p: Project): Project {
@@ -56,7 +56,7 @@ async function checkOfflineSources(): Promise<void> {
   const { project } = useProjectStore.getState();
   const offline: string[] = [];
   for (const source of project.sources) {
-    if (source.kind === 'camera') continue; // live sources have no file to probe
+    if (isLiveSource(source)) continue; // live sources have no file to probe
     try {
       await window.material.probeMedia(source.path);
     } catch {
@@ -106,7 +106,7 @@ export async function importMediaPaths(paths: string[]): Promise<void> {
     const sourceId = uid('src');
     apply((p) => {
       // Skip duplicates by path.
-      if (p.sources.some((s) => s.kind !== 'camera' && s.path === path)) return p;
+      if (p.sources.some((s) => isFileSource(s) && s.path === path)) return p;
       const sources = [...p.sources, { id: sourceId, kind: metadata.kind, path, metadata }];
       let composition = p.composition;
       // First visual source becomes the active composition source.

@@ -225,11 +225,21 @@ describe('output replica remains passive', () => {
     expect(main.includes("from './displays'")).toBe(true);
   });
 
-  it('display selection is app preference, never project schema', () => {
+  it('OUTPUT display selection is app preference, never project schema', () => {
     const schema = code('shared', 'schemas', 'project.ts');
-    for (const banned of ['displayId', 'lastOutputDisplay', 'outputMode', 'fullscreen']) {
+    // 18E note: `displayId` DOES exist in the schema now — but only as the
+    // screen SOURCE capture preference (input), which is a distinct concept
+    // from the output target (§13). Output-target vocabulary stays banned.
+    for (const banned of ['lastOutputDisplay', 'outputMode', 'outputDisplay', 'fullscreen']) {
       expect(schema.includes(banned), `project schema must not carry ${banned}`).toBe(false);
     }
+    // Every displayId occurrence must live inside the screen source ref.
+    const occurrences = schema.split('displayId').length - 1;
+    const screenBlock = schema.slice(
+      schema.indexOf('screenSourceRefSchema'),
+      schema.indexOf('windowSourceRefSchema'),
+    );
+    expect(occurrences).toBe(screenBlock.split('displayId').length - 1);
     const settings = code('electron', 'filesystem', 'settings.ts');
     expect(settings.includes('lastOutputDisplayId')).toBe(true);
     // Never restore "it was open" — that would seize a projector on launch.

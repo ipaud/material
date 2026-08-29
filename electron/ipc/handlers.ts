@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
+import { app, desktopCapturer, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
 import { isLivenessReason, reduceLiveness, type LivenessReason } from '../../shared/liveness';
 import { listDisplays } from '../main/displays';
 import { readSettings, updateSettings } from '../filesystem/settings';
@@ -64,6 +64,34 @@ const livenessReasons = new Set<LivenessReason>();
 let cameraIntent = false;
 export function cameraIntentArmed(): boolean {
   return cameraIntent;
+}
+
+/**
+ * 18E display-capture gate. Two-stage, editor-driven:
+ *
+ *   captureIntent   armed by the editor's explicit START SCREEN/WINDOW with
+ *                   the exact target; consumed by the display-media handler
+ *                   when the EDITOR requests capture.
+ *   grantedCapture  set when the editor's request is granted — the bounded
+ *                   authorization that lets the OUTPUT replica rejoin the
+ *                   same source with no picker. Cleared on disarm (STOP,
+ *                   source switch, project switch, teardown), so a stale
+ *                   handle can never reacquire later.
+ */
+export type CaptureIntentTarget =
+  | { kind: 'screen'; displayId: number | null }
+  | { kind: 'window'; sourceId: string };
+let captureIntent: CaptureIntentTarget | null = null;
+let grantedCapture: { kind: 'screen' | 'window'; sourceId: string } | null = null;
+
+export function captureIntentTarget(): CaptureIntentTarget | null {
+  return captureIntent;
+}
+export function grantedCaptureSource(): { kind: 'screen' | 'window'; sourceId: string } | null {
+  return grantedCapture;
+}
+export function recordGrantedCapture(kind: 'screen' | 'window', sourceId: string): void {
+  grantedCapture = { kind, sourceId };
 }
 
 export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void {
@@ -253,6 +281,41 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   let dockIconPosition = -1;
   ipcMain.handle(IPC.cameraIntent, (_event, rawActive: unknown) => {
     cameraIntent = rawActive === true;
+  });
+
+  ipcMain.handle(IPC.captureIntent, (_event, rawTarget: unknown) => {
+    // Validate strictly — this arms a capture gate.
+    if (rawTarget === null) {
+      captureIntent = null;
+      grantedCapture = null;
+      return;
+    }
+    const t = rawTarget as { kind?: unknown; displayId?: unknown; sourceId?: unknown };
+    if (t.kind === 'screen') {
+      captureIntent = {
+        kind: 'screen',
+        displayId: typeof t.displayId === 'number' ? t.displayId : null,
+      };
+    } else if (t.kind === 'window' && typeof t.sourceId === 'string' && /^window:[\w:-]+$/.test(t.sourceId)) {
+      captureIntent = { kind: 'window', sourceId: t.sourceId };
+    } else {
+      captureIntent = null;
+      grantedCapture = null;
+    }
+  });
+
+  ipcMain.handle(IPC.captureListWindows, async () => {
+    // Narrow desktopCapturer wrapper: titles only, no thumbnails, no icons,
+    // no screen entries. Called exclusively from the explicit CHOOSE WINDOW
+    // action (first call can raise the macOS screen-recording TCC prompt).
+    const sources = await desktopCapturer.getSources({
+      types: ['window'],
+      thumbnailSize: { width: 0, height: 0 },
+      fetchWindowIcons: false,
+    });
+    return sources
+      .filter((s) => s.name.trim().length > 0)
+      .map((s) => ({ sourceId: s.id, title: s.name }));
   });
 
   ipcMain.handle(IPC.brandDockIcon, (_event, rawPosition: unknown) => {

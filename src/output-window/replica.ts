@@ -2,6 +2,7 @@ import { RenderEngine } from '@/rendering/RenderEngine';
 import { getTechnique } from '@/techniques/registry';
 import { FileImageSource } from '@/sources/FileImageSource';
 import { OutputCameraSource } from './outputCameraSource';
+import { OutputCaptureSource } from './outputCaptureSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { FrameStateMsg, OutputChannelMsg, RenderInputsMsg } from '@shared/outputChannel';
@@ -36,6 +37,7 @@ export class OutputReplica {
   private temporalActive = false;
   private source: SourceRuntime | null = null;
   private camera: OutputCameraSource | null = null;
+  private capture: OutputCaptureSource | null = null;
   private sourceKey: string | null = null;
   private generation = -999;
   private clock: ClockBase = { authorityTimeSec: 0, atWall: Date.now(), playing: false };
@@ -61,6 +63,7 @@ export class OutputReplica {
     if (this.slaveTimer) clearInterval(this.slaveTimer);
     this.source?.dispose();
     this.camera?.dispose();
+    this.capture?.dispose();
     this.engine.dispose();
   }
 
@@ -121,7 +124,11 @@ export class OutputReplica {
     const key = msg.source
       ? msg.source.kind === 'live-camera'
         ? `live-camera:${msg.source.deviceId ?? 'default'}:${msg.generation}`
-        : `${msg.source.kind}:${msg.source.path}:${msg.generation}`
+        : msg.source.kind === 'live-screen'
+          ? `live-screen:${msg.source.displayId ?? 'any'}:${msg.generation}`
+          : msg.source.kind === 'live-window'
+            ? `live-window:${msg.generation}`
+            : `${msg.source.kind}:${msg.source.path}:${msg.generation}`
       : null;
     if (key !== this.sourceKey) {
       this.sourceKey = key;
@@ -129,10 +136,14 @@ export class OutputReplica {
       this.source = null;
       this.camera?.dispose();
       this.camera = null;
+      this.capture?.dispose();
+      this.capture = null;
       this.engine.setSource(null);
       this.engine.setTemporalSource(null);
       if (msg.source?.kind === 'live-camera') {
         void this.loadCamera(msg.source.deviceId ?? null, key);
+      } else if (msg.source?.kind === 'live-screen' || msg.source?.kind === 'live-window') {
+        void this.loadCapture(key);
       } else if (msg.source) {
         void this.loadSource(msg.source.kind, msg.source.path, key);
       }
@@ -162,6 +173,25 @@ export class OutputReplica {
     }
     this.camera = camera;
     this.engine.setSource(camera.texture());
+  }
+
+  /** 18E fan-out — see outputCaptureSource.ts: silent rejoin, main decides. */
+  private async loadCapture(key: string | null): Promise<void> {
+    const capture = new OutputCaptureSource();
+    try {
+      await capture.load();
+    } catch (err) {
+      console.warn('[replica] capture rejoin failed:', err);
+      capture.dispose();
+      if (this.sourceKey === key) this.engine.setSource(null);
+      return;
+    }
+    if (this.sourceKey !== key) {
+      capture.dispose(); // superseded while joining (or stale generation)
+      return;
+    }
+    this.capture = capture;
+    this.engine.setSource(capture.texture());
   }
 
   private async loadSource(

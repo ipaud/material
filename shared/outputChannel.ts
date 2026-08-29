@@ -25,6 +25,8 @@ export interface RenderInputsMsg {
   source:
     | { kind: 'file-image' | 'file-video'; path: string }
     | { kind: 'live-camera'; deviceId: string | null }
+    | { kind: 'live-screen'; displayId: number | null }
+    | { kind: 'live-window' }
     | null;
 }
 

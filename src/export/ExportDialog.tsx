@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useExportStore } from '@/state/exportStore';
 import { useProjectStore } from '@/state/projectStore';
+import { isLiveSource } from '@shared/schemas/project';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { exportPngStill } from './exportStill';
 import { runAnimationExport } from './exportRunner';
@@ -65,7 +66,7 @@ export function ExportDialog() {
   // sequence/movie export is impossible by capability, not by policy. A
   // still capture of "now" stays honest and allowed.
   const activeSource = project.sources.find((s) => s.id === project.composition.sourceId) ?? null;
-  const liveSource = activeSource?.kind === 'camera';
+  const liveSource = activeSource !== null && isLiveSource(activeSource);
   const liveBlocked = liveSource && format !== 'png-still';
   const hasProRes = encoders.includes('prores_ks');
   const supportsAlpha = format === 'prores4444' || format === 'png-sequence';

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
+import { isFileSource } from '@shared/schemas/project';
 import { useExportStore } from '@/state/exportStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { useUiStore } from '@/state/uiStore';
@@ -184,11 +185,11 @@ export function OutputSettings() {
   const { composition } = project;
   const source = project.sources.find((s) => s.id === composition.sourceId) ?? null;
   const audioRef = project.sources.find((s) => s.id === composition.audioSourceId) ?? null;
-  const audio = audioRef && audioRef.kind !== 'camera' ? audioRef : null;
+  const audio = audioRef && isFileSource(audioRef) ? audioRef : null;
   const bpm = project.timeline.bpm;
 
   const sourceDims =
-    source && source.kind !== 'camera' && source.metadata?.width && source.metadata.height
+    source && isFileSource(source) && source.metadata?.width && source.metadata.height
       ? `${source.metadata.width} × ${source.metadata.height}`
       : null;
   const projectDims = `${composition.width} × ${composition.height}`;
@@ -208,11 +209,15 @@ export function OutputSettings() {
           source
             ? source.kind === 'camera'
               ? 'Live camera'
-              : (source.metadata?.fileName ?? source.path.split('/').pop() ?? '—')
+              : source.kind === 'screen'
+                ? 'Live screen capture'
+                : source.kind === 'window'
+                  ? 'Live window capture'
+                  : (source.metadata?.fileName ?? source.path.split('/').pop() ?? '—')
             : 'NONE'
         }
       />
-      {source && source.kind !== 'camera' && source.metadata?.frameRate != null && (
+      {source && isFileSource(source) && source.metadata?.frameRate != null && (
         <Row label="SOURCE FPS" value={source.metadata.frameRate.toFixed(2)} />
       )}
 

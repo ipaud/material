@@ -3,6 +3,19 @@ import type { Project } from './schemas/project';
 import type { DisplayInfo, OutputDisplayStatus, OutputMode } from './display';
 import type { Preset } from './schemas/preset';
 
+/** 18E: what the editor's START action authorizes capturing. */
+export type CaptureIntentTarget =
+  | { kind: 'screen'; displayId: number | null }
+  | { kind: 'window'; sourceId: string };
+
+/** 18E: safe subset of a desktop capture source — no thumbnails, no icons. */
+export interface CaptureWindowInfo {
+  /** Ephemeral OS capture id — valid for this selection round only. */
+  sourceId: string;
+  /** Window title (best label Chromium exposes; app name is not separate). */
+  title: string;
+}
+
 export const IPC = {
   appInfo: 'app:info',
   openMediaDialog: 'dialog:open-media',
@@ -41,6 +54,8 @@ export const IPC = {
   outputEscape: 'output:escape',
   brandDockIcon: 'brand:dock-icon',
   cameraIntent: 'camera:intent',
+  captureIntent: 'capture:intent',
+  captureListWindows: 'capture:list-windows',
 } as const;
 
 export interface RecoveryEntry {
@@ -147,6 +162,18 @@ export interface MaterialApi {
    * in the editor — never on launch, project open or source browsing.
    */
   setCameraIntent(active: boolean): Promise<void>;
+  /**
+   * 18E: arm/disarm the display-capture gate with the exact target the user
+   * chose. null disarms and also revokes the Output's rejoin authorization.
+   */
+  setCaptureIntent(target: CaptureIntentTarget | null): Promise<void>;
+  /**
+   * 18E: enumerate capturable application windows. Narrow wrapper over
+   * desktopCapturer — ids never persist, list is fetched only on the
+   * explicit CHOOSE WINDOW action (this call can trigger the macOS screen
+   * recording TCC prompt, so it must never run on launch or project open).
+   */
+  listCaptureWindows(): Promise<CaptureWindowInfo[]>;
 
   getSessionId(): Promise<string>;
   /** Autosave — writes to userData/recovery, never to the user's project. */

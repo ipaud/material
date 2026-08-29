@@ -12,6 +12,7 @@ import { WorkspaceRouter } from '@/workspaces/WorkspaceRouter';
 import { ExportDialog } from '@/export/ExportDialog';
 import { startAutosave } from '@/projects/autosave';
 import { cameraManager } from '@/sources/cameraManager';
+import { captureManager } from '@/sources/captureManager';
 import { startOutputBridge } from '@/output/outputBridge';
 import { startDockIconSync } from '@/brand/dockIcon';
 import { midiEngine } from '@/midi/midiEngine';
@@ -28,7 +29,10 @@ export function App() {
   // 18D: window teardown must stop camera tracks — the OS camera indicator
   // must never outlive the editor (reload, quit, window close).
   useEffect(() => {
-    const stopCamera = () => cameraManager.detach();
+    const stopCamera = () => {
+      cameraManager.detach();
+      captureManager.detach();
+    };
     window.addEventListener('beforeunload', stopCamera);
     return () => window.removeEventListener('beforeunload', stopCamera);
   }, []);

@@ -263,3 +263,60 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   the default `NSMicrophoneUsageDescription` electron-builder injects is
   stripped in `scripts/after-pack.mjs` because MATERIAL never requests
   audio capture and the gate denies it unconditionally.
+
+## Screen / Window capture (Phase 18E)
+
+- **ADR — Display capture API**: `session.setDisplayMediaRequestHandler` +
+  `desktopCapturer` in the MAIN process, no picker UI anywhere. Options
+  measured on Electron 44 / macOS Tahoe: (A) bare `getDisplayMedia` — dead
+  end, Electron denies without a handler; (B) exposing
+  `desktopCapturer.getSources` to the renderer — rejected, generic desktop
+  capture IPC violates the narrow-surface rule; (C) the chosen handler —
+  the editor pre-arms an exact target (START), main resolves it via
+  `getSources` and grants programmatically: no picker, 230 ms acquisition,
+  and crucially the OUTPUT replica can be granted the same source with zero
+  user interaction, which the mandatory no-second-picker rule (§37)
+  requires; (D) `useSystemPicker` — rejected: experimental, and the system
+  picker would demand a user choice per request, making silent Output
+  rejoin impossible. Measured behavior: getDisplayMedia consults the
+  generic `media` permission (empty mediaTypes) plus the handler — both are
+  gated on armed intent; no transient-activation requirement when a handler
+  grants; a video+audio request is granted VIDEO ONLY (0 audio tracks).
+- **ADR — Window identity is ephemeral**: OS window capture ids
+  (`window:NNN:0`) die with the window and do not survive restarts. The
+  project persists only a human `titleHint`; the ephemeral id lives in the
+  capture manager for the current selection round. Reopening a project
+  always requires an explicit CHOOSE WINDOW + START — a reused id silently
+  capturing a *different* window would be a privacy failure, so best-effort
+  reconnection by fuzzy title match is deliberately NOT implemented.
+- **ADR — Output rejoin authorization**: when the editor's capture request
+  is granted, main records `grantedCapture` (kind + source id). An Output
+  getDisplayMedia (recognized by frame identity, `isOutputFrame`) is granted
+  exactly that source — never a choice. STOP, source switch, project switch
+  and failed starts all clear both the intent and the grant, so a stale
+  handle cannot reacquire later (measured: raw Output getDisplayMedia with
+  no live editor capture → NotAllowedError).
+- **Screen capture is Retina-physical**: the built-in 1512×982@2× display
+  captures as 3024×1964@30fps — capture pixels are physical, not DIPs.
+  Cursor is captured (platform default, `cursor: always`); no cursor toggle
+  in 18E. Window capture dimensions are the window's physical pixels and
+  follow resizes live (the runtime reads the video element per frame).
+- **macOS TCC (measured in the packaged app)**: the Screen Recording prompt
+  fires on the FIRST capture attempt (START) — never on launch, project
+  open, or source selection. macOS Tahoe shows no direct "Allow": the
+  dialog offers only "Open System Settings" / "Deny", the app then appears
+  under Privacy & Security → Screen & System Audio Recording, and flipping
+  the toggle requires the user's Touch ID/password (not automatable — by
+  OS design). The OS dialog's fixed wording mentions "screen and audio"
+  even though MATERIAL requests video only and the gate strips audio
+  unconditionally. A TCC-denied capture surfaces as
+  OverconstrainedError/"Invalid capture constraints" (not
+  NotAllowedError) — mapped to SCREEN RECORDING ACCESS REQUIRED in the UI.
+- **Recursive capture is allowed**: capturing the display or window where
+  MATERIAL itself renders produces a feedback tunnel — creatively valid,
+  not blocked (measured stable at 120 fps render / 30 fps capture).
+- **Capture display ≠ Output display**: the screen source's `displayId`
+  (Electron display id — equals the macOS CGDirectDisplayID that
+  desktopCapturer reports) is project config for the INPUT; the Output
+  target display stays machine state in settings.json. Capturing the
+  built-in display while outputting to a projector is a first-class setup.

@@ -567,3 +567,31 @@ Section 8's plan became code in 18D. What shipped, with the deltas:
   history accumulation for temporal techniques on live sources is 18F.
 - **Deferred to 18E/18F** — screen/window capture kinds, realtime
   `TemporalFrameProvider` feeding, audio-reactive live sources.
+
+## 16. Screen / Window capture — as built (Phase 18E)
+
+- **Editor side** — `src/sources/DisplayCaptureSource.ts` (one runtime for
+  both kinds — after main resolves the target, the renderer lifecycle is
+  identical; the ONLY editor-side `getDisplayMedia` call site) and
+  `src/sources/captureManager.ts` (attach = IDLE selection; CHOOSE WINDOW =
+  the explicit enumeration action; START arms `capture:intent` with the
+  exact target; STOP/detach revoke intent AND the Output's rejoin grant).
+- **Main gate** — `setDisplayMediaRequestHandler` resolves every
+  getDisplayMedia: editor requests need armed intent (exact display id or
+  ephemeral window id) and record `grantedCapture` on success; Output
+  requests (frame-identity check) are granted exactly the recorded source
+  or denied. `desktopCapturer` never leaves the main process; the renderer
+  sees only `{sourceId, title}` from the narrow `capture:list-windows` IPC.
+  The generic `media` permission (which getDisplayMedia also consults —
+  measured) passes only under camera intent or capture intent/grant; audio
+  is stripped unconditionally.
+- **Replica** — `src/output-window/outputCaptureSource.ts` performs the
+  silent rejoin (no target, no picker, no enumeration); key
+  `live-screen:<displayId>:<generation>` / `live-window:<generation>`
+  follows the acquisition-mirroring descriptor, so editor STOP releases the
+  replica's tracks (measured) and a stale handle cannot reacquire
+  (measured: NotAllowedError).
+- **Measured**: screen 3024×1964@30 (Retina physical), window = window
+  physical pixels, editor render 120 fps with capture live, Output rejoin
+  with zero additional prompts, recursive self-capture stable.
+- **Deferred to 18F** — realtime temporal history for all live sources.

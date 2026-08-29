@@ -17,15 +17,17 @@ import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
 import type { ParamValue } from '@shared/schemas/project';
 import { techniqueNeedsTemporal } from '@/techniques/registry';
+import { isLiveSource } from '@shared/schemas/project';
 import '@/components/parameter-slider.css';
 
 export function InspectorPanel() {
   const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
   const material = useProjectStore((s) => s.project.material);
   const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
-  const liveSource = useProjectStore(
-    (s) => s.project.sources.find((src) => src.id === s.project.composition.sourceId)?.kind === 'camera',
-  );
+  const liveSource = useProjectStore((s) => {
+    const src = s.project.sources.find((x) => x.id === s.project.composition.sourceId);
+    return src !== undefined && isLiveSource(src);
+  });
   const modulations = useProjectStore((s) => s.project.modulations);
   const apply = useProjectStore((s) => s.apply);
   const beginTransient = useProjectStore((s) => s.beginTransient);
@@ -78,8 +80,8 @@ export function InspectorPanel() {
       <div className="panel-body">
         {temporalOnLive && (
           <div className="inspector-live-note">
-            LIVE SOURCE — this technique uses frame history, which a camera does
-            not provide yet. Current frame only.
+            LIVE SOURCE — this technique uses frame history, which a live
+            source does not provide yet. Current frame only.
           </div>
         )}
         {!hasSource && (

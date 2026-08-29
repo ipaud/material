@@ -3,6 +3,8 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { relinkSource } from '@/projects/projectActions';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
+import { captureManager, useCaptureStore } from '@/sources/captureManager';
+import { isFileSource, type ScreenSourceRef, type WindowSourceRef } from '@shared/schemas/project';
 import { withTechniqueEnsured } from '@/projects/projectActions';
 import { uid } from '@/utils/id';
 import './library.css';
@@ -11,7 +13,8 @@ type SourceRef = ReturnType<typeof useProjectStore.getState>['project']['sources
 
 /** One quiet line of real metadata: dimensions, duration, size — whatever exists. */
 function describe(source: SourceRef): string {
-  if (source.kind === 'camera') return 'LIVE INPUT';
+  if (source.kind === 'camera' || source.kind === 'screen' || source.kind === 'window')
+    return 'LIVE INPUT';
   const meta = source.metadata;
   if (!meta) return source.kind.toUpperCase();
   const parts: string[] = [];
@@ -27,6 +30,8 @@ const KIND_LABEL: Record<string, string> = {
   audio: 'AUD',
   svg: 'SVG',
   camera: 'CAM',
+  screen: 'SCR',
+  window: 'WIN',
 };
 
 export function LibraryPanel() {
@@ -43,8 +48,8 @@ export function LibraryPanel() {
       if (kind === 'audio') {
         return { ...p, composition: { ...p.composition, audioSourceId: id } };
       }
-      if (kind === 'camera') {
-        // Selecting the camera source only points the composition at it —
+      if (kind === 'camera' || kind === 'screen' || kind === 'window') {
+        // Selecting a live source only points the composition at it —
         // capture starts exclusively from the explicit START action.
         return { ...p, composition: { ...p.composition, sourceId: id } };
       }
@@ -52,7 +57,7 @@ export function LibraryPanel() {
         // SVGs are materials, not composition sources.
         return { ...p, material: { ...p.material, materialId: 'custom', assetPath: source.path } };
       }
-      if ((kind === 'image' || kind === 'video') && source.kind !== 'camera') {
+      if ((kind === 'image' || kind === 'video') && isFileSource(source)) {
         const meta = source.metadata;
         return {
           ...p,
@@ -71,7 +76,7 @@ export function LibraryPanel() {
   const useAsMaterial = (id: string) => {
     apply((p) => {
       const source = p.sources.find((s) => s.id === id);
-      if (!source || source.kind === 'camera') return p;
+      if (!source || !isFileSource(source)) return p;
       return { ...p, material: { ...p.material, materialId: 'custom', assetPath: source.path } };
     });
   };
@@ -89,6 +94,24 @@ export function LibraryPanel() {
     });
   };
   const hasCamera = sources.some((s) => s.kind === 'camera');
+  const hasScreen = sources.some((s) => s.kind === 'screen');
+  const hasWindow = sources.some((s) => s.kind === 'window');
+
+  const addLive = (kind: 'screen' | 'window') => {
+    apply((p) => {
+      if (p.sources.some((s) => s.kind === kind)) return p;
+      const id = uid(kind === 'screen' ? 'scr' : 'win');
+      const ref =
+        kind === 'screen'
+          ? { id, kind: 'screen' as const, displayId: null }
+          : { id, kind: 'window' as const, titleHint: null };
+      return withTechniqueEnsured({
+        ...p,
+        sources: [...p.sources, ref],
+        composition: { ...p.composition, sourceId: id },
+      });
+    });
+  };
 
   return (
     <>
@@ -109,6 +132,24 @@ export function LibraryPanel() {
               + CAMERA
             </button>
           )}
+          {!hasScreen && (
+            <button
+              className="vp-btn"
+              title="Capture a display as a live source"
+              onClick={() => addLive('screen')}
+            >
+              + SCREEN
+            </button>
+          )}
+          {!hasWindow && (
+            <button
+              className="vp-btn"
+              title="Capture an application window as a live source"
+              onClick={() => addLive('window')}
+            >
+              + WINDOW
+            </button>
+          )}
         </div>
         {sources.length === 0 ? (
           <div className="library-empty">No media imported</div>
@@ -116,7 +157,7 @@ export function LibraryPanel() {
           <ul className="media-list">
             {sources.map((source) => {
               const isActive = source.id === activeSourceId || source.id === activeAudioId;
-              const isOffline = source.kind !== 'camera' && offlineSources.includes(source.id);
+              const isOffline = isFileSource(source) && offlineSources.includes(source.id);
               if (source.kind === 'camera') {
                 return (
                   <li key={source.id}>
@@ -124,6 +165,17 @@ export function LibraryPanel() {
                       sourceId={source.id}
                       active={isActive}
                       onSelect={() => selectSource(source.id, 'camera')}
+                    />
+                  </li>
+                );
+              }
+              if (source.kind === 'screen' || source.kind === 'window') {
+                return (
+                  <li key={source.id}>
+                    <CaptureRow
+                      source={source}
+                      active={isActive}
+                      onSelect={() => selectSource(source.id, source.kind)}
                     />
                   </li>
                 );
@@ -254,6 +306,149 @@ function CameraRow({
           : cam.status === 'device-lost'
             ? 'RECONNECT'
             : cam.status === 'permission-denied'
+              ? 'TRY AGAIN'
+              : 'START'}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Screen / window capture row (18E). Same contract as the camera row: saved
+ * projects sit IDLE forever; enumeration (CHOOSE WINDOW) and START are the
+ * only actions that may touch the macOS screen-recording permission.
+ */
+function CaptureRow({
+  source,
+  active,
+  onSelect,
+}: {
+  source: ScreenSourceRef | WindowSourceRef;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const cap = useCaptureStore();
+  const apply = useProjectStore((s) => s.apply);
+  const mine = cap.sourceId === source.id;
+  const live = mine && cap.status === 'live';
+  const connecting = mine && cap.status === 'connecting';
+  const isScreen = source.kind === 'screen';
+
+  const status = !mine
+    ? 'NOT STARTED'
+    : cap.status === 'idle'
+      ? 'NOT STARTED'
+      : cap.status === 'connecting'
+        ? 'STARTING…'
+        : cap.status === 'live'
+          ? `LIVE${cap.width ? ` · ${cap.width}×${cap.height}` : ''}${cap.frameRate ? ` · ${cap.frameRate}fps` : ''}`
+          : cap.status === 'permission-denied'
+            ? 'SCREEN RECORDING ACCESS REQUIRED'
+            : cap.status === 'device-lost'
+              ? 'SOURCE ENDED'
+              : 'ERROR';
+
+  const canStartWindow = !isScreen && cap.chosenWindowId !== null;
+
+  return (
+    <div className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
+      <span className={`media-kind kind-camera${live ? ' live' : ''}`}>
+        {isScreen ? 'SCR' : 'WIN'}
+      </span>
+      <span className="media-text">
+        <span className="media-name">{isScreen ? 'Screen' : 'Window'}</span>
+        <span className="media-meta">{status}</span>
+        {mine && cap.status === 'permission-denied' && (
+          <span className="media-meta camera-help">
+            Enable Screen &amp; System Audio Recording for MATERIAL in System Settings → Privacy
+            &amp; Security, then relaunch MATERIAL if macOS asks for it.
+          </span>
+        )}
+        {!isScreen && source.titleHint && !live && (
+          <span className="media-meta">Last: {source.titleHint}</span>
+        )}
+        {isScreen && mine && cap.displays.length > 1 && (
+          <select
+            className="select camera-device"
+            aria-label="Display to capture"
+            value={source.displayId ?? cap.displays[0]?.id ?? ''}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const displayId = Number(e.target.value);
+              // Display preference is creative/project config — persist it.
+              apply((p) => ({
+                ...p,
+                sources: p.sources.map((s) =>
+                  s.id === source.id && s.kind === 'screen' ? { ...s, displayId } : s,
+                ),
+              }));
+              void captureManager.selectDisplay(displayId);
+            }}
+          >
+            {cap.displays.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {!isScreen && mine && cap.windows.length > 0 && !live && (
+          <select
+            className="select camera-device"
+            aria-label="Window to capture"
+            value={cap.chosenWindowId ?? ''}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const id = e.target.value;
+              captureManager.selectWindow(id);
+              const title = cap.windows.find((w) => w.sourceId === id)?.title ?? null;
+              // Persist only the human-readable hint — capture ids are
+              // ephemeral and must never be treated as identity (§14).
+              apply((p) => ({
+                ...p,
+                sources: p.sources.map((s) =>
+                  s.id === source.id && s.kind === 'window' ? { ...s, titleHint: title } : s,
+                ),
+              }));
+            }}
+          >
+            <option value="" disabled>
+              Choose window…
+            </option>
+            {cap.windows.map((w) => (
+              <option key={w.sourceId} value={w.sourceId}>
+                {w.title}
+              </option>
+            ))}
+          </select>
+        )}
+      </span>
+      {!isScreen && !live && !connecting && (
+        <button
+          className="vp-btn"
+          title="List capturable windows (may ask for screen recording access)"
+          onClick={(e) => {
+            e.stopPropagation();
+            void captureManager.chooseWindow();
+          }}
+        >
+          {cap.windows.length > 0 ? 'REFRESH' : 'CHOOSE'}
+        </button>
+      )}
+      <button
+        className={`vp-btn${live ? ' active' : ''}`}
+        disabled={!live && !connecting && !isScreen && !canStartWindow}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (live || connecting) captureManager.stop();
+          else void captureManager.start();
+        }}
+      >
+        {live || connecting
+          ? 'STOP'
+          : mine && cap.status === 'device-lost'
+            ? 'RECONNECT'
+            : mine && cap.status === 'permission-denied'
               ? 'TRY AGAIN'
               : 'START'}
       </button>

@@ -126,6 +126,14 @@ They are meant to be readable and diffable.
   stream, track, permission or resolution state — and opening a project with
   one never touches the OS camera: acquisition happens exclusively on the
   explicit START action.
+- **Screen/Window sources (18E) are additive variants INSIDE v3.** The
+  source union gained `{kind:"screen", displayId}` and
+  `{kind:"window", titleHint}` without a version bump: no existing field
+  changed shape, defaults cover both new refs, and a v3 file without them
+  parses exactly as before. (A v3 file that USES them will be refused by a
+  pre-18E build — the standard cost of additive evolution, same as new
+  technique params inside v2.) Window refs persist only the human-readable
+  hint — OS capture ids are ephemeral and never written to disk.
 - Locked exploration parameters use bare param ids, and `mod:<id>` for
   modulation mappings.
 

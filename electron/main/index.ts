@@ -1,7 +1,14 @@
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import path from 'node:path';
-import { cameraIntentArmed, registerIpcHandlers, SESSION_ID } from '../ipc/handlers';
-import { closeOutputWindow } from './outputWindow';
+import {
+  cameraIntentArmed,
+  captureIntentTarget,
+  grantedCaptureSource,
+  recordGrantedCapture,
+  registerIpcHandlers,
+  SESSION_ID,
+} from '../ipc/handlers';
+import { closeOutputWindow, isOutputFrame } from './outputWindow';
 import { clearRecovery } from '../filesystem/recovery';
 import { buildAppMenu } from './menu';
 import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from './protocol';
@@ -104,17 +111,94 @@ app.whenReady().then(() => {
     permission === 'midi' || permission === 'midiSysex';
   const mediaAllowed = (permission: string, details: { mediaTypes?: string[] }): boolean => {
     if (permission !== 'media') return false;
-    if (!cameraIntentArmed()) return false;
+    // 18D camera intent, or 18E display-capture intent (getDisplayMedia
+    // consults the generic 'media' permission with no mediaTypes — measured;
+    // the display-media request handler still picks the exact source or
+    // denies, so this stays deny-by-default outside an armed user action).
+    const armed =
+      cameraIntentArmed() || captureIntentTarget() !== null || grantedCaptureSource() !== null;
+    if (!armed) return false;
     const types = details.mediaTypes ?? [];
     // Plain enumerateDevices probes arrive as 'media' with no types; a
     // video-only getUserMedia arrives as ['video']. Audio is never allowed.
     return !types.includes('audio');
   };
+  // 18E display-capture gate. getDisplayMedia resolves ONLY here — there is
+  // no picker UI anywhere: the editor pre-arms an exact target (its explicit
+  // START action), and the Output replica may silently rejoin the source the
+  // editor was granted, never choose one. Anything else is denied. Audio is
+  // never granted.
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    const deny = () => callback({});
+    void (async () => {
+      try {
+        const fromOutput = isOutputFrame(request.frame);
+        const intent = captureIntentTarget();
+        const rejoin = grantedCaptureSource();
+        if (fromOutput) {
+          // Replica rejoin: bounded by the editor's live grant.
+          if (!rejoin) return deny();
+          const sources = await desktopCapturer.getSources({
+            types: [rejoin.kind],
+            thumbnailSize: { width: 0, height: 0 },
+            fetchWindowIcons: false,
+          });
+          const match = sources.find((s) => s.id === rejoin.sourceId);
+          return match ? callback({ video: match }) : deny();
+        }
+        if (!intent) return deny();
+        if (intent.kind === 'screen') {
+          const sources = await desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: { width: 0, height: 0 },
+          });
+          const match =
+            (intent.displayId !== null
+              ? sources.find((s) => s.display_id === String(intent.displayId))
+              : undefined) ?? sources[0];
+          if (!match) return deny();
+          recordGrantedCapture('screen', match.id);
+          return callback({ video: match });
+        }
+        const sources = await desktopCapturer.getSources({
+          types: ['window'],
+          thumbnailSize: { width: 0, height: 0 },
+          fetchWindowIcons: false,
+        });
+        const match = sources.find((s) => s.id === intent.sourceId);
+        if (!match) return deny();
+        recordGrantedCapture('window', match.id);
+        return callback({ video: match });
+      } catch {
+        deny();
+      }
+    })();
+  });
+
+  // 18E: getDisplayMedia consults the 'display-capture' PERMISSION before
+  // the display-media request handler ever runs. Allow it only while the
+  // editor's capture intent is armed (or the Output's bounded rejoin grant
+  // exists) — the request handler then picks the exact source or denies.
+  const displayCaptureAllowed = (permission: string): boolean => {
+    if (permission === 'display-capture') {
+      console.error('[perm] display-capture check; intent=', JSON.stringify(captureIntentTarget()));
+    }
+    return (
+      permission === 'display-capture' &&
+      (captureIntentTarget() !== null || grantedCaptureSource() !== null)
+    );
+  };
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) =>
-    callback(isMidi(permission) || mediaAllowed(permission, details as { mediaTypes?: string[] })),
+    callback(
+      isMidi(permission) ||
+        mediaAllowed(permission, details as { mediaTypes?: string[] }) ||
+        displayCaptureAllowed(permission),
+    ),
   );
   session.defaultSession.setPermissionCheckHandler((_wc, permission, _origin, details) =>
-    isMidi(permission) || mediaAllowed(permission, details as { mediaTypes?: string[] }),
+    isMidi(permission) ||
+    mediaAllowed(permission, details as { mediaTypes?: string[] }) ||
+    displayCaptureAllowed(permission),
   );
 
   registerIpcHandlers(() => mainWindow);

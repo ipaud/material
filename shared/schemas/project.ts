@@ -31,11 +31,42 @@ export const cameraSourceRefSchema = z.object({
 });
 export type CameraSourceRef = z.infer<typeof cameraSourceRefSchema>;
 
-export const sourceRefSchema = z.union([fileSourceRefSchema, cameraSourceRefSchema]);
+/** 18E: capture a physical display. Electron display ids are stable enough
+ * for a best-effort preference; never coupled to the OUTPUT target display. */
+export const screenSourceRefSchema = z.object({
+  id: z.string(),
+  kind: z.literal('screen'),
+  displayId: z.number().nullable().default(null),
+});
+export type ScreenSourceRef = z.infer<typeof screenSourceRefSchema>;
+
+/** 18E: capture one application window. OS window capture ids are ephemeral
+ * (ADR — window identity), so only a human-readable hint persists; reopening
+ * a project always requires an explicit re-selection. */
+export const windowSourceRefSchema = z.object({
+  id: z.string(),
+  kind: z.literal('window'),
+  titleHint: z.string().nullable().default(null),
+});
+export type WindowSourceRef = z.infer<typeof windowSourceRefSchema>;
+
+export const sourceRefSchema = z.union([
+  fileSourceRefSchema,
+  cameraSourceRefSchema,
+  screenSourceRefSchema,
+  windowSourceRefSchema,
+]);
 export type SourceRef = z.infer<typeof sourceRefSchema>;
 
+/** Live (non-seekable, non-exportable) source kinds — 18D camera, 18E capture. */
+export function isLiveSource(
+  source: SourceRef,
+): source is CameraSourceRef | ScreenSourceRef | WindowSourceRef {
+  return source.kind === 'camera' || source.kind === 'screen' || source.kind === 'window';
+}
+
 export function isFileSource(source: SourceRef): source is FileSourceRef {
-  return source.kind !== 'camera';
+  return !isLiveSource(source);
 }
 
 export const techniqueInstanceSchema = z.object({

@@ -9,8 +9,17 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4) var(--sp-2);
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+/* 18E: three add-source actions must stay one-line each in a 260px panel. */
+.library-section-head .vp-btn {
+  padding: 1px 5px;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 .library-section-head .label {
   font-size: 9px;

@@ -57,6 +57,8 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
   outputTarget: () => ipcRenderer.invoke(IPC.outputTarget),
   setDockIcon: (position: number) => ipcRenderer.invoke(IPC.brandDockIcon, position),
   setCameraIntent: (active: boolean) => ipcRenderer.invoke(IPC.cameraIntent, active === true),
+  setCaptureIntent: (target) => ipcRenderer.invoke(IPC.captureIntent, target),
+  listCaptureWindows: () => ipcRenderer.invoke(IPC.captureListWindows),
   onOutputStatus: (callback) => {
     ipcRenderer.on(IPC.outputStatus, (_event, status) => callback(status));
   },

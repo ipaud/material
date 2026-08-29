@@ -55,6 +55,13 @@ export function configureOutputWindow(deps: {
   notifyDisplays = deps.notifyDisplays ?? null;
 }
 
+/** 18E: is this frame the Output replica's main frame? (capture gate) */
+export function isOutputFrame(frame: { processId: number; routingId: number } | null): boolean {
+  if (!frame || outputWindow === null || outputWindow.isDestroyed()) return false;
+  const main = outputWindow.webContents.mainFrame;
+  return main.processId === frame.processId && main.routingId === frame.routingId;
+}
+
 export function isOutputOpen(): boolean {
   return outputWindow !== null && !outputWindow.isDestroyed();
 }

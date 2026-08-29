@@ -9,6 +9,8 @@ import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
+import { captureManager, useCaptureStore } from '@/sources/captureManager';
+import { isLiveSource } from '@shared/schemas/project';
 import { configureTriggers } from '@/signals/triggerRuntime';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import { FileImageSource } from '@/sources/FileImageSource';
@@ -50,12 +52,16 @@ function syncFromProject(): void {
   const source = project.sources.find(
     (s) =>
       s.id === composition.sourceId &&
-      (s.kind === 'image' || s.kind === 'video' || s.kind === 'camera'),
+      (s.kind === 'image' || s.kind === 'video' || isLiveSource(s)),
   );
   const sourceKey = source
     ? source.kind === 'camera'
       ? `camera:${source.id}`
-      : `${source.kind}:${source.path}`
+      : source.kind === 'screen'
+        ? `screen:${source.id}:${source.displayId ?? 'any'}`
+        : source.kind === 'window'
+          ? `window:${source.id}`
+          : `${source.kind}:${source.path}`
     : null;
   if (sourceKey !== loadedSourcePath) {
     loadedSourcePath = sourceKey;
@@ -64,11 +70,21 @@ function syncFromProject(): void {
     activeSourceRuntime?.dispose();
     activeSourceRuntime = null;
     if (source?.kind !== 'camera') cameraManager.detach();
+    if (source?.kind !== 'screen' && source?.kind !== 'window') captureManager.detach();
     activeTemporalSource = null;
     engine.setTemporalSource(null);
     if (!source) {
       engine.setSource(null);
       cameraManager.detach();
+      captureManager.detach();
+    } else if (source.kind === 'screen' || source.kind === 'window') {
+      // Like the camera: selecting only ATTACHES (idle until START). The
+      // manager owns intent; nothing here may acquire.
+      captureManager.attach(
+        source.id,
+        source.kind,
+        source.kind === 'screen' ? source.displayId : null,
+      );
     } else if (source.kind === 'camera') {
       // The camera runtime is user-intent driven: selecting the source only
       // ATTACHES it (idle until START CAMERA). Never auto-acquires.
@@ -175,7 +191,14 @@ function syncFromProject(): void {
           cameraManager.isLive()
           ? { kind: 'live-camera', deviceId: source.deviceId ?? null }
           : null
-        : { kind: source.kind === 'image' ? 'file-image' : 'file-video', path: source.path }
+        : source.kind === 'screen' || source.kind === 'window'
+          ? // Same acquisition-mirror rule for 18E capture sources.
+            captureManager.isLive()
+            ? source.kind === 'screen'
+              ? { kind: 'live-screen', displayId: source.displayId ?? null }
+              : { kind: 'live-window' }
+            : null
+          : { kind: source.kind === 'image' ? 'file-image' : 'file-video', path: source.path }
       : null,
     generation: projectGeneration,
   });
@@ -246,6 +269,14 @@ export function startEngineBridge(): () => void {
       syncFromProject();
     }
   });
+  let lastCaptureLive = false;
+  const unsubCapture = useCaptureStore.subscribe((s) => {
+    const live = s.status === 'live';
+    if (live !== lastCaptureLive) {
+      lastCaptureLive = live;
+      syncFromProject();
+    }
+  });
   const unsubUi = useUiStore.subscribe(syncFromUi);
   const unsubAudio = useAudioStore.subscribe(configureModulation);
   let lastDuration = -1;
@@ -261,6 +292,7 @@ export function startEngineBridge(): () => void {
   return () => {
     unsubProject();
     unsubCamera();
+    unsubCapture();
     unsubUi();
     unsubAudio();
     unsubPlayback();
