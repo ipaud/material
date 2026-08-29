@@ -595,3 +595,17 @@ Section 8's plan became code in 18D. What shipped, with the deltas:
   physical pixels, editor render 120 fps with capture live, Output rejoin
   with zero additional prompts, recursive self-capture stable.
 - **Deferred to 18F** — realtime temporal history for all live sources.
+
+## 17. Live temporal history — as built (Phase 18F)
+
+One atlas, two clocks (full ADR in DECISIONS): `RenderEngine.renderFrame`
+feeds the existing `TemporalFrameProvider` grid with `performance.now()`
+while `liveSourceActive`, composition time otherwise. `resetTemporal()`
+no-ops in live mode (seek/loop are composition semantics); live boundaries
+invalidate via the `setLiveSourceActive` flip. The replica marks its local
+camera/capture joins live and therefore builds its own wall-clock history —
+no atlas pixels cross processes, FrameState is unchanged, and an Output
+opened mid-session warms up locally (~2.3 s to full span). Measured: 24
+slot-writes/s at 120 fps render over a 30 fps source; atlas fixed at
+~7.9 MB per renderer for any source resolution (256×144 slots, blit-time
+downsample); 3-minute live soak with flat heap and zero GL errors.

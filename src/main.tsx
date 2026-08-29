@@ -70,6 +70,13 @@ if (import.meta.env.DEV) {
       /** 18E: screen/window capture lifecycle (QA drives the UI path). */
       captureManager,
       useCaptureStore,
+      /** 18F: realtime temporal diagnostics (mode, atlas, source cadence). */
+      liveTemporal() {
+        return {
+          mode: engine.isLiveTemporalMode ? 'realtime' : 'seekable',
+          stats: engine.getTemporalStats(),
+        };
+      },
       useUiStore,
       importMediaPaths,
       openProjectFromPath,

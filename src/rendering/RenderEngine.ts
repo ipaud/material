@@ -129,8 +129,13 @@ export class RenderEngine {
     this.invalidate();
   }
 
-  /** 18D: live camera active — the loop renders every RAF while true. */
+  /** 18D: live camera active — the loop renders every RAF while true.
+   * 18F: flipping this is a live-history boundary (start, stop, device or
+   * target switch all funnel through the managers' teardown/start), so the
+   * temporal buffer resets — history from two source identities, or from a
+   * previous capture run, must never mix. */
   setLiveSourceActive(active: boolean): void {
+    if (this.liveSourceActive !== active) this.temporal?.invalidate();
     this.liveSourceActive = active;
     this.invalidate();
   }
@@ -196,14 +201,24 @@ export class RenderEngine {
     this.boundaryMode = mode;
   }
 
-  /** Drop temporal history — seek, loop restart, source change (§13). */
+  /** Drop temporal history — seek, loop restart, source change (§13).
+   * 18F: COMPOSITION-time resets only. In live mode history is realtime
+   * observation — a timeline seek or loop wrap must not rewind reality, so
+   * this is a no-op while a live source is active. Live-source boundaries
+   * (start/stop/device/target/project switch) reset through the
+   * setLiveSourceActive flip and setTemporalSource instead. */
   resetTemporal(): void {
+    if (this.liveSourceActive) return;
     this.temporal?.invalidate();
     this.invalidate();
   }
 
   getTemporalStats(): TemporalStats | null {
     return this.temporal?.getStats() ?? null;
+  }
+
+  get isLiveTemporalMode(): boolean {
+    return this.liveSourceActive;
   }
 
   get isTemporalActive(): boolean {
@@ -394,10 +409,16 @@ export class RenderEngine {
     }
     renderer.clear();
 
-    // PREVIEW temporal capture, addressed by composition time. Disabled during
-    // export so preview contents can never influence a render (§3).
+    // PREVIEW temporal capture. File sources address history by COMPOSITION
+    // time (seekable grid). Live sources (18F) address it by a MONOTONIC
+    // wall clock instead: paused transport keeps accumulating, seeks never
+    // rewind observed reality, loops never replay it — history is realtime
+    // observation, "N seconds before now", which is exactly how the shared
+    // shader samples (offsetSeconds behind head). Disabled during export so
+    // preview contents can never influence a render (§3).
     if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
-      this.temporal.advancePreview(renderer, this.timeSec, this.sourceTexture);
+      const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
+      this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
       // Restore the on-canvas viewport state clobbered by the capture pass.
       renderer.setViewport(rectX, rectY, rectW, rectH);
       renderer.setScissor(rectX, rectY, rectW, rectH);

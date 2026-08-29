@@ -155,7 +155,33 @@ export class DisplayCaptureSource implements LiveSourceRuntime {
         if (!this.disposed) this.setStatus('device-lost');
       };
     }
+    this.watchFrames();
     this.setStatus('live');
+  }
+
+
+  /** 18F diagnostics: source-frame freshness via requestVideoFrameCallback.
+   * Dev/QA only — proves history advances at SOURCE cadence, never render
+   * cadence. Never persisted, never gates behavior. */
+  private sourceFrames = 0;
+  private lastMediaTime = 0;
+  private rvfcHandle: number | null = null;
+
+  private watchFrames(): void {
+    const video = this.video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number }) => void) => number;
+    };
+    if (typeof video.requestVideoFrameCallback !== 'function') return;
+    const tick = (_now: number, meta: { mediaTime: number }) => {
+      this.sourceFrames++;
+      this.lastMediaTime = meta.mediaTime;
+      if (!this.disposed) this.rvfcHandle = video.requestVideoFrameCallback!(tick);
+    };
+    this.rvfcHandle = video.requestVideoFrameCallback(tick);
+  }
+
+  frameInfo(): { frameId: number; mediaTime: number } {
+    return { frameId: this.sourceFrames, mediaTime: this.lastMediaTime };
   }
 
   texture(): THREE.Texture | null {

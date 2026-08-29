@@ -30,8 +30,11 @@ MATERIAL's source taxonomy after Phase 18E:
   deterministic). A PNG still of "now" stays available. Capturing an
   external screen into MATERIAL is NOT "record MATERIAL to a file" — the
   export pipeline and live sources never mix.
-- **Temporal techniques are current-frame only** on live sources until 18F
-  (realtime history accumulation). The Inspector shows an honest note.
+- **Temporal techniques run in realtime on live sources (18F).** History is
+  a wall-clock observation buffer: it accumulates while the transport is
+  paused, never rewinds on seek, never replays on loop, and resets at every
+  source boundary (start/stop/device/target/project switch). Not seekable,
+  not deterministic, never exported. The Inspector notes the semantics.
 - **The Output replica mirrors ACQUISITION, not selection**: the RenderInputs
   descriptor carries a live kind only while the editor capture is LIVE.
   Editor STOP releases the replica's stream too. The replica can never

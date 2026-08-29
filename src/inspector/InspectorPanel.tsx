@@ -80,8 +80,8 @@ export function InspectorPanel() {
       <div className="panel-body">
         {temporalOnLive && (
           <div className="inspector-live-note">
-            LIVE SOURCE — this technique uses frame history, which a live
-            source does not provide yet. Current frame only.
+            LIVE SOURCE — frame history accumulates in realtime from now.
+            Not seekable; export stays disabled.
           </div>
         )}
         {!hasSource && (

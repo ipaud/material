@@ -320,3 +320,45 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   desktopCapturer reports) is project config for the INPUT; the Output
   target display stays machine state in settings.json. Capturing the
   built-in display while outputting to a projector is a first-class setup.
+
+## Live temporal history (Phase 18F)
+
+- **ADR — one atlas, two clocks**: live sources reuse the EXISTING temporal
+  atlas (56 slots × 256×144, ~7.9 MB RGBA8 per renderer) — no second history
+  subsystem. The only structural change: while a live source is active the
+  grid advances on a MONOTONIC WALL CLOCK instead of composition time. The
+  shared sampling shader already addresses "offsetSeconds behind the newest
+  frame", which is exactly realtime semantics — so every temporal technique
+  worked unchanged. Measured: transport paused → history keeps filling;
+  advance rate 24.0/s (grid rate) at 120 fps render with a 30 fps camera —
+  source-paced, never render-paced, no 4× duplication.
+- **Seek/loop never rewind reality**: `resetTemporal()` is now a
+  COMPOSITION-semantics reset and no-ops in live mode (a timeline seek
+  measured 56/56 slots surviving). Live-history boundaries reset through
+  the `setLiveSourceActive` flip instead — START, STOP, device switch,
+  target switch and project switch all funnel through manager teardown, so
+  one line covers the whole reset matrix (measured: stop → 0, restart →
+  fresh warmup, no stale frames).
+- **Technique switch resets history** (existing lifecycle, kept): entering
+  a temporal technique allocates the provider and warms from now; leaving
+  disposes it (VRAM released); temporal→temporal re-primes. Consistent
+  with file sources; no cross-technique persistence invented.
+- **Freeze freezes output, not observation**: measured 24 slots/s still
+  advancing behind FREEZE ALL; release sees current live history.
+- **VRAM is bounded by design**: slots are fixed 256×144 — a Retina
+  3024×1964 screen (or theoretical 4K) is downsampled at blit time, so the
+  atlas stays ~7.9 MB per renderer regardless of source resolution;
+  editor+Output ≈ 16 MB total. Live window resize (measured 2116×1328 →
+  1400×1000 mid-capture) needs no reallocation. Current frame renders at
+  full resolution; only history layers are low-res — deliberate
+  quality/stability tradeoff.
+- **Output keeps its own history**: the replica acquires its own live
+  surface (18D/18E), so it builds its own wall-clock atlas locally. No
+  history pixels cross processes; param parity stays exact; opening the
+  Output mid-session warms up locally (measured full in ≈2.3 s — the atlas
+  span). Brief visual divergence during warmup is correct behavior, not a
+  parity bug.
+- **rVFC is diagnostics only**: requestVideoFrameCallback counts source
+  frames (measured 30/s camera) for QA/devtools; it never gates history
+  advancement — a static captured window legitimately repeats its frame in
+  history, because real time passed.

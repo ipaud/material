@@ -139,6 +139,7 @@ export class OutputReplica {
       this.capture?.dispose();
       this.capture = null;
       this.engine.setSource(null);
+      this.engine.setLiveSourceActive(false);
       this.engine.setTemporalSource(null);
       if (msg.source?.kind === 'live-camera') {
         void this.loadCamera(msg.source.deviceId ?? null, key);
@@ -173,6 +174,9 @@ export class OutputReplica {
     }
     this.camera = camera;
     this.engine.setSource(camera.texture());
+    // 18F: the replica keeps its OWN realtime temporal history — same
+    // wall-clock model as the editor, warmed from its own acquisition.
+    this.engine.setLiveSourceActive(true);
   }
 
   /** 18E fan-out — see outputCaptureSource.ts: silent rejoin, main decides. */
@@ -192,6 +196,7 @@ export class OutputReplica {
     }
     this.capture = capture;
     this.engine.setSource(capture.texture());
+    this.engine.setLiveSourceActive(true);
   }
 
   private async loadSource(
