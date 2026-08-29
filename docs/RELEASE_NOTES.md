@@ -62,7 +62,12 @@ identical on the Output display.
 - Window capture identity does not persist across sessions — reselect the
   window after reopening a project.
 - The Output warms its temporal history independently for a moment.
-- Internal build: ad-hoc signature, not notarized.
+- Internal build: ad-hoc signature, not notarized. Because ad-hoc
+  signatures change with every rebuild, macOS ties the Screen Recording
+  grant to one specific binary — after replacing MATERIAL.app you must
+  re-toggle it (off→on) under System Settings → Privacy & Security →
+  Screen & System Audio Recording. Camera permission is not affected.
+  A Developer ID signature would make the grant stable.
 
 ---
 

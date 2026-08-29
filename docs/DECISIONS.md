@@ -362,3 +362,22 @@ Full audit and rationale: [LIVE_OUTPUT_ARCHITECTURE.md](LIVE_OUTPUT_ARCHITECTURE
   frames (measured 30/s camera) for QA/devtools; it never gates history
   advancement — a static captured window legitimately repeats its frame in
   history, because real time passed.
+
+## Release 0.3.0 (Phase 18G)
+
+- **Ad-hoc signing breaks TCC continuity (measured)**: macOS binds the
+  Screen Recording grant to the app's code-signing identity; an ad-hoc
+  signature is a per-build hash, so every rebuild invalidates the user's
+  toggle (verified in the packaged 18G QA — grant on the previous build,
+  relaunch of the new build still denied). Accepted for INTERNAL releases
+  and documented in the release notes; a Developer ID certificate is the
+  fix when distribution matters. Camera TCC survived the same rebuild —
+  camera grants key differently in practice.
+- **Packaged 18F/18G validation**: Camera + Slit Scan + fullscreen Display
+  verified end-to-end in the packaged 0.3.0 app (104 fps replica, 16 ms
+  FrameState latency, temporal bands visible, clean teardown, camera
+  indicator off). Screen/Window packaged paths verified up to the honest
+  SCREEN RECORDING ACCESS REQUIRED state with System Settings guidance;
+  going live is OS-blocked by the ad-hoc/TCC identity issue above (owner
+  decision: documented, not worked around). Their full live flows are
+  validated in dev builds, which share the same code paths.
