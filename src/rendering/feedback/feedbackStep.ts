@@ -233,8 +233,10 @@ export class FeedbackStep {
     // NOTE: no setPixelRatio here — with a non-null render target Three
     // applies viewport pixels directly, and setPixelRatio() forces an
     // internal canvas resize (measured: 5 calls/frame → 77 ms stalls).
+    // setRenderTarget applies the RT's full viewport WITHOUT pixelRatio; a
+    // manual setViewport would ×ratio it and confine the pass to the
+    // lower-left quadrant (the CE1D-2 root-cause bug).
     renderer.setRenderTarget(surface.write);
-    renderer.setViewport(0, 0, surface.width, surface.height);
     renderer.setScissorTest(false);
     renderer.render(this.scene, this.camera);
     renderer.setRenderTarget(prevTarget);

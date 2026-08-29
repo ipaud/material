@@ -122,6 +122,12 @@ void main() {
 `;
 
 export class OpticalFlowField {
+  constructor(private readonly maxDim: number = FLOW_MAX_DIM) {
+    this.lumaScene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.lumaMat));
+    this.lkScene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.lkMat));
+    this.blurScene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.blurMat));
+  }
+
   private width = 0;
   private height = 0;
   private lumaA: THREE.WebGLRenderTarget | null = null;
@@ -144,15 +150,9 @@ export class OpticalFlowField {
   private lkScene = new THREE.Scene();
   private blurScene = new THREE.Scene();
 
-  constructor() {
-    this.lumaScene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.lumaMat));
-    this.lkScene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.lkMat));
-    this.blurScene.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.blurMat));
-  }
-
   /** Bounded analysis resolution: long side ≤ FLOW_MAX_DIM, aspect kept. */
   private allocate(srcW: number, srcH: number): void {
-    const scale = FLOW_MAX_DIM / Math.max(srcW, srcH, 1);
+    const scale = this.maxDim / Math.max(srcW, srcH, 1);
     const w = Math.max(Math.round(srcW * Math.min(scale, 1)), 16);
     const h = Math.max(Math.round(srcH * Math.min(scale, 1)), 16);
     if (w === this.width && h === this.height && this.lumaA) return;
@@ -211,8 +211,10 @@ export class OpticalFlowField {
 
     const draw = (target: THREE.WebGLRenderTarget, scene: THREE.Scene) => {
       const prev = renderer.getRenderTarget();
+      // No manual setViewport: setRenderTarget already applies the RT's
+      // full viewport WITHOUT pixelRatio; setViewport would ×2 it and
+      // confine every pass to the lower-left quadrant (the CE1D bug).
       renderer.setRenderTarget(target);
-      renderer.setViewport(0, 0, target.width, target.height);
       renderer.setScissorTest(false);
       renderer.render(scene, this.camera);
       renderer.setRenderTarget(prev);

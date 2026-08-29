@@ -13,6 +13,7 @@ import { MOD_SOURCES } from '@/modulation/sources';
  */
 
 const CATEGORIES = [
+  'Motion',
   'Feedback',
   'Minimal',
   'Temporal',
@@ -31,7 +32,7 @@ const MATERIAL_IDS = new Set(BUILTIN_MATERIALS.map((m) => m.id));
 describe('CE1A preset library', () => {
   it('has 40–60 curated presets with unique ids and names', () => {
     expect(BUILTIN_PRESETS.length).toBeGreaterThanOrEqual(40);
-    expect(BUILTIN_PRESETS.length).toBeLessThanOrEqual(95); // 60 CE1A + 16 feedback + 10 time-field
+    expect(BUILTIN_PRESETS.length).toBeLessThanOrEqual(110); // CE1A 60 + feedback 16 + time-field 10 + motion 11
     const ids = new Set(BUILTIN_PRESETS.map((p) => p.id));
     const names = new Set(BUILTIN_PRESETS.map((p) => p.name));
     expect(ids.size).toBe(BUILTIN_PRESETS.length);

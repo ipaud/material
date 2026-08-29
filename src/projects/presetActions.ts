@@ -2861,6 +2861,339 @@ export const BUILTIN_PRESETS: Preset[] = [
       'field'
     ]
   },
+  {
+    id: 'builtin-flow-pull',
+    name: 'Flow Pull',
+    techniqueId: 'flow-displace',
+    params: {
+      amount: 1.6,
+      threshold: 0.04
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Pixels drag hard along their own motion \u2014 liquid inertia.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-undertow',
+    name: 'Undertow',
+    techniqueId: 'flow-displace',
+    params: {
+      amount: 1.4,
+      threshold: 0.05,
+      against: true
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'The image pulls AGAINST its motion, like water resisting a swimmer.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-vector-smear',
+    name: 'Vector Smear',
+    techniqueId: 'directional-smear',
+    params: {
+      amount: 2.2,
+      samples: 10,
+      threshold: 0.05
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Painterly speed-lines along every moving edge.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-channel-drag',
+    name: 'Channel Drag',
+    techniqueId: 'motion-rgb',
+    params: {
+      amount: 1.6,
+      threshold: 0.03
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Motion tears red ahead and blue behind \u2014 chroma with momentum.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-body-ghost',
+    name: 'Body Ghost',
+    techniqueId: 'flow-feedback',
+    params: {
+      flow: 1.2,
+      persistence: 0.95,
+      injection: 0.45,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'A wake of yourself follows every gesture.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-current',
+    name: 'Current',
+    techniqueId: 'flow-feedback',
+    params: {
+      flow: 1.8,
+      persistence: 0.97,
+      injection: 0.3,
+      mix: 1
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'cur-bass',
+        enabled: true,
+        source: 'bass',
+        target: 'flow',
+        amount: 0.5,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.2,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'The whole frame becomes a river; bass strengthens the current.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-mosh-drift',
+    name: 'Mosh Drift',
+    techniqueId: 'motion-mosh',
+    params: {
+      flow: 1.2,
+      threshold: 0.12,
+      blockiness: 3,
+      chromaDrift: 0.15,
+      persistence: 0.985,
+      injection: 0.65
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Moving regions smear old pixels; still regions refresh \u2014 the signature mosh.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-block-storm',
+    name: 'Block Storm',
+    techniqueId: 'motion-mosh',
+    params: {
+      flow: 2,
+      threshold: 0.08,
+      blockiness: 7,
+      chromaDrift: 0.35,
+      persistence: 0.99,
+      injection: 0.5
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'bs-flux',
+        enabled: true,
+        source: 'flux',
+        target: 'flow',
+        amount: 0.5,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.1,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Coarse blocks ride the motion; audio flux whips the storm.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-clean-wake',
+    name: 'Clean Wake',
+    techniqueId: 'motion-trails',
+    params: {
+      flow: 0.6,
+      threshold: 0.08,
+      persistence: 0.95,
+      injection: 0.85
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Only what moves leaves a trail; stillness stays pristine.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-motion-memory',
+    name: 'Motion Memory',
+    techniqueId: 'time-field',
+    params: {
+      field: 'motion',
+      depth: 1.8,
+      scale: 2
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Motion',
+    description: 'Moving regions tear into the past; the still world stays present.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
+  {
+    id: 'builtin-activity-map',
+    name: 'Activity Map',
+    techniqueId: 'time-field',
+    params: {
+      field: 'motion',
+      depth: 2.29,
+      scale: 3,
+      invert: true
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Studies',
+    description: 'MACHINE VISION study: activity itself becomes the depth of time.',
+    tags: [
+      'motion',
+      'flow'
+    ]
+  },
 ];
 
 const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transients']);

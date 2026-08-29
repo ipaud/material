@@ -18,6 +18,7 @@ const CATEGORY_ORDER = [
   'Analog',
   'Digital Damage',
   'Studies',
+  'Motion',
   'Live',
   'Performance',
 ];

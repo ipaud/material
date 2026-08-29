@@ -91,11 +91,7 @@ describe('time-field technique', () => {
     const field = params.find((p) => p.id === 'field');
     expect(field?.type).toBe('select');
     if (field?.type === 'select') {
-      // CE1D: 'motion' exists in FIELD_IDS but is not exposed until CE1D-2
-      // closes the golden gates (see registry note).
-      expect(field.options.map((o) => o.value)).toEqual(
-        Object.keys(FIELD_IDS).filter((k) => k !== 'motion'),
-      );
+      expect(field.options.map((o) => o.value)).toEqual(Object.keys(FIELD_IDS));
     }
   });
 

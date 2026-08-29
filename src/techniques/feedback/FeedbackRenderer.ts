@@ -255,8 +255,7 @@ export class FeedbackRenderer implements TechniqueRenderer {
     const draw = (target: THREE.WebGLRenderTarget, vw: number, vh: number) => {
       const prev = renderer.getRenderTarget();
       // No setPixelRatio: render-target viewports are raw pixels in Three.
-      renderer.setRenderTarget(target);
-      renderer.setViewport(0, 0, vw, vh);
+      renderer.setRenderTarget(target); // full-RT viewport, no ratio (CE1D-2)
       renderer.setScissorTest(false);
       renderer.render(this.bloomScene!, this.bloomCamera);
       renderer.setRenderTarget(prev);

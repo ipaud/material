@@ -26,15 +26,10 @@ registerTechnique(echoDefinition);
 registerTechnique(stepPrintDefinition);
 for (const d of feedbackDefinitions) registerTechnique(d);
 registerTechnique(timeFieldDefinition);
-// CE1D status: the optical-flow primitive is proven live on GPU consumers
-// (camera hue-view QA), but the numeric golden harness (CPU readback of
-// class-owned render targets) produced contradictory measurements and the
-// synthetic-fixture acceptance gates (§92-93) could not be closed. The
-// Motion Pack therefore stays UNREGISTERED — experimental, compiled and
-// unit-covered, shipped to users only after CE1D-2 lands a GPU-verified
-// golden harness. See docs/DECISIONS.md (CE1D forensic note).
-// for (const d of motionDefinitions) registerTechnique(d);
-void motionDefinitions;
+// CE1D-2: primitive ACCEPTED — GPU harness self-tests pass and the
+// synthetic goldens are green (cardinal signs, ±3% velocity at 2px,
+// LSB-level noise floor). See docs/GPU_TESTING.md + DECISIONS ADR.
+for (const d of motionDefinitions) registerTechnique(d);
 registerTechnique(slitScanDefinition);
 
 /** Techniques that need composition-time frame history. */

@@ -35,6 +35,7 @@ import { FakeMidiTransport, WebMidiTransport } from './midi/transport';
 import { cameraManager, useCameraStore } from './sources/cameraManager';
 import { captureManager, useCaptureStore } from './sources/captureManager';
 import { BUILTIN_PRESETS, applyPreset } from './projects/presetActions';
+import * as flowDiag from './rendering/flow/flowDiagnostics';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -75,6 +76,52 @@ if (import.meta.env.DEV) {
       presets: { BUILTIN_PRESETS, applyPreset },
       importMediaPaths,
       runAnimationExport,
+      /** CE1D-2: the full flow verification protocol on a clean process.
+       * Self-tests first; throws loudly if the harness itself is broken. */
+      async flowHarness() {
+        // STATIC import (top of file): a dynamic import in dev loads a
+        // SECOND module graph with a second 'three' — objects from one copy
+        // rendered by the other fail silently. This was the root cause of
+        // every zero/contradictory probe in CE1D.
+        const { runFlowGolden, FlowProbe, canaryAB, canaryCD, canaryE } = flowDiag;
+        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        if (!e.renderer) return null;
+        // standalone harness self-test at a fixed grid
+        const probe = new FlowProbe(e.renderer, 320, 180);
+        const self = probe.selfTest();
+        probe.dispose();
+        const px = (n: number) => n / 320; // grid px → uv at 320-wide grid
+        const cases = [
+          { name: 'STATIC', du: 0, dv: 0 },
+          { name: 'RIGHT2', du: px(2), dv: 0 },
+          { name: 'LEFT2', du: -px(2), dv: 0 },
+          { name: 'UP2', du: 0, dv: px(2) },
+          { name: 'DOWN2', du: 0, dv: -px(2) },
+          { name: 'DIAG2', du: px(2), dv: -px(2) },
+          { name: 'RIGHT1', du: px(1), dv: 0 },
+          { name: 'RIGHT4', du: px(4), dv: 0 },
+          { name: 'RIGHT8', du: px(8), dv: 0 },
+          { name: 'RIGHT16', du: px(16), dv: 0 },
+        ];
+        const canary = { ...canaryAB(e.renderer), ...canaryCD(e.renderer), E: canaryE(e.renderer) };
+        const out: Record<string, unknown> = { canary, selfTest: self };
+        for (const kase of cases) {
+          try {
+            out[kase.name] = runFlowGolden(e.renderer, kase);
+          } catch (err) {
+            out[kase.name] = { error: String(err) };
+          }
+        }
+        // resolution sweep on RIGHT2
+        for (const dim of [256, 512]) {
+          try {
+            out[`RIGHT2@${dim}`] = runFlowGolden(e.renderer, { name: `R2@${dim}`, du: 2 / dim, dv: 0 }, dim);
+          } catch (err) {
+            out[`RIGHT2@${dim}`] = { error: String(err) };
+          }
+        }
+        return out;
+      },
       /** CE1D dev-only: the LK shader ALONE over a shader-painted packed
        * texture (R = box at x0, G = box at x0-shift). Isolates math from
        * the class pipeline. */

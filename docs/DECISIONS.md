@@ -488,3 +488,30 @@ RGB, Directional Smear) and Time Field's motion mode stay unregistered
 until CE1D-2 lands a GPU-verified golden harness (render the flow into an
 RGBA8 visualization target INSIDE the product renderer and assert on
 that — never raw CPU float readbacks of live class targets).
+
+## CE1D-2 — Optical flow ACCEPTED; the harness that made it possible
+
+- **Root cause of the entire CE1D measurement saga (measured, canaried)**:
+  `renderer.setViewport` multiplies by pixelRatio unconditionally; calling
+  it after `setRenderTarget` on a ratio-2 canvas confined every offscreen
+  pass to the lower-left quadrant. Constant-color probes passed (any
+  quadrant looks the same); anything consuming `vUv` read zeros at the
+  sampled points. Fixed by REMOVING manual setViewport after
+  setRenderTarget (the RT's own full viewport applies, ratio-free) in
+  flow, diagnostics AND the CE1B feedback/bloom paths (tunnel regression
+  verified visually). Full trap list + methodology: docs/GPU_TESTING.md.
+- **Primitive accepted on numbers**: self-tested GPU harness; cardinal
+  signs exact; velocity ±3% of ground truth at 2 grid-px; background at
+  encoder half-LSB; useful range 1–4 grid-px (mono-scale LK aperture and
+  range limits documented, not hacked); 320 confirmed optimal by sweep;
+  ~27 updates/s from a 30fps source under the 120Hz loop.
+- **Motion Pack registered** (6): Flow Displace, Motion RGB, Directional
+  Smear, Flow Feedback, Motion Mosh, Motion Trails — all consuming the
+  ONE shared flow service; stateful ones reuse the CE1B feedback
+  primitive. Motion Bloom was never built (bloom-tail overlap); Vector
+  Field View stays a dev uniform. Time Field gains the Motion field:
+  moving regions tear into the past (verified live on camera). All six at
+  118–121fps @1080p editor.
+- 11 Motion presets (Flow Pull, Undertow, Vector Smear, Channel Drag,
+  Body Ghost, Current, Mosh Drift, Block Storm, Clean Wake, Motion
+  Memory + Activity Map under Studies).
