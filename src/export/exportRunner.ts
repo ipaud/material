@@ -9,7 +9,7 @@ import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { allParams, type TechniqueRenderer } from '@/techniques/types';
 import { evalSources, type SourceContext } from '@/modulation/sources';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
-import { applyModulations, SmoothingState, shapeMappingValue } from '@/modulation/evaluator';
+import { applyModulations, SmoothingState, shapedUnitValue } from '@/modulation/evaluator';
 import { applyPulses } from '@/signals/pulseEngine';
 import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
@@ -188,7 +188,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     freeze: (mappingId) => {
       for (const m of working.modulations) {
         if (mappingId && mappingId !== '*' && m.id !== mappingId) continue;
-        m.frozenValue = shapeMappingValue(m, lastSources, smoothing, 0);
+        m.frozenValue = shapedUnitValue(m, lastSources, smoothing, 0);
       }
     },
     unfreeze: (mappingId) => {
@@ -201,7 +201,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
       for (const m of working.modulations) {
         if (mappingId && mappingId !== '*' && m.id !== mappingId) continue;
         m.frozenValue =
-          m.frozenValue === null ? shapeMappingValue(m, lastSources, smoothing, 0) : null;
+          m.frozenValue === null ? shapedUnitValue(m, lastSources, smoothing, 0) : null;
       }
     },
     pinLook: () => undefined, // pinning mutates the project; no-op in export replay

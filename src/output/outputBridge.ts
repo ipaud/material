@@ -46,6 +46,13 @@ function toFrameMsg(frame: FrameState): FrameStateMsg {
     techniqueId: frame.techniqueId,
     temporalActive: frame.temporalActive,
     finalParams: frame.finalParams,
+    // CE1F / CE1G: both were declared on FrameStateMsg and read by the
+    // replica, but never copied here — so the Output rendered generators with
+    // UNMODULATED params (falling back to the low-rate RenderInputs) and never
+    // showed a morph transition at all. Resolved values only; the replica
+    // still evaluates nothing.
+    sourceParams: frame.sourceParams,
+    transition: frame.transition,
     materialState: frame.materialState,
   };
 }

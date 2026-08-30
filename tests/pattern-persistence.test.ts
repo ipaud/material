@@ -560,7 +560,7 @@ function evalPatternValues(
     projectSeed: project.explore.lastSeed ?? 1,
   });
   modulationRuntime.transform({}, t);
-  return new Set(Object.keys(modulationRuntime.lastSourceValues));
+  return new Set(Object.keys(modulationRuntime.lastSourceValues ?? {}));
 }
 
 // ---------------------------------------------------------------------------

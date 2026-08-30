@@ -41,7 +41,17 @@ export class SmoothingState {
 }
 
 /** Shaped 0..1 output of one mapping (before scaling into the target range). */
-export function shapeMappingValue(
+/**
+ * The mapping's shaped value in 0..1, BEFORE its output range is applied.
+ *
+ * This is the quantity FREEZE stores, in preview and in export alike. They
+ * used to store different ones: preview captured this pre-range value while
+ * export captured the post-range one, and the frozen branch then skipped the
+ * range entirely — so freezing a mapping with min 0.2 / max 0.8 jumped its
+ * contribution to the full 0..1 span, and the two paths disagreed about what
+ * the stored number even meant.
+ */
+export function shapedUnitValue(
   mapping: ModulationMapping,
   sourceValues: Record<string, number>,
   smoothingState: SmoothingState,
@@ -51,7 +61,16 @@ export function shapeMappingValue(
   let v = sourceValues[mapping.source] ?? 0;
   if (mapping.invert) v = 1 - v;
   v = applyCurve(v, mapping.curve);
-  v = smoothingState.step(mapping.id, v, mapping.smoothing, dtSec);
+  return smoothingState.step(mapping.id, v, mapping.smoothing, dtSec);
+}
+
+export function shapeMappingValue(
+  mapping: ModulationMapping,
+  sourceValues: Record<string, number>,
+  smoothingState: SmoothingState,
+  dtSec: number,
+): number {
+  const v = shapedUnitValue(mapping, sourceValues, smoothingState, dtSec);
   return mapping.min + (mapping.max - mapping.min) * v;
 }
 

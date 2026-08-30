@@ -27,8 +27,12 @@ class ModulationRuntime {
   };
   private readonly smoothing = new SmoothingState();
   private lastTime = -1;
-  /** Latest shaped source values (UI meters / freeze capture). */
-  lastSourceValues: Record<string, number> = {};
+  /** Latest shaped source values (UI meters / freeze capture). Null until the
+   * first `transform()`, so the source-param path can tell "not evaluated yet"
+   * from "evaluated to nothing" — `{} ?? x` is `{}`, so an empty-object
+   * initialiser made the fallback below unreachable and skipped every
+   * `source.*` mapping on the first frame. */
+  lastSourceValues: Record<string, number> | null = null;
 
   configure(mappings: ModulationMapping[], techniqueId: string | null, ctx: SourceContext): void {
     this.mappings = mappings;
@@ -58,6 +62,8 @@ class ModulationRuntime {
     if (!this.mappings.some((m) => m.enabled && m.target.startsWith('source.'))) return base;
     const dt = this.lastTime >= 0 ? Math.min(Math.abs(timeSec - this.lastTime), 0.1) : 1 / 60;
     const sources = this.lastSourceValues ?? evalSources(timeSec, this.sourceCtx);
+    // NOTE: source params intentionally read the PREVIOUS frame's values —
+    // see the one-frame-delay contract in docs/SIGNALS.md.
     return applySourceModulations(base, this.mappings, sources, paramDefs, this.smoothing, dt);
   }
 

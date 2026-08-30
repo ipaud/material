@@ -91,14 +91,17 @@ export function StatusRail() {
       }
 
       // Signals: bass level + onset/beat dots, imperative.
-      const v = modulationRuntime.lastSourceValues;
+      const v = modulationRuntime.lastSourceValues ?? {};
       const bassEl = bassRef.current;
       if (bassEl) {
         const n = Math.round((v.bass ?? 0) * 8);
         bassEl.textContent = '▮'.repeat(n) + '▯'.repeat(8 - n);
       }
       onsetRef.current?.classList.toggle('on', (v.onset ?? 0) > 0.5);
-      beatDotRef.current?.classList.toggle('on', (v.beat ?? 0) > 0.5);
+      // `beat` is not an emitted id — the grid sources are `beat:1/4` etc.,
+      // so this dot never lit. The quarter-note phase ramps 0..1, and the
+      // dot should read as ON just after the beat.
+      beatDotRef.current?.classList.toggle('on', (v['beat:1/4'] ?? 1) < 0.25);
     }, 100);
     return () => clearInterval(timer);
   }, []);

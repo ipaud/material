@@ -268,8 +268,10 @@ export class OpticalFlowField {
   }
 
   get bytes(): number {
-    // 2×luma RGBA8 + 2×flow RG16F(stored RGBA16F by three) at analysis res.
-    return this.width * this.height * (4 * 2 + 8 * 2);
+    // 2×luma RGBA8 (4 B/px) + 2×flow RGBA32F (16 B/px) at analysis resolution.
+    // The old comment claimed RGBA16F and under-reported by ~40%; the targets
+    // are created with THREE.FloatType above.
+    return this.width * this.height * (4 * 2 + 16 * 2);
   }
 
   private disposeTargets(): void {

@@ -6,9 +6,10 @@ Export never screen-records the viewport. Every frame is rendered offscreen at
 full project resolution from an exact composition time.
 
 ```
-for frameIndex in 0..N:
-    t      = startSec + frameIndex / fps      # exact, no accumulation
-    params = evaluateModulation(t, dt = 1/fps) # fresh smoothing state
+# the evaluator replays from the ORIGIN; only [startFrame, startFrame+N) is written
+for globalFrame in startFrame..startFrame+N:
+    t      = (round(startSec*fps) + i) / fps   # addressed by GLOBAL FRAME INDEX
+    params = evaluateModulation(t, dt = 1/fps) # history replayed from frame 0
     seek video to exactly t                    # awaits 'seeked'
     rgba   = engine.renderStill(w, h, params)  # offscreen render target
     send rgba -> main -> ffmpeg stdin (rawvideo)
@@ -18,11 +19,11 @@ for frameIndex in 0..N:
 
 | Property | Guarantee |
 |---|---|
-| Frame time | `startSec + i/fps` — computed, never accumulated |
+| Frame time | `(round(startSec*fps) + i)/fps` — addressed by global frame index, so the same frame is the same float in every export containing it |
 | Audio features | Precomputed analysis arrays, linearly interpolated at `t` |
 | Beat sources | Pure function of `(t, bpm, beatOffset)` |
 | Randomness | Seeded (mulberry32); the GPU hash is a pure function of instance id + seed |
-| Smoothing | EMA stepped with fixed `dt = 1/fps`, from a **fresh** state per export |
+| Smoothing | EMA stepped with fixed `dt = 1/fps`, replayed from the timeline **origin** |
 | Re-runs | Same project + same range + same fps → identical parameter sequence |
 
 Verified in `tests/export-determinism.test.ts` and live against
@@ -31,12 +32,17 @@ export evaluator matched the live preview evaluator to **4.2e-13** (float noise)
 
 ### Why smoothing is history-dependent (and why that's still deterministic)
 
-An EMA-smoothed mapping depends on the frames before it. Two exports starting
-at *different* times therefore differ slightly during the settling window
-(~1 time constant). This is intended: within a single export the state is
-always initialized at the start frame and advanced by a fixed `dt`, so any
-given export is exactly reproducible. Mappings with `smoothing = 0` are
-purely time-addressable.
+An EMA-smoothed mapping depends on the frames before it. Until CE1H each export
+initialised that state at its own start frame, so a subrange and a full export
+disagreed during the settling window — measured at **0/12** matching frames with
+the reference track driving Motion Mosh at smoothing 0.2, and 12/12 with
+smoothing 0, which is what isolated it.
+
+The evaluator now replays from the timeline origin: skipped frames are walked
+(one cheap CPU evaluation each, nothing rendered) so a subrange reaches its
+first written frame carrying the history a full export has. Both are exactly
+reproducible **and** they agree with each other. Mappings with `smoothing = 0`
+remain purely time-addressable.
 
 ## Process architecture
 

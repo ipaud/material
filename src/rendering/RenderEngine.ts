@@ -253,6 +253,8 @@ export class RenderEngine {
       // Simulation generators keep CE1E preview semantics (wall clock).
       gen.advancePreview(renderer, performance.now() / 1000, params);
     }
+    // A generator emits no decoded-frame event, so this is its frame identity.
+    this.generatorRevision++;
     const tex = gen.texture();
     if (tex && tex !== this.sourceTexture) {
       this.sourceTexture = tex;
@@ -337,6 +339,17 @@ export class RenderEngine {
   // gates flow recomputation — a 30fps source yields ~30 keys/s no matter
   // how fast the render loop spins (§83 hard gate).
   private sourceFrameCounter = 0;
+  /**
+   * Generators produce new pixels without any decoded-frame event: their
+   * texture is ONE object whose uuid never changes and `requestVideoFrameCallback`
+   * does not exist for them, so `sourceFrameKey()` was constant and every
+   * frame-gated consumer early-returned forever. Measured before the fix: 3 s
+   * of preview at 120 fps over a noise generator with Motion Mosh produced 0
+   * flow updates. Export was unaffected because it passes explicit keys, which
+   * is exactly why the determinism matrix never saw it — a frozen field is
+   * perfectly reproducible.
+   */
+  private generatorRevision = 0;
   private rvfcCancel: (() => void) | null = null;
 
   private watchSourceFrames(): void {
@@ -362,7 +375,7 @@ export class RenderEngine {
   }
 
   private sourceFrameKey(): string {
-    return `${this.sourceTexture?.uuid ?? 'none'}:${this.sourceFrameCounter}`;
+    return `${this.sourceTexture?.uuid ?? 'none'}:${this.sourceFrameCounter}:${this.generatorRevision}`;
   }
 
   private updateFlowService(renderer: THREE.WebGLRenderer, frameKey?: string): void {

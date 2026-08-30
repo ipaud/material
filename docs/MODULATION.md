@@ -61,9 +61,16 @@ target simply sum.
 ## Determinism
 
 Smoothing is stateful, so a mapping depends on the frames before it. Export
-handles this by starting a **fresh** smoothing state at the export start and
-stepping a fixed `dt = 1/fps`, which makes any single export exactly
-reproducible. Mappings with `smoothing = 0` are purely time-addressable.
+therefore **replays the evaluator from the timeline origin** and steps a fixed
+`dt = 1/fps`: the skipped frames are walked (cheaply, nothing is rendered) so a
+subrange arrives at its first frame carrying the same smoothing and trigger
+history a full export would have. Mappings with `smoothing = 0` are purely
+time-addressable either way.
+
+Before CE1H the export started from a *fresh* state at the export start, which
+made any single export reproducible but let a subrange disagree with a full
+export — measured at 0/12 matching frames with the reference track driving
+Motion Mosh at smoothing 0.2, and 12/12 with smoothing 0.
 
 Verified against `SHAZUNO-material.mp3`: the export evaluator and the live
 preview evaluator agree to **4.2 × 10⁻¹³** over 90 frames.
