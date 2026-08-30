@@ -3,6 +3,7 @@ import { getTechnique } from '@/techniques/registry';
 import { FileImageSource } from '@/sources/FileImageSource';
 import { OutputCameraSource } from './outputCameraSource';
 import { OutputCaptureSource } from './outputCaptureSource';
+import { GeneratorSource } from '@/sources/generators/GeneratorSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { FrameStateMsg, OutputChannelMsg, RenderInputsMsg } from '@shared/outputChannel';
@@ -38,6 +39,8 @@ export class OutputReplica {
   private source: SourceRuntime | null = null;
   private camera: OutputCameraSource | null = null;
   private capture: OutputCaptureSource | null = null;
+  private generator: GeneratorSource | null = null;
+  private generatorParams: Record<string, string | number | boolean> = {};
   private sourceKey: string | null = null;
   private generation = -999;
   private clock: ClockBase = { authorityTimeSec: 0, atWall: Date.now(), playing: false };
@@ -122,7 +125,9 @@ export class OutputReplica {
     );
 
     const key = msg.source
-      ? msg.source.kind === 'live-camera'
+      ? msg.source.kind === 'generator'
+        ? `generator:${msg.source.generator}:${msg.source.seed}:${msg.generation}`
+        : msg.source.kind === 'live-camera'
         ? `live-camera:${msg.source.deviceId ?? 'default'}:${msg.generation}`
         : msg.source.kind === 'live-screen'
           ? `live-screen:${msg.source.displayId ?? 'any'}:${msg.generation}`
@@ -138,10 +143,19 @@ export class OutputReplica {
       this.camera = null;
       this.capture?.dispose();
       this.capture = null;
+      this.generator?.dispose();
+      this.generator = null;
       this.engine.setSource(null);
       this.engine.setLiveSourceActive(false);
       this.engine.setTemporalSource(null);
-      if (msg.source?.kind === 'live-camera') {
+      if (msg.source?.kind === 'generator') {
+        // CE1F: the Output builds the SAME generator locally from the config
+        // — no pixels cross the process. Per-frame params arrive resolved in
+        // FrameState; the replica never evaluates modulation.
+        this.generator = new GeneratorSource(msg.source.generator as never, msg.source.seed);
+        this.generatorParams = msg.source.params;
+        this.engine.setSource(null);
+      } else if (msg.source?.kind === 'live-camera') {
         void this.loadCamera(msg.source.deviceId ?? null, key);
       } else if (msg.source?.kind === 'live-screen' || msg.source?.kind === 'live-window') {
         void this.loadCapture(key);
@@ -258,6 +272,20 @@ export class OutputReplica {
   }
 
   private applyFrame(msg: FrameStateMsg): void {
+    // CE1F: drive the local generator with the params the EDITOR resolved.
+    if (this.generator) {
+      const params = msg.sourceParams ?? this.generatorParams;
+      const renderer = (this.engine as unknown as { renderer: import('three').WebGLRenderer | null })
+        .renderer;
+      if (renderer) {
+        if (this.generator.isStateless) {
+          this.generator.renderFrame(renderer, msg.compTime, params, true, 1920, 1080);
+        } else {
+          this.generator.advancePreview(renderer, performance.now() / 1000, params);
+        }
+        this.engine.setSource(this.generator.texture());
+      }
+    }
     const received = performance.now();
     this.framesReceived++;
     this.latest = msg;

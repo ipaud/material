@@ -12,7 +12,13 @@ import type { TemporalSource } from '@/rendering/temporal/TemporalFrameProvider'
  */
 
 export type SourceRuntimeKind =
-  'file-image' | 'file-video' | 'live-camera' | 'live-screen' | 'live-window';
+  | 'file-image'
+  | 'file-video'
+  | 'live-camera'
+  | 'live-screen'
+  | 'live-window'
+  /** CE1F: procedural generator — a first-class source, not an effect. */
+  | 'generator';
 
 export type SourceRuntimeStatus =
   | 'offline'

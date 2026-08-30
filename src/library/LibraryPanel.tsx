@@ -4,7 +4,13 @@ import { useUiStore } from '@/state/uiStore';
 import { relinkSource } from '@/projects/projectActions';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { captureManager, useCaptureStore } from '@/sources/captureManager';
-import { isFileSource, type ScreenSourceRef, type WindowSourceRef } from '@shared/schemas/project';
+import {
+  isFileSource,
+  type GeneratorSourceRef,
+  type ScreenSourceRef,
+  type WindowSourceRef,
+} from '@shared/schemas/project';
+import { GENERATORS, generatorDefaults, getGenerator } from '@/sources/generators/definitions';
 import { withTechniqueEnsured } from '@/projects/projectActions';
 import { uid } from '@/utils/id';
 import './library.css';
@@ -15,6 +21,7 @@ type SourceRef = ReturnType<typeof useProjectStore.getState>['project']['sources
 function describe(source: SourceRef): string {
   if (source.kind === 'camera' || source.kind === 'screen' || source.kind === 'window')
     return 'LIVE INPUT';
+  if (source.kind === 'generator') return 'PROCEDURAL';
   const meta = source.metadata;
   if (!meta) return source.kind.toUpperCase();
   const parts: string[] = [];
@@ -32,6 +39,7 @@ const KIND_LABEL: Record<string, string> = {
   camera: 'CAM',
   screen: 'SCR',
   window: 'WIN',
+  generator: 'GEN',
 };
 
 export function LibraryPanel() {
@@ -47,6 +55,10 @@ export function LibraryPanel() {
       if (!source) return p;
       if (kind === 'audio') {
         return { ...p, composition: { ...p.composition, audioSourceId: id } };
+      }
+      if (kind === 'generator') {
+        // A generator is just a source: point the composition at it.
+        return { ...p, composition: { ...p.composition, sourceId: id } };
       }
       if (kind === 'camera' || kind === 'screen' || kind === 'window') {
         // Selecting a live source only points the composition at it —
@@ -97,6 +109,20 @@ export function LibraryPanel() {
   const hasScreen = sources.some((s) => s.kind === 'screen');
   const hasWindow = sources.some((s) => s.kind === 'window');
 
+  const addGenerator = () => {
+    apply((p) => {
+      const id = uid('gen');
+      return withTechniqueEnsured({
+        ...p,
+        sources: [
+          ...p.sources,
+          { id, kind: 'generator' as const, generator: 'noise', params: generatorDefaults('noise'), seed: 1 },
+        ],
+        composition: { ...p.composition, sourceId: id },
+      });
+    });
+  };
+
   const addLive = (kind: 'screen' | 'window') => {
     apply((p) => {
       if (p.sources.some((s) => s.kind === kind)) return p;
@@ -141,6 +167,13 @@ export function LibraryPanel() {
               + SCREEN
             </button>
           )}
+          <button
+            className="vp-btn"
+            title="Add a procedural generator source"
+            onClick={addGenerator}
+          >
+            + GENERATOR
+          </button>
           {!hasWindow && (
             <button
               className="vp-btn"
@@ -165,6 +198,17 @@ export function LibraryPanel() {
                       sourceId={source.id}
                       active={isActive}
                       onSelect={() => selectSource(source.id, 'camera')}
+                    />
+                  </li>
+                );
+              }
+              if (source.kind === 'generator') {
+                return (
+                  <li key={source.id}>
+                    <GeneratorRow
+                      source={source}
+                      active={isActive}
+                      onSelect={() => selectSource(source.id, 'generator')}
                     />
                   </li>
                 );
@@ -452,6 +496,55 @@ function CaptureRow({
               ? 'TRY AGAIN'
               : 'START'}
       </button>
+    </div>
+  );
+}
+
+/**
+ * CE1F — the generator source row: pick the generator, see its identity.
+ * Its PARAMETERS live in the Inspector's SOURCE group (same param system as
+ * techniques), so this row stays compact.
+ */
+function GeneratorRow({
+  source,
+  active,
+  onSelect,
+}: {
+  source: GeneratorSourceRef;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const apply = useProjectStore((s) => s.apply);
+  const def = getGenerator(source.generator);
+  return (
+    <div className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
+      <span className="media-kind kind-generator">GEN</span>
+      <span className="media-text">
+        <span className="media-name">{def?.name ?? source.generator}</span>
+        <select
+          className="select camera-device"
+          aria-label="Generator"
+          value={source.generator}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const next = e.target.value;
+            apply((p) => ({
+              ...p,
+              sources: p.sources.map((s) =>
+                s.id === source.id && s.kind === 'generator'
+                  ? { ...s, generator: next, params: generatorDefaults(next) }
+                  : s,
+              ),
+            }));
+          }}
+        >
+          {GENERATORS.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+      </span>
     </div>
   );
 }

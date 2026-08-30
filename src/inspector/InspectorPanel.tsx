@@ -18,6 +18,7 @@ import { uid } from '@/utils/id';
 import type { ParamValue } from '@shared/schemas/project';
 import { techniqueNeedsTemporal } from '@/techniques/registry';
 import { isLiveSource } from '@shared/schemas/project';
+import { getGenerator } from '@/sources/generators/definitions';
 import '@/components/parameter-slider.css';
 
 export function InspectorPanel() {
@@ -57,6 +58,11 @@ export function InspectorPanel() {
   );
 
   const definition = technique ? getTechnique(technique.techniqueId) : null;
+  const generatorSource = useProjectStore((s) => {
+    const src = s.project.sources.find((x) => x.id === s.project.composition.sourceId);
+    return src && src.kind === 'generator' ? src : null;
+  });
+  const generatorDef = generatorSource ? getGenerator(generatorSource.generator) : null;
   // 18D: cameras deliver only the current frame — temporal techniques need
   // frame history that live capture does not accumulate yet (18F).
   const temporalOnLive =
@@ -132,6 +138,38 @@ export function InspectorPanel() {
                 </div>
               </div>
             </div>
+
+            {/* CE1F: SOURCE parameters — a generator is a source, so its
+                params get their own group, never blended into the technique's. */}
+            {generatorSource && generatorDef && (
+              <CollapsibleSection
+                label="Source"
+                count={
+                  generatorDef.params.filter((p) => modulatedTargets.has(`source.${p.id}`)).length
+                }
+              >
+                {generatorDef.params.map((param) => (
+                  <ParamControl
+                    key={param.id}
+                    def={param}
+                    value={generatorSource.params[param.id] ?? param.default}
+                    modulated={modulatedTargets.has(`source.${param.id}`)}
+                    onChange={(v) =>
+                      useProjectStore.getState().apply((p) => ({
+                        ...p,
+                        sources: p.sources.map((s) =>
+                          s.id === generatorSource.id && s.kind === 'generator'
+                            ? { ...s, params: { ...s.params, [param.id]: v } }
+                            : s,
+                        ),
+                      }))
+                    }
+                    onDragStart={beginTransient}
+                    onDragEnd={commitTransient}
+                  />
+                ))}
+              </CollapsibleSection>
+            )}
 
             {groupParams(definition).map((group) => (
               <CollapsibleSection

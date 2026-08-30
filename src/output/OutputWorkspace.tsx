@@ -211,6 +211,8 @@ export function OutputSettings() {
               ? 'Live camera'
               : source.kind === 'screen'
                 ? 'Live screen capture'
+                : source.kind === 'generator'
+                ? `Generator · ${String(source.generator)}`
                 : source.kind === 'window'
                   ? 'Live window capture'
                   : (source.metadata?.fileName ?? source.path.split('/').pop() ?? '—')

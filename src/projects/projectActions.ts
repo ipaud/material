@@ -56,7 +56,7 @@ async function checkOfflineSources(): Promise<void> {
   const { project } = useProjectStore.getState();
   const offline: string[] = [];
   for (const source of project.sources) {
-    if (isLiveSource(source)) continue; // live sources have no file to probe
+    if (isLiveSource(source) || source.kind === 'generator') continue; // no file to probe
     try {
       await window.material.probeMedia(source.path);
     } catch {

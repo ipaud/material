@@ -61,6 +61,37 @@ export function shapeMappingValue(
  * Targets are leaf parameters — no mapping outputs feed another mapping, so
  * cycles are impossible by construction.
  */
+/**
+ * CE1F — the same modulation math applied to SOURCE (generator) params.
+ * Targets are namespaced `source.<paramId>` so a generator's `scale` can
+ * never collide with a technique's `scale`. Authority stays in the editor:
+ * the Output receives the resolved values, it never evaluates mappings.
+ */
+export function applySourceModulations(
+  base: ParamRecord,
+  mappings: readonly ModulationMapping[],
+  sourceValues: Record<string, number>,
+  paramDefs: readonly NumberParamDef[],
+  smoothingState: SmoothingState,
+  dtSec: number,
+): ParamRecord {
+  const active = mappings.filter((m) => m.enabled && m.target.startsWith('source.'));
+  if (active.length === 0) return base;
+  const defs = new Map<string, NumberParamDef>();
+  for (const d of paramDefs) if (d.modulatable) defs.set(d.id, d);
+  const out: Record<string, ParamRecord[string]> = { ...base };
+  for (const mapping of active) {
+    const def = defs.get(mapping.target.slice('source.'.length));
+    if (!def) continue;
+    if (mapping.frozenValue === null && sourceValues[mapping.source] === undefined) continue;
+    const shaped = shapeMappingValue(mapping, sourceValues, smoothingState, dtSec);
+    const span = def.max - def.min;
+    const current = typeof out[def.id] === 'number' ? (out[def.id] as number) : def.default;
+    out[def.id] = Math.min(Math.max(current + mapping.amount * shaped * span, def.min), def.max);
+  }
+  return out;
+}
+
 export function applyModulations(
   base: ParamRecord,
   mappings: ModulationMapping[],

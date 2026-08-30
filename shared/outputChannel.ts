@@ -27,6 +27,15 @@ export interface RenderInputsMsg {
     | { kind: 'live-camera'; deviceId: string | null }
     | { kind: 'live-screen'; displayId: number | null }
     | { kind: 'live-window' }
+    /** CE1F: generator config is LOW-FREQUENCY source config; the resolved
+     * per-frame params travel with FrameState so the Output never evaluates
+     * modulation itself. */
+    | {
+        kind: 'generator';
+        generator: string;
+        seed: number;
+        params: Record<string, string | number | boolean>;
+      }
     | null;
 }
 
@@ -40,6 +49,9 @@ export interface FrameStateMsg {
   techniqueId: string | null;
   temporalActive: boolean;
   finalParams: ParamRecord;
+  /** CE1F: resolved generator source params (editor authority). Present
+   * only while a generator source is active. */
+  sourceParams?: ParamRecord | undefined;
   materialState: MaterialState | null;
 }
 

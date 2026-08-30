@@ -50,11 +50,24 @@ export const windowSourceRefSchema = z.object({
 });
 export type WindowSourceRef = z.infer<typeof windowSourceRefSchema>;
 
+/** CE1F: procedural generator source. Params use the shared param record;
+ * `seed` keeps generated content stable across save/reload. Additive inside
+ * v3 — no existing field changed shape (docs/PROJECT_FORMAT.md). */
+export const generatorSourceRefSchema = z.object({
+  id: z.string(),
+  kind: z.literal('generator'),
+  generator: z.string(),
+  params: paramRecordSchema.default({}),
+  seed: z.number().int().nonnegative().default(1),
+});
+export type GeneratorSourceRef = z.infer<typeof generatorSourceRefSchema>;
+
 export const sourceRefSchema = z.union([
   fileSourceRefSchema,
   cameraSourceRefSchema,
   screenSourceRefSchema,
   windowSourceRefSchema,
+  generatorSourceRefSchema,
 ]);
 export type SourceRef = z.infer<typeof sourceRefSchema>;
 
@@ -65,8 +78,12 @@ export function isLiveSource(
   return source.kind === 'camera' || source.kind === 'screen' || source.kind === 'window';
 }
 
+export function isGeneratorSource(source: SourceRef): source is GeneratorSourceRef {
+  return source.kind === 'generator';
+}
+
 export function isFileSource(source: SourceRef): source is FileSourceRef {
-  return !isLiveSource(source);
+  return !isLiveSource(source) && source.kind !== 'generator';
 }
 
 export const techniqueInstanceSchema = z.object({

@@ -172,6 +172,64 @@ export class RenderEngine {
     this.invalidate();
   }
 
+  // ---- CE1F: the generator source. The engine owns the runtime, renders
+  // it every frame with the RESOLVED source params (modulation is evaluated
+  // by the editor's authority, exactly like technique params), and hands
+  // the resulting texture to whatever technique is active.
+  private generator: { renderFrame: Function; advancePreview: Function; texture(): THREE.Texture | null; isStateless: boolean; dispose(): void; reset(): void } | null = null;
+  private sourceParams: ParamRecord = {};
+  private sourceParamTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
+
+  setGeneratorSource(runtime: unknown): void {
+    if (this.generator && this.generator !== runtime) this.generator.dispose();
+    this.generator = (runtime as typeof this.generator) ?? null;
+    this.invalidate();
+  }
+
+  setSourceParams(params: ParamRecord): void {
+    this.sourceParams = params;
+    this.invalidate();
+  }
+
+  setSourceParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void {
+    this.sourceParamTransform = fn;
+  }
+
+  /** Final resolved generator params for this frame — the value the Output
+   * receives (it never evaluates modulation itself). */
+  resolvedSourceParams(timeSec = this.timeSec): ParamRecord {
+    return this.sourceParamTransform
+      ? this.sourceParamTransform(this.sourceParams, timeSec)
+      : this.sourceParams;
+  }
+
+  get hasGenerator(): boolean {
+    return this.generator !== null;
+  }
+
+  /** A live/simulation generator keeps the loop alive; a stateless one only
+   * needs redraws when time or params move (dirty-driven). */
+  get generatorActive(): boolean {
+    return this.generator !== null && !this.generator.isStateless && !this.exportMode;
+  }
+
+  private renderGenerator(renderer: THREE.WebGLRenderer, timeSec: number, force = false): void {
+    const gen = this.generator;
+    if (!gen) return;
+    const params = this.resolvedSourceParams(timeSec);
+    if (gen.isStateless || this.exportMode) {
+      gen.renderFrame(renderer, timeSec, params, force, this.compWidth, this.compHeight);
+    } else {
+      // Simulation generators keep CE1E preview semantics (wall clock).
+      gen.advancePreview(renderer, performance.now() / 1000, params);
+    }
+    const tex = gen.texture();
+    if (tex && tex !== this.sourceTexture) {
+      this.sourceTexture = tex;
+      this.rebuildOriginalQuad();
+    }
+  }
+
   setTechniqueParams(params: ParamRecord): void {
     this.techniqueParams = params;
     const perspective = params.perspective;
@@ -308,7 +366,17 @@ export class RenderEngine {
     if (!renderer) return;
     if (params) this.syncScene(params);
     if (!this.techniqueWantsFlow()) return;
-    if (isFirstFrame) this.flow?.reset();
+    if (isFirstFrame) {
+      this.flow?.reset();
+      // CE1F: prime the pair with the PREVIOUS frame's source so the first
+      // exported frame of a subrange carries the same motion as the same
+      // global frame of a full export (flow needs two frames, always).
+      if (this.generator && this.exportPrevSourceSec !== null) {
+        const back = this.exportPrevSourceSec;
+        this.renderGenerator(renderer, back, true);
+        this.updateFlowService(renderer, `${frameKey}:pre`);
+      }
+    }
     this.updateFlowService(renderer, frameKey);
     if (params) this.syncScene(params); // rebind ctx.flow after compute
   }
@@ -570,6 +638,8 @@ export class RenderEngine {
     }
 
     this.updateCamera(this.compWidth / this.compHeight);
+    // CE1F: the generator produces this frame's source pixels first.
+    if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
     // CE1D: refresh the shared flow service first — syncScene binds ctx.flow.
     if (!this.exportMode) this.updateFlowService(renderer);
     this.syncScene();
@@ -602,7 +672,12 @@ export class RenderEngine {
         // renderStill/export pass paramsOverride and never reach the bus —
         // export isolation is preserved by construction.
         if (paramsOverride === undefined && !this.exportMode) {
-          runtimeBus.emitFrame(this.timeSec, params, this.isTemporalActive);
+          runtimeBus.emitFrame(
+            this.timeSec,
+            params,
+            this.isTemporalActive,
+            this.generator ? this.resolvedSourceParams() : undefined,
+          );
         }
         this.techniqueRenderer.update(params, {
           sourceTexture: this.sourceTexture,
@@ -628,7 +703,8 @@ export class RenderEngine {
     if (this.exportMode) return;
     // 18D: a live source delivers new pixels every frame outside our
     // invalidation model — while one is active, render continuously.
-    if (!this.dirty && !this.liveSourceActive && !this.feedbackActive) return;
+    if (!this.dirty && !this.liveSourceActive && !this.feedbackActive && !this.generatorActive)
+      return;
     this.dirty = false;
     const start = performance.now();
     this.renderFrame();
@@ -650,6 +726,29 @@ export class RenderEngine {
    * Explore thumbnails). Optional paramsOverride bypasses the live modulation
    * transform. Returns tightly packed RGBA bytes, top row first.
    */
+  /** CE1F export seam: render the generator's exact frame for this
+   * composition time before the still is taken (deterministic, no decoder). */
+  /** Composition time of the frame before the current export frame — used
+   * to prime motion analysis at a subrange boundary. */
+  private exportPrevSourceSec: number | null = null;
+
+  setExportPreviousTime(sec: number | null): void {
+    this.exportPrevSourceSec = sec;
+  }
+
+  prepareGeneratorForExport(compositionTime: number, width: number, height: number): void {
+    const renderer = this.renderer;
+    if (!renderer || !this.generator) return;
+    const prevW = this.compWidth;
+    const prevH = this.compHeight;
+    // Procedural scale semantics are normalized: render at the export size.
+    this.compWidth = width;
+    this.compHeight = height;
+    this.renderGenerator(renderer, compositionTime, true);
+    this.compWidth = prevW;
+    this.compHeight = prevH;
+  }
+
   renderStill(
     width: number,
     height: number,

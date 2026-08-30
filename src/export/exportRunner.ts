@@ -455,6 +455,12 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // Temporal history is rebuilt from exact composition timestamps —
       // the first temporal frame primes the whole buffer, later frames
       // advance it (§3). A switch INTO a temporal technique re-primes.
+      // CE1F: the GENERATOR renders first — the temporal atlas and the flow
+      // pair both read source pixels, so the source must already exist at the
+      // export resolution or a subrange's first frame would sample a
+      // differently-sized source than the full export's same global frame.
+      engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
+      engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       if (engine.isTemporalActive) {
         await engine.prepareTemporalForExport(timeSec, primeTemporal);
         primeTemporal = false;

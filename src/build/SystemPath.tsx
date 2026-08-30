@@ -74,6 +74,13 @@ function sourceSegment(sources: Sources, sourceId: string | null): Segment {
   if (source.kind === 'window') {
     return { key: 'source', text: 'WINDOW', title: 'Live window capture' };
   }
+  if (source.kind === 'generator') {
+    return {
+      key: 'source',
+      text: String(source.generator).toUpperCase().replace('-', ' '),
+      title: 'Procedural generator source',
+    };
+  }
   const name = source.metadata?.fileName ?? source.path.split('/').pop() ?? source.id;
   return { key: 'source', text: source.kind.toUpperCase(), title: name };
 }

@@ -1,7 +1,7 @@
 import type { ModulationMapping, ParamRecord } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { evalSources, type SourceContext } from './sources';
-import { applyModulations, SmoothingState } from './evaluator';
+import { applySourceModulations, applyModulations, SmoothingState } from './evaluator';
 import { applyPulses } from '@/signals/pulseEngine';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
@@ -46,6 +46,18 @@ class ModulationRuntime {
   /** Shaped current value of one mapping (0..1) — used by FREEZE. */
   currentShapedValue(mappingId: string): number | null {
     return this.smoothing.peek(mappingId) ?? null;
+  }
+
+  /** CE1F: resolve generator params for this frame (editor authority). */
+  transformSource(
+    base: ParamRecord,
+    timeSec: number,
+    paramDefs: readonly import('@/techniques/types').NumberParamDef[],
+  ): ParamRecord {
+    if (!this.mappings.some((m) => m.enabled && m.target.startsWith('source.'))) return base;
+    const dt = this.lastTime >= 0 ? Math.min(Math.abs(timeSec - this.lastTime), 0.1) : 1 / 60;
+    const sources = this.lastSourceValues ?? evalSources(timeSec, this.sourceCtx);
+    return applySourceModulations(base, this.mappings, sources, paramDefs, this.smoothing, dt);
   }
 
   transform(base: ParamRecord, timeSec: number): ParamRecord {

@@ -36,6 +36,15 @@ export interface RenderInputs {
     | { kind: 'live-camera'; deviceId: string | null }
     | { kind: 'live-screen'; displayId: number | null }
     | { kind: 'live-window' }
+    /** CE1F: generator config is LOW-FREQUENCY source config; the resolved
+     * per-frame params travel with FrameState so the Output never evaluates
+     * modulation itself. */
+    | {
+        kind: 'generator';
+        generator: string;
+        seed: number;
+        params: Record<string, string | number | boolean>;
+      }
     | null;
   /** Project generation — replicas drop state when it changes. */
   generation: number;
@@ -56,6 +65,7 @@ export interface FrameState {
   temporalActive: boolean;
   /** Final evaluated params (base → macros → modulation → overlay → pulses). */
   finalParams: ParamRecord;
+  sourceParams?: ParamRecord | undefined;
   materialState: MaterialState | null;
 }
 
@@ -120,12 +130,20 @@ class RuntimeBus {
    * RenderEngine: one evaluated frame was drawn on the live canvas.
    * Hot path — one object literal per rendered frame, no store writes.
    */
-  emitFrame(compTime: number, finalParams: ParamRecord, temporalActive: boolean): void {
+  emitFrame(
+    compTime: number,
+    finalParams: ParamRecord,
+    temporalActive: boolean,
+    sourceParams?: ParamRecord,
+  ): void {
     const frame: FrameState = {
       compTime,
       techniqueId: this.inputs.techniqueId,
       temporalActive,
       finalParams,
+      // CE1F: resolved generator params (authority = editor). Absent when no
+      // generator is active, so the hot path does not grow for other sources.
+      sourceParams,
       materialState: this.inputs.materialState,
     };
     this.lastFrame = frame;

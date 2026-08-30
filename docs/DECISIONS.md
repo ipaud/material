@@ -548,3 +548,39 @@ that — never raw CPU float readbacks of live class targets).
 - **CE1F debt carried forward**: the Motion Pack's deterministic export
   goldens still need a decoder-free timeline source; CE1F's Generators are
   the intended fixture (see CE1D-2 note).
+
+## Generators as sources (CE1F)
+
+- **ADR — a generator is a Source, not a technique**: `GeneratorSource`
+  implements the existing `SourceRuntime` contract; the engine owns it,
+  renders it each frame with resolved params and hands the texture to
+  whatever technique is active. No separate render universe, no special
+  case inside techniques. Stateless kinds also implement `TemporalSource`
+  (`acquireAt` re-renders the exact frame for any composition time) —
+  MATERIAL's first decoder-free deterministic temporal source.
+- **ADR — source-parameter modulation with editor authority**: generator
+  params reuse the technique `ParamDef` vocabulary and the same modulation
+  math (`applySourceModulations`), namespaced `source.<id>` to prevent
+  collisions. The editor resolves them per frame; `FrameState.sourceParams`
+  carries the RESOLVED values (present only when a generator is active, so
+  the hot path does not grow otherwise). The Output applies them and never
+  evaluates a mapping — the authority rule is unchanged.
+- **Schema stays v3** (additive union variant, no field reshaped).
+- **Simulation generators reuse the CE1E solver verbatim** — same kernels,
+  same runner, no duplicated Gray-Scott or life implementation
+  (structurally test-locked).
+- **Hidden assumption surfaced (§50)**: the transport refused to play
+  without media. Generators are unbounded (`duration: null`), so the
+  controller now runs an internal composition clock when no audio/video
+  master exists — procedural animation, Patterns and beat modulation all
+  work in a media-free project. This is also what makes MATERIAL usable
+  with zero imports and zero permissions on first run.
+- **Debt closure measured**: repeat export byte-identical; full-vs-subrange
+  12/12 for a stateless generator AND 12/12 for Motion Mosh (CE1D debt
+  CLOSED, stateful preroll proven); Time Field repeat determinism proven
+  decoder-free, its subrange gap now isolated to the atlas
+  prime-vs-advance asymmetry rather than the decoder (CE1C debt partially
+  closed, cause identified). Export order was fixed so the generator
+  renders BEFORE the temporal atlas and the flow pair — both read source
+  pixels and must see the export-resolution source; flow additionally
+  prerolls one previous frame at a subrange boundary.

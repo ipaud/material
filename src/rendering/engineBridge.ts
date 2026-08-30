@@ -11,6 +11,8 @@ import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { captureManager, useCaptureStore } from '@/sources/captureManager';
 import { isLiveSource } from '@shared/schemas/project';
+import { GeneratorSource } from '@/sources/generators/GeneratorSource';
+import { getGenerator as getGeneratorDef, type GeneratorKind } from '@/sources/generators/definitions';
 import { configureTriggers } from '@/signals/triggerRuntime';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import { FileImageSource } from '@/sources/FileImageSource';
@@ -52,10 +54,12 @@ function syncFromProject(): void {
   const source = project.sources.find(
     (s) =>
       s.id === composition.sourceId &&
-      (s.kind === 'image' || s.kind === 'video' || isLiveSource(s)),
+      (s.kind === 'image' || s.kind === 'video' || isLiveSource(s) || s.kind === 'generator'),
   );
   const sourceKey = source
-    ? source.kind === 'camera'
+    ? source.kind === 'generator'
+      ? `generator:${source.id}:${source.generator}:${source.seed}`
+      : source.kind === 'camera'
       ? `camera:${source.id}`
       : source.kind === 'screen'
         ? `screen:${source.id}:${source.displayId ?? 'any'}`
@@ -73,10 +77,20 @@ function syncFromProject(): void {
     if (source?.kind !== 'screen' && source?.kind !== 'window') captureManager.detach();
     activeTemporalSource = null;
     engine.setTemporalSource(null);
+    if (source?.kind !== 'generator') engine.setGeneratorSource(null);
     if (!source) {
       engine.setSource(null);
       cameraManager.detach();
       captureManager.detach();
+    } else if (source.kind === 'generator') {
+      // CE1F: a generator is a SourceRuntime like any other — the engine
+      // owns it and hands its texture to the technique. No special path.
+      const runtime = new GeneratorSource(source.generator as GeneratorKind, source.seed);
+      activeSourceRuntime = runtime;
+      engine.setGeneratorSource(runtime);
+      engine.setSource(runtime.texture());
+      activeTemporalSource = runtime.temporalSource();
+      engine.setTemporalSource(activeTemporalSource);
     } else if (source.kind === 'screen' || source.kind === 'window') {
       // Like the camera: selecting only ATTACHES (idle until START). The
       // manager owns intent; nothing here may acquire.
@@ -166,6 +180,17 @@ function syncFromProject(): void {
     }
   }
   if (instance) engine.setTechniqueParams(instance.params);
+  // CE1F: generator params + their modulation transform (editor authority).
+  if (source?.kind === 'generator') {
+    engine.setSourceParams(source.params);
+    const genDef = getGeneratorDef(source.generator);
+    const numeric = (genDef?.params ?? []).filter(
+      (p): p is import('@/techniques/types').NumberParamDef => p.type === 'number',
+    );
+    engine.setSourceParamTransform((base, t) => modulationRuntime.transformSource(base, t, numeric));
+  } else {
+    engine.setSourceParamTransform(null);
+  }
   engine.setMaterialState(project.material);
   // Temporal history is needed whenever a technique samples past frames.
   const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
@@ -184,7 +209,14 @@ function syncFromProject(): void {
     compHeight: composition.height,
     background: composition.background,
     source: source
-      ? source.kind === 'camera'
+      ? source.kind === 'generator'
+        ? {
+            kind: 'generator' as const,
+            generator: source.generator,
+            seed: source.seed,
+            params: source.params,
+          }
+        : source.kind === 'camera'
         ? // The replica mirrors the editor's ACQUISITION, not the project
           // selection: STOP on the editor must release the replica's join
           // too, so the descriptor only says live-camera while live (18D).

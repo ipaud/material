@@ -11,6 +11,8 @@ MATERIAL's source taxonomy after Phase 18E:
 | `camera` | LIVE  | no       | no            | no         | never | `deviceId` (best-effort) |
 | `screen` | LIVE  | no       | no            | no         | never | `displayId` (best-effort) |
 | `window` | LIVE  | no       | no            | no         | never | `titleHint` (label only) |
+| `generator` (stateless) | PROCEDURAL | yes | yes | yes | no | generator id + params + seed |
+| `generator` (simulation) | PROCEDURAL | no | canonical | yes | no | generator id + params + seed |
 
 ## Live source contract (18D/18E)
 

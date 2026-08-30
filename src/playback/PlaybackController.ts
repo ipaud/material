@@ -56,9 +56,22 @@ class PlaybackController {
     return this.video;
   }
 
+  // CE1F: a project can have NO media at all (generator sources are
+  // unbounded, §50) — the transport then runs on its own wall clock so
+  // composition time still advances for procedural animation, Patterns and
+  // beat-driven modulation. Media, when present, remains the master.
+  private clockOriginWall = 0;
+  private clockOriginComp = 0;
+
+  private get hasMediaClock(): boolean {
+    return this.audioMaster || this.video !== null;
+  }
+
   getTime(): number {
     if (this.audioMaster) return audioEngine.getTime();
-    return this.video?.currentTime ?? 0;
+    if (this.video) return this.video.currentTime;
+    if (!usePlaybackStore.getState().playing) return this.clockOriginComp;
+    return this.clockOriginComp + (performance.now() / 1000 - this.clockOriginWall);
   }
 
   getDuration(): number {
@@ -66,7 +79,17 @@ class PlaybackController {
   }
 
   play(): void {
-    if (!this.audioMaster && !this.video) return;
+    // CE1F: no media is a valid project (generator sources) — run the
+    // internal composition clock instead of refusing to play.
+    if (!this.hasMediaClock) {
+      this.clockOriginComp = usePlaybackStore.getState().timeSec;
+      this.clockOriginWall = performance.now() / 1000;
+      void window.material.setLiveness('transport', true).catch(() => undefined);
+      usePlaybackStore.getState().setPlaying(true);
+      this.startTicking();
+      runtimeBus.emitTransport('play', this.clockOriginComp);
+      return;
+    }
     // Keep macOS App Nap from throttling the live engine to ~1 Hz while the
     // editor window is hidden or occluded (docs/BACKGROUND_RENDERING.md).
     void window.material.setLiveness('transport', true).catch(() => undefined);
@@ -123,6 +146,10 @@ class PlaybackController {
         this.video?.removeEventListener('seeked', onSeeked);
       };
       this.video.addEventListener('seeked', onSeeked);
+    }
+    if (!this.hasMediaClock) {
+      this.clockOriginComp = clamped;
+      this.clockOriginWall = performance.now() / 1000;
     }
     usePlaybackStore.getState().setTime(clamped);
     engine.setTime(clamped);
