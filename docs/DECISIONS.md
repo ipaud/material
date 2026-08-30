@@ -699,3 +699,52 @@ that — never raw CPU float readbacks of live class targets).
   quit cleanly with an empty error log, report version 0.3.5, expose no
   debugging port, and contain every creative system plus exactly 107 built-in
   preset ids with the curated-away preset absent.
+
+## v0.4A — Image / Motion Signals
+
+- **ADR — the editor measures, the Output never does.** Visual signals are
+  computed once, in the editor's engine, and only resolved parameter values
+  cross the Output channel. No pixels, no signals, no second analyser. This is
+  the same authority rule the replica has had since 18D, applied to a subsystem
+  that would have been technically easy to duplicate.
+- **ADR — signals sample frame N−1, in both paths.** Preview evaluates sources
+  *after* the source renders; export evaluates them *before*. A signal derived
+  from the current frame would therefore read different things in the two
+  paths. Sampling the previous frame in both is what makes them agree, and it
+  is also what makes a visual signal driving a source parameter safe rather
+  than a cycle.
+- **ADR — RAW and CALIBRATED are both first-class.** A measurement in real
+  units is what a diagnostic needs; usable travel on this particular source is
+  what a mapping needs. Collapsing them would repeat CE1H's dead-knob failure
+  in a new place. RAW is what the scope displays, CALIBRATED is what mappings
+  consume, and the scope shows both so the difference is never a mystery.
+- **ADR — calibration is runtime-only, keyed by pixel origin.** Persisting a
+  moving statistic would make an export irreproducible from a fresh open and
+  would need a schema migration to carry. The key tracks where pixels come
+  from (`gen:noise:5`, `cam:default`, `file:video:/path`), not the project's
+  source id, which survives a camera device swap, nor the engine's source key,
+  which has no id for files. Generator params are excluded deliberately: the
+  same material with a different look should keep its range.
+- **ADR — absence, not zero, for an unavailable signal.** The evaluator already
+  treats a missing key as neutral. Publishing 0 would let `invert`, a curve or
+  a non-zero `min` manufacture a contribution out of a signal that does not
+  exist, and would drive every motion mapping to its `min` whenever there was
+  no flow field.
+- **ADR — `motion.x` is unipolar with a bipolar default mapping.** `applyCurve`
+  clamps every signal to 0..1 unconditionally, and that evaluator is shared by
+  audio, beat and pattern sources and has been stable since v0.2. Publishing
+  `0.5 + 0.5·direction` and shipping `{min: -1, max: 1}` as the signal's
+  default mapping gets bipolar behaviour with no change to shared code.
+- **ADR — motion saturation is reported, not suppressed.** Lucas–Kanade cannot
+  resolve beyond its aperture, and the shader clamps each component at 8
+  texels. The first design treated a saturated frame as unmeasurable and
+  withheld it; that deleted motion from 59 of 61 frames of a 12 fps export,
+  where 5–8 texels/frame is simply what fast motion looks like. The value is
+  now capped at the field's own ceiling (8·√2) and published. Transient
+  saturation is handled by the envelope's time constant instead: at 30 Hz a
+  single outlier moves the range by 2.2% of the gap.
+- **ADR — one shared reduction chain, not one per signal.** Luminance and
+  motion share a gate, a cadence and a readback stall. Splitting them would
+  double the synchronisation points to save one channel of a 16-byte read.
+- **Schema stays v3.** Visual signals are new `MOD_SOURCES` ids inside the
+  existing modulation registry; nothing about the project format changed.

@@ -223,3 +223,160 @@ identical luminance across 111 reductions is the signature of a constant image,
 not of a stale texture.
 
 **Proceeding to A9.**
+
+## A9 — QA / release gate
+
+### Signal inventory, after curation
+
+Three signals ship. Nothing was dropped, because the vertical slice was chosen
+before implementation rather than trimmed after it.
+
+| Id | Unit | Domain | Calibrated | Why it earns its place |
+|---|---|---|---|---|
+| `image.luminance` | Rec.709 luma 0..1 | unipolar | yes | the one image measurement every source has |
+| `motion.amount` | analysis texels/frame | unipolar | yes | grid- and resolution-independent, so preview and export agree |
+| `motion.x` | unit direction, 0.5 still | centred | no | intrinsically bounded to ±1, so calibrating it would only add lag |
+
+Candidates deliberately NOT built (contrast, edge energy, colour energy, RGB,
+motion Y, centroid, spread): each needs its own unit, calibration decision,
+fixtures and anti-dead companion. Adding them untested would have made the
+inventory longer and the guarantees weaker.
+
+### Fixture matrix — clean process, product path
+
+| fixture | n | nExact | luminance | amount | x |
+|---|---|---|---|---|---|
+| constant 0.25 | 57600 | ✓ | 0.25098 | — | 0.5 |
+| ramp `vUv.x` | 57600 | ✓ | **0.500000** | — | 0.5 |
+| odd half/half 317×179 | **56743** | ✓ | **0.501577** = 159/317 | — | 0.5 |
+| flow right | 57600 | ✓ | 0.501961 | 3.2 | **1.000000** |
+| flow left | 57600 | ✓ | 0.501961 | 3.2 | **0.000000** |
+| flow vertical | 57600 | ✓ | 0.501961 | 3.2 | **0.500000** |
+| flow still | 57600 | ✓ | 0.501961 | 0 | 0.500000 |
+
+`gateRerunsOnce` ✓ (same key never re-reduces), `deterministic` ✓ (repeat is
+bit-identical), `allOk` ✓.
+
+### Calibration matrix
+
+| case | raw | calibrated | verdict |
+|---|---|---|---|
+| static source (grid) | 0.522 constant | **0.500 exactly** | the half-span floor stops a constant becoming full scale |
+| static source, motion | 0.000 constant | **0.500** | still reads centred, not pegged |
+| flash (contrast 1→4→1) | 0.531 → 0.589 | 0.475 → **0.967** | fast attack admits the peak |
+| flash, +1 s after | back to 0.531 | 0.388 | range still open, so the same raw reads lower |
+| flash, +5 s after | 0.531 | **0.484** | recovered, τ_contract = 4 s as designed |
+| clean key, 3 s | 0.348–0.567 | 0.136–0.869 | centred, no saturation |
+
+### Look portability — ONE Look, four sources
+
+`image.luminance → depth` and `motion.amount → rotation`, unchanged between rows.
+
+| source | raw luminance span | calibrated span | raw motion | calibrated motion span | saturated frames |
+|---|---|---|---|---|---|
+| bright generator | 0.045 | **0.544** | 0.115–0.170 | 0.263 | 0 |
+| dark/flat generator | 0.008 | 0.087 | — | — | 0 |
+| video file | 0.234 | **1.000** | 0.314–1.584 | 0.601 | 0 |
+| camera, still room | **0.001** | **0.266** | 0.006–0.012 | 0.261 | 0 |
+
+The camera row is the gate. A raw span of 0.001 — a source doing nothing —
+still gives a quarter of the range, without amplifying noise to full scale.
+The flat-generator row shows the floor working in the other direction: a raw
+span of 0.008 is deliberately NOT stretched to full travel.
+
+### Performance and VRAM
+
+| mapped | analysis rate | ladder VRAM | flow VRAM | preview fps |
+|---|---|---|---|---|
+| nothing | — | 0 (released) | 0 (released) | 120.2 |
+| luminance | 26 Hz | 0.60 MB (256×144) | 0 | 120.0 |
+| motion | 26 Hz | 0.94 MB (320×180) | 2.20 MB | 120.0 |
+| all three | 26 Hz | 0.94 MB | 2.20 MB | 120.0 |
+
+Ladder cost, measured directly rather than inferred from a capped frame rate:
+
+| configuration | ms per analysis |
+|---|---|
+| 256×144, no flow | 0.369 |
+| 320×180, no flow | 0.435 |
+| 320×180, with flow | 0.778 |
+| 640×360, with flow | 0.487 |
+
+Against 8.33 ms at 120 fps, at 26 Hz: **1–2% of frame budget**. These are
+readback-stall dominated, which is why 640×360 can measure below 320×180 —
+pipeline overlap, not a smaller workload.
+
+### Export matrix
+
+| signal | repeat | full vs subrange | anti-noop (frames changed by disabling) |
+|---|---|---|---|
+| `image.luminance` | **12/12** | **12/12** | **12/12** |
+| `motion.amount` | **12/12** | **12/12** | **12/12** |
+| `motion.x` | **12/12** | **12/12** | **12/12** |
+
+Control: the same scene with no modulations produces 13 distinct frames out of
+24, so the duplicate frames in these exports are mosaic quantisation at
+160×90, not a stalled signal.
+
+### 10-minute soak — camera + generator, demand cycled every iteration
+
+596 iterations over 10.0 min, cycling: camera live → generator → all mappings
+removed → mappings restored.
+
+| metric | first | last | min | max | first-half mean | second-half mean |
+|---|---|---|---|---|---|---|
+| heap MB | 23 | 44 | 23 | 47 | — | — |
+| textures | 10 | 2 | 2 | 10 | **6.0** | **6.0** |
+| geometries | 8 | 3 | 3 | 8 | **5.0** | **5.0** |
+| programs | 8 | 4 | 4 | 8 | **6.0** | **6.0** |
+| calibration entries | 2 | 4 | 2 | 4 | — | — |
+| GL errors | 0 | 0 | 0 | 0 | — | — |
+
+The half-vs-half means are the assertion: a leak shows as a rising floor, and
+this is the metric that caught CE1H's geometry leak going 0 → 4323. The
+calibration cache is capped at 4 = two pixel origins × two calibrated signals,
+which is what "bounded by the project's source count" means in practice.
+
+### Packaged QA
+
+`npm run package` → `release/mac-arm64/MATERIAL.app`, ad-hoc signed, not
+notarised, version 0.3.5.
+
+- the shipping asar contains the subsystem: `image.luminance` ×9,
+  `motion.amount` ×9, `motion.x` ×5, the origin-key prefixes, and the
+  saturation ceiling;
+- launches, stays alive past 27 s, quits cleanly with empty stderr;
+- exposes no debugging port, so — exactly as recorded in CE1H §66 — CDP-driven
+  QA cannot run against the shipping artifact, and interactive packaged
+  verification stays out of scope rather than being faked with blind UI
+  automation.
+
+### What A9 changed
+
+One defect, found by portability testing and nothing else: motion amounts of
+**9.698 texels/frame** at a video seek and on camera wake-up — past what
+Lucas–Kanade can resolve, and enough to leave calibrated motion at 0 for ~10 s
+in a still room.
+
+The first fix suppressed unmeasurable frames, and the export gate immediately
+caught it: a 12 fps export of a moving source displaces 5–8 texels per frame
+legitimately, so suppression deleted motion from **59 of 61** frames and
+anti-noop went 12/12 → **0/12**. The shipped fix reports the field's own
+ceiling (8·√2, the shader's per-component clamp) and lets the envelope's time
+constant handle transients: at 30 Hz one outlier frame moves the range by 2.2%
+of the gap.
+
+That sequence is the loop rule working as intended — a later gate rejected a
+fix made at the right layer for the wrong reason, and the correction went back
+to the same layer rather than being patched downstream.
+
+### Verification summary
+
+`npx vitest run` 1088 passing / 64 files · `npm run typecheck` clean ·
+`npm run lint` clean · `npm run build` clean · GPU goldens from a clean
+process · export matrix · soak · packaged build.
+
+Schema stays **v3**: visual signals are new ids in the existing modulation
+registry.
+
+**v0.4A COMPLETE — HARD STOP. v0.4B does not begin here.**

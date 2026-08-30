@@ -80,6 +80,12 @@ class ModulationRuntime {
     return this.lastVisualStats;
   }
 
+  /** Soak diagnostics: the calibration cache is bounded by the project's
+   * source count, so this must not grow while sources are merely cycled. */
+  get calibrationSize(): number {
+    return calibrationStore.size;
+  }
+
   configure(mappings: ModulationMapping[], techniqueId: string | null, ctx: SourceContext): void {
     this.mappings = mappings;
     this.techniqueId = techniqueId;

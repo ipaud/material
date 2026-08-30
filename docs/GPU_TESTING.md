@@ -106,3 +106,73 @@ history" from "right history, wrong sampling".
   different Motion presets to byte-identical tiles. When a gate can be
   satisfied by a system doing nothing, it needs a companion that fails when
   nothing happens.
+
+## v0.4A — the reduction ladder
+
+### `statsGoldens()`
+
+Seven fixtures through the real product path, from a clean process. Every one
+reports `n` alongside its value, because `n` is the assertion that cannot be
+faked:
+
+| fixture | n | expected | measured |
+| --- | --- | --- | --- |
+| constant 0.25 | 57 600 | 0.25 | 0.25098 (fixture is RGBA8: 64/255) |
+| ramp `vUv.x` | 57 600 | 0.5 | **0.500000** |
+| odd half/half 317×179 | **56 743** | 159/317 | **0.501577** |
+| flow right | 57 600 | x = 1 | **1.000000**, amount 3.2 |
+| flow left | 57 600 | x = 0 | **0.000000**, amount 3.2 |
+| flow vertical | 57 600 | x = 0.5 | **0.500000**, amount 3.2 |
+| flow still | 57 600 | x = 0.5, amount 0 | **0.500000**, 0 |
+
+`amount = 3.2` is exactly `0.01 uv × 320` texels. Vertical motion reading dead
+centre is correct and worth having as a fixture: vertical displacement has no
+horizontal dominance. `gateRerunsOnce` proves the frame-key cache does not
+re-reduce the same frame, and `deterministic` proves a repeat is bit-identical.
+
+### Doctrine deviation, recorded on purpose
+
+The product path reads `FloatType` straight into a `Float32Array`. The
+"encode to RGBA8 first" rule in this document exists for **signed,
+unknown-scale diagnostics**; a ladder sum reaching 57 600 cannot survive 8
+bits. `EXT_color_buffer_float` is already a hard dependency of the flow field,
+so RGBA32F is renderable and readable here. The diagnostic probes still follow
+the doctrine.
+
+### Mutation policy for signal work
+
+Every visual signal ships with a companion test that **fails when the analysis
+becomes a constant**. This is not optional style; it is the direct lesson of
+optical flow never being computed during export while all twelve determinism
+gates passed. Determinism is cheap for a dead system.
+
+The three companions:
+
+- reduction: replacing the ladder with a constant fails the black/white and
+  ramp fixtures, and fails `n == gridWidth·gridHeight` on odd dimensions;
+- direction: `abs()` on the signed channel fails the left/right pair, which a
+  magnitude-only test would pass;
+- export: **disabling the analyser must change the exported frames.** Measured
+  12/12 frames differ for each of the three signals. This is the only gate that
+  can catch a signal that is present, deterministic and doing nothing.
+
+### Three defects that only live pixels found
+
+All three passed the entire unit suite. They are listed here because each one
+describes a *class* of test that unit tests structurally cannot perform.
+
+1. **The analysis call was in a code path that almost never runs.** It sat in
+   the transition-snapshot capture instead of the frame loop. Demand set,
+   texture present, grid valid, zero reductions in 2.5 s.
+2. **A clock that never advances.** Calibration was stepped by transport time,
+   so with the transport stopped `dt` was 0 forever and every signal stayed
+   `warming`. Any state machine fed a clock needs a test where that clock is
+   parked.
+3. **A priming frame published as a measurement.** The flow field clears its
+   targets on the first update after a prime — by design, so no garbage field
+   exists. That legitimate zero, published, seeded the motion calibrator's low
+   envelope with an extreme the source never produces.
+
+The general rule: **a subsystem that is correct in isolation can still be
+wired to a path that never executes, a clock that never ticks, or a neighbour's
+initialisation transient.** Only a live run finds those.

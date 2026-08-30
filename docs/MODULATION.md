@@ -16,6 +16,18 @@ preview and export. There is no second code path.
 | Audio | `master`, `rms`, `bass` (20–250 Hz), `mids` (250–4 k), `highs` (4–16 k), `transients` |
 | Time | `time` — 0→1 across the timeline |
 | Beat | `beat:bar`, `beat:1/2`, `beat:1/4`, `beat:1/8`, `beat:1/16` |
+| Image | `image.luminance` |
+| Motion | `motion.amount`, `motion.x` |
+
+Image and motion sources measure the frame the instrument is producing. They
+arrive already calibrated to the current source, so the same mapping stays
+playable when the material changes — see [SIGNALS.md](SIGNALS.md) for what RAW
+and CALIBRATED mean and why `motion.x` is exempt. They are sampled from frame
+N−1, and a signal with nothing behind it is absent from the record rather than
+zero, so its mappings are skipped entirely rather than driven to `min`.
+
+`motion.x` is centred: 0.5 is still. Its default mapping is `{min: -1, max: 1}`,
+which is why the Min/Max sliders span −1..1.
 
 Audio sources read **precomputed** analysis arrays (a ~10.7 ms hop, linearly
 interpolated), not a live analyser. That is why a rendered frame matches the
