@@ -79,6 +79,34 @@ const PARAM_GROUP: Record<string, ConceptualGroup> = {
   distribution: 'BEHAVIOR',
   blend: 'BEHAVIOR',
   mode: 'BEHAVIOR',
+  // CE1D Motion — flow is read like the source, and used like behaviour.
+  flow: 'BEHAVIOR',
+  amount: 'BEHAVIOR',
+  against: 'BEHAVIOR',
+  blockiness: 'STRUCTURE',
+  chromaDrift: 'BEHAVIOR',
+  samples: 'SAMPLING',
+
+  // CE1B colour-channel feedback — a spatial effect, not a source read.
+  redShift: 'BEHAVIOR',
+  greenShift: 'BEHAVIOR',
+  blueShift: 'BEHAVIOR',
+  gain: 'BEHAVIOR',
+  radius: 'BEHAVIOR',
+
+  // CE1E Simulation — the grid and its seeding are structure; the rule's
+  // dynamics are behaviour; source coupling is how the image is read in.
+  grid: 'STRUCTURE',
+  density: 'STRUCTURE',
+  seedOffset: 'STRUCTURE',
+  rule: 'STRUCTURE',
+  wrap: 'STRUCTURE',
+  feed: 'BEHAVIOR',
+  kill: 'BEHAVIOR',
+  speed: 'BEHAVIOR',
+  sourceInfluence: 'SAMPLING',
+  sourceTint: 'SAMPLING',
+
 };
 
 export interface InspectorGroup {

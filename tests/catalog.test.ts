@@ -336,3 +336,27 @@ describe('curation outcome (§4-7)', () => {
     expect(rd.length).toBeGreaterThan(3);
   });
 });
+
+/**
+ * CE1H §11 — Inspector grouping.
+ *
+ * Techniques own their own sections; the conceptual table only decides which
+ * heading a parameter appears under, and an unknown parameter falls back to
+ * its technique's section label. That fallback is safe but silent, so every
+ * CE1D/E/F parameter was landing in a per-technique heading while everything
+ * older shared four conceptual ones. This asserts the vocabulary stays
+ * complete without redesigning the Inspector.
+ */
+describe('inspector grouping covers the catalog (§11)', () => {
+  it('every technique parameter has a conceptual group', () => {
+    const source = readFileSync(
+      join(__dirname, '..', 'src', 'inspector', 'paramGroups.ts'),
+      'utf8',
+    );
+    const mapped = new Set([...source.matchAll(/^ {2}([A-Za-z][A-Za-z0-9]*): '/gm)].map((m) => m[1]));
+    const unmapped = [
+      ...new Set(listTechniques().flatMap((t) => allParams(t).map((p) => p.id))),
+    ].filter((id) => !mapped.has(id));
+    expect(unmapped, `ungrouped params: ${unmapped.join(', ')}`).toEqual([]);
+  });
+});
