@@ -9,6 +9,7 @@ import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
 import { SignalScope } from './SignalScope';
+import { ShaderPacksPanel } from '@/shaders/ShaderPacksPanel';
 import { TriggersSection } from './TriggersSection';
 import { MidiSection } from './MidiSection';
 import { MacrosSection } from './MacrosSection';
@@ -250,6 +251,13 @@ export function InspectorPanel() {
                 <MacrosSection />
                 <MidiSection />
               </div>
+            </CollapsibleSection>
+
+            {/* v0.5B: pack management lives with the other settings-shaped
+                surfaces, closed by default. A pack's shaders show up in the
+                technique picker, which is where a user looks for them. */}
+            <CollapsibleSection label="Shader Packs" count={0} defaultOpen={false}>
+              <ShaderPacksPanel />
             </CollapsibleSection>
 
             {/* Closed by default on purpose: an open scope registers analysis

@@ -45,7 +45,7 @@ const commonParam = {
 };
 
 /** Numeric ranges are mandatory. An unbounded float slider is not a control. */
-export const shaderParamSchema = z.discriminatedUnion('type', [
+const shaderParamUnion = z.discriminatedUnion('type', [
   z.object({
     ...commonParam,
     type: z.literal('float'),
@@ -78,6 +78,32 @@ export const shaderParamSchema = z.discriminatedUnion('type', [
     default: identifier,
   }),
 ]);
+
+/**
+ * Field-by-field validation is not enough: a parameter can be individually
+ * well-formed and still be nonsense as a whole. `min: 1, max: 0` produces a
+ * control with no valid position, and a default outside its own range makes
+ * every project that stores it disagree with the pack that declared it.
+ *
+ * v0.5B found the first of these by trying it, which is why the check is here
+ * — in the contract — rather than in the loader that noticed.
+ */
+export const shaderParamSchema = shaderParamUnion.superRefine((param, ctx) => {
+  if (param.type === 'float' || param.type === 'int') {
+    if (param.min > param.max) {
+      ctx.addIssue({ code: 'custom', message: `min (${param.min}) is greater than max (${param.max})` });
+    }
+    if (param.default < param.min || param.default > param.max) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `default (${param.default}) is outside [${param.min}, ${param.max}]`,
+      });
+    }
+  }
+  if (param.type === 'enum' && !param.options.some((o) => o.value === param.default)) {
+    ctx.addIssue({ code: 'custom', message: `default '${param.default}' is not one of the options` });
+  }
+});
 export type ShaderParamDef = z.infer<typeof shaderParamSchema>;
 
 export const shaderPresetSchema = z.object({

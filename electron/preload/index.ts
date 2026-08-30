@@ -29,6 +29,11 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
   savePngDialog: (base64Png, defaultName) =>
     ipcRenderer.invoke(IPC.savePngDialog, base64Png, defaultName),
   readSvg: (path) => ipcRenderer.invoke(IPC.readSvg, path),
+  // v0.5B: pack DATA in, pack DATA out. No path, no handle, no fs.
+  listShaderPacks: () => ipcRenderer.invoke(IPC.shaderPacksList),
+  importShaderPack: () => ipcRenderer.invoke(IPC.shaderPackImport),
+  removeShaderPack: (id) => ipcRenderer.invoke(IPC.shaderPackRemove, id),
+  shaderPacksRoot: () => ipcRenderer.invoke(IPC.shaderPacksRoot),
   listPresets: () => ipcRenderer.invoke(IPC.listPresets),
   savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
   deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),

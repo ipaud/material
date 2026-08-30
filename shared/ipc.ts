@@ -2,6 +2,7 @@ import type { MediaMetadata } from './schemas/media';
 import type { Project } from './schemas/project';
 import type { DisplayInfo, OutputDisplayStatus, OutputMode } from './display';
 import type { Preset } from './schemas/preset';
+import type { LoadedPack } from './schemas/shaderPack';
 
 /** 18E: what the editor's START action authorizes capturing. */
 export type CaptureIntentTarget =
@@ -26,6 +27,12 @@ export const IPC = {
   saveProjectDialog: 'project:save-dialog',
   savePngDialog: 'export:save-png',
   readSvg: 'media:read-svg',
+  // v0.5B — shader packs. Four narrow channels; the renderer never receives a
+  // filesystem API, only validated pack DATA.
+  shaderPacksList: 'shaderPacks:list',
+  shaderPackImport: 'shaderPacks:import',
+  shaderPackRemove: 'shaderPacks:remove',
+  shaderPacksRoot: 'shaderPacks:root',
   listPresets: 'presets:list',
   savePreset: 'presets:save',
   deletePreset: 'presets:delete',
@@ -127,6 +134,10 @@ export interface MaterialApi {
   savePngDialog(base64Png: string, defaultName: string): Promise<string | null>;
   /** Read an SVG file, sanitized (scripts/handlers/external refs stripped). */
   readSvg(path: string): Promise<string>;
+  listShaderPacks(): Promise<LoadedPack[]>;
+  importShaderPack(): Promise<{ ok: boolean; pack?: LoadedPack; error?: string }>;
+  removeShaderPack(id: string): Promise<{ ok: boolean; error?: string }>;
+  shaderPacksRoot(): Promise<string>;
   listPresets(): Promise<Preset[]>;
   savePreset(preset: Preset): Promise<void>;
   deletePreset(id: string): Promise<void>;

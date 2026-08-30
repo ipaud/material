@@ -335,3 +335,42 @@ describe('the bundled starter pack is authored against the shipped contract', ()
     }
   });
 });
+
+describe('parameter definitions are checked as a WHOLE, not field by field (§118)', () => {
+  const base = { id: 'x', label: 'X', min: 0, max: 1, default: 0.5 };
+
+  it('refuses min greater than max', () => {
+    // Found by an adversarial pack fixture in B and fixed here, in the
+    // contract, rather than in the loader that happened to notice.
+    const r = shaderParamSchema.safeParse({ ...base, type: 'float', min: 1, max: 0 });
+    expect(r.success).toBe(false);
+    expect(JSON.stringify(r.error?.issues)).toContain('greater than max');
+  });
+
+  it('refuses a default outside its own range', () => {
+    expect(shaderParamSchema.safeParse({ ...base, type: 'float', default: 5 }).success).toBe(false);
+    expect(shaderParamSchema.safeParse({ ...base, type: 'float', default: -1 }).success).toBe(false);
+    expect(shaderParamSchema.safeParse({ ...base, type: 'int', min: 2, max: 8, default: 9 }).success).toBe(false);
+  });
+
+  it('refuses an enum default that is not one of its options', () => {
+    const r = shaderParamSchema.safeParse({
+      type: 'enum',
+      id: 'mode',
+      label: 'Mode',
+      default: 'c',
+      options: [
+        { value: 'a', label: 'A' },
+        { value: 'b', label: 'B' },
+      ],
+    });
+    expect(r.success).toBe(false);
+    expect(JSON.stringify(r.error?.issues)).toContain('not one of the options');
+  });
+
+  it('still accepts a well-formed parameter of every supported type', () => {
+    expect(shaderParamSchema.safeParse({ ...base, type: 'float' }).success).toBe(true);
+    expect(shaderParamSchema.safeParse({ id: 'n', label: 'N', type: 'int', min: 1, max: 4, default: 2 }).success).toBe(true);
+    expect(shaderParamSchema.safeParse({ id: 'b', label: 'B', type: 'bool', default: true }).success).toBe(true);
+  });
+});

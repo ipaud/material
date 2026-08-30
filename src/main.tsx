@@ -45,6 +45,7 @@ import * as statsDiag from './rendering/analysis/statsDiagnostics';
 import * as shaderDiag from './shaders/shaderDiagnostics';
 import { loadBuiltinPacks } from './shaders/builtinPack';
 import * as packRegistry from './shaders/packRegistry';
+import { refreshInstalledPacks } from './shaders/packManager';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -640,6 +641,10 @@ if (import.meta.env.DEV) {
 // host contract as any imported pack. Registration is pure data — no GPU work
 // happens until a shader is actually selected.
 for (const pack of loadBuiltinPacks()) packRegistry.registerPack(pack);
+// Installed packs load asynchronously and defensively: a broken pack folder
+// contributes a warning, never a failed startup, and nothing is COMPILED until
+// a shader is selected.
+void refreshInstalledPacks();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');

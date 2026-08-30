@@ -1,0 +1,63 @@
+/* v0.5B — pack manager. Compact by intent: this is a settings surface, not a
+   browsing experience. */
+.shader-packs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+.shader-packs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.shader-packs-empty,
+.shader-packs-root {
+  opacity: 0.6;
+  font-size: 10px;
+}
+.shader-packs-root {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shader-packs-error {
+  padding: 6px 8px;
+  border-left: 2px solid var(--danger, #d9534f);
+  background: var(--surface-2, rgba(255, 255, 255, 0.05));
+  line-height: 1.4;
+}
+.shader-pack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+}
+.shader-pack-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.shader-pack-name {
+  font-weight: 500;
+}
+.shader-pack-meta,
+.shader-pack-id,
+.shader-pack-builtin {
+  font-size: 10px;
+  opacity: 0.65;
+}
+.shader-pack-actions {
+  display: flex;
+  gap: 4px;
+}
+.shader-pack-warnings {
+  margin: 2px 0 0;
+  padding-left: 14px;
+  font-size: 10px;
+  opacity: 0.8;
+  line-height: 1.4;
+}

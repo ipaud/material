@@ -135,3 +135,100 @@ Tests 1195 / 70 files · typecheck · lint · build · GPU goldens · export mat
 context restore · churn.
 
 **Safe to proceed to B.**
+
+## B — local shader packs
+
+### Decisions
+
+**Managed storage, never the folder you picked.** Import copies into
+`~/Library/Application Support/material/shader-packs/<packId>/`. Running from
+wherever the user happened to leave a download would make the app's behaviour
+depend on a directory it does not control.
+
+**Install copies the DECLARED FILES ONLY.** The manifest and the shaders it
+names — not a mirror of the folder. An allow-list of files falls out of that
+for free, and nothing incidental (a stray binary, a symlink, a `node_modules`)
+can ride along. Reinstalling replaces wholesale, so a shader deleted between
+versions cannot linger.
+
+**All filesystem work is in the main process.** The renderer asks for packs and
+receives validated data. It has no path API, no `fs`, and no way to name a file
+— the only paths ever opened are the ones a manifest declared, resolved, and
+then re-checked.
+
+**Two independent path checks, because they catch different things.** The
+lexical one refuses `..` and absolute paths before touching the disk. The
+`realpath` one refuses a symlink pointing outside — which passes every lexical
+check and looks entirely innocent until it is followed.
+
+**A pack id cannot shadow a built-in.** An installed pack claiming
+`material.starter` is ignored with a warning, or a project could silently
+render a different shader than the one it names.
+
+**Loading is eager, compiling is lazy.** Startup reads manifests and holds GLSL
+text; nothing reaches the GPU until a shader is selected. Fifty installed
+shaders cost fifty strings, not fifty programs.
+
+### The contract weakness B found
+
+An adversarial fixture declared `min: 1, max: 0, default: 5`. Every field was
+individually valid and the schema accepted it, which would have produced a
+control with no valid position.
+
+Per the loop rule the fix went back to **A**, into the contract: parameter
+definitions are now validated as a whole — `min <= max`, the default inside its
+own range, and an enum default that is actually one of its options. Fixing it in
+the loader that noticed would have left the next loader to find it again.
+
+### Security fixtures — all refused, none crash
+
+| fixture | result |
+|---|---|
+| `../outside.frag` | refused by the schema, never reaches disk |
+| absolute `/etc/hosts` | refused |
+| **symlink to a file outside the pack** | refused: "resolves outside the pack" |
+| `removeShaderPack('../..')` and friends | refused; the real pack survives |
+| manifest that is not JSON | refused, with the parser's own message |
+| missing id / no shaders / bad semver | refused |
+| wrong `materialShaderVersion` | refused |
+| duplicate shader ids | refused |
+| `min > max`, default out of range, NaN default | refused |
+| enum with one option | refused |
+| declared file that does not exist | refused: "no usable shaders" |
+| shader source over 256 KB | refused: "exceeds" |
+
+Structural: the preload exposes pack data and no path API; the import dialog
+belongs to main; the loader uses no `eval`, no `Function`, no `child_process`.
+
+### Live
+
+A pack placed in managed storage next to a **deliberately broken one**:
+
+| observation | result |
+|---|---|
+| broken pack | reports its JSON error, contributes 0 shaders |
+| good pack alongside it | loads, 1 shader, no warnings |
+| startup | unaffected — a bad pack cannot brick it |
+| rendering the imported shader | 120 fps, no compile error, 2 programs |
+| removing the pack | project keeps `{hue: 0.2, strength: 0.5}` and keeps rendering |
+
+### Starter pack
+
+Six shaders — Soft Warp, Scan Bands, Posterise, Ripple, Chromatic Shift, Grain
+Field — written in the same on-disk format an author would use, and loaded
+through the same manifest schema and host contract as anything imported. If the
+format is awkward to author, it is awkward here first. Curation against a
+contact sheet is E's job.
+
+### Known debt
+
+- Import is folder-only; there is no archive format.
+- No hot reload on file change; RELOAD is explicit, which is the safer default.
+- No pack signing and no dependency bundling — both in the backlog.
+
+### Gate
+
+Tests 1221 / 72 files · typecheck · lint · build · security fixtures · live
+install/render/remove.
+
+**Safe to proceed to C.**

@@ -15,6 +15,7 @@ import {
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import * as shaderPacks from '../filesystem/shaderPacks';
 import { IPC, type AppInfo } from '../../shared/ipc';
 import {
   PROJECT_EXTENSION,
@@ -381,6 +382,16 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     });
     return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
   });
+
+  // v0.5B — shader packs. The renderer asks; main reads, validates and copies.
+  // Every path opened is one the pack's own manifest declared, resolved and
+  // then re-checked to still be inside the pack after symlinks.
+  ipcMain.handle(IPC.shaderPacksList, async () => shaderPacks.listShaderPacks());
+  ipcMain.handle(IPC.shaderPackImport, async () => shaderPacks.importShaderPack());
+  ipcMain.handle(IPC.shaderPackRemove, async (_event, id: unknown) =>
+    shaderPacks.removeShaderPack(id),
+  );
+  ipcMain.handle(IPC.shaderPacksRoot, async () => shaderPacks.packsRoot());
 
   ipcMain.handle(
     IPC.saveProjectDialog,
