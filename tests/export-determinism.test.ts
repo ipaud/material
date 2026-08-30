@@ -261,7 +261,9 @@ describe('smoothing state is subrange-stable (§78)', () => {
       join(__dirname, '..', 'src', 'export', 'exportRunner.ts'),
       'utf8',
     );
-    expect(runner).toContain('const evaluate = createFrameEvaluator(0, request.fps)');
+    // v0.4A appended a visual-snapshot provider; the origin-replay contract
+    // is the part that must hold.
+    expect(runner).toMatch(/const evaluate = createFrameEvaluator\(\s*0,\s*request\.fps/);
     expect(runner).toContain('evaluate(startFrame + i)');
     // The skipped frames must actually be walked, not merely skipped.
     expect(runner).toContain('const frame = evaluate(f);');

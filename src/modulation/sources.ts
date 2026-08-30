@@ -8,7 +8,7 @@ import { PATTERN_INACTIVE } from '@/pattern/patternTypes';
 export interface ModSourceDef {
   id: string;
   label: string;
-  group: 'audio' | 'time' | 'beat' | 'pattern';
+  group: 'audio' | 'time' | 'beat' | 'pattern' | 'image' | 'motion';
 }
 
 export const MOD_SOURCES: ModSourceDef[] = [
@@ -28,6 +28,11 @@ export const MOD_SOURCES: ModSourceDef[] = [
   { id: 'beat:1/4', label: 'Beat · 1/4', group: 'beat' },
   { id: 'beat:1/8', label: 'Beat · 1/8', group: 'beat' },
   { id: 'beat:1/16', label: 'Beat · 1/16', group: 'beat' },
+  // v0.4A — the image itself. Values are injected per frame (ctx.visual);
+  // see docs/SIGNALS.md for the RAW/CALIBRATED split and the N-1 contract.
+  { id: 'image.luminance', label: 'Luminance', group: 'image' },
+  { id: 'motion.amount', label: 'Motion Amount', group: 'motion' },
+  { id: 'motion.x', label: 'Motion X', group: 'motion' },
 ];
 
 export interface SourceContext {
@@ -45,6 +50,14 @@ export interface SourceContext {
   patterns?: PatternSourceHandle[];
   /** P4: deterministic probability seed — project.explore.lastSeed ?? 1. */
   projectSeed?: number;
+  /**
+   * v0.4A: image/motion signal values sampled from the PREVIOUS analysed
+   * frame. Injected rather than computed here, because these are the one
+   * signal family that is not a function of `(project, analysis, timeSec)` —
+   * they read pixels. Same precedent as `patterns`: the caller resolves, this
+   * function stays pure with respect to its arguments.
+   */
+  visual?: Record<string, number>;
 }
 
 /**
@@ -99,6 +112,14 @@ export function evalSources(timeSec: number, ctx: SourceContext): Record<string,
       recordPatternDiagnostic(handle, clock.cycleIndex, result);
       if (!result.active || typeof result.value !== 'number') continue;
       values[handle.sourceKey] = Math.min(Math.max(result.value, 0), 1);
+    }
+  }
+  // v0.4A: merged last so a visual signal id can never be shadowed by an
+  // audio track that happens to share a name (none do — the dotted family
+  // prefix guarantees it — but the ordering makes the intent explicit).
+  if (ctx.visual) {
+    for (const [id, v] of Object.entries(ctx.visual)) {
+      if (Number.isFinite(v)) values[id] = v;
     }
   }
   return values;

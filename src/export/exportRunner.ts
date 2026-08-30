@@ -15,6 +15,11 @@ import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
 import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
 import { revealProgress, switchPoint } from '@/performance/transitionWindow';
+import { visualDemand } from '@/signals/visual/demand';
+import { CALIBRATION_PREROLL_SEC } from '@/signals/visual/calibration';
+import { CalibrationStore } from '@/signals/visual/calibrationStore';
+import { publishVisualSignals } from '@/signals/visual/publish';
+import { pixelOriginKey } from '@/signals/visual/originKey';
 import { lookToCore } from '@/performance/lookCore';
 import { applyMacros } from '@/performance/macros';
 import { DEFAULT_MORPH_TRANSITION, isFileSource } from '@shared/schemas/project';
@@ -78,7 +83,17 @@ export function compositionTimeAt(startSec: number, fps: number, frameIndex: num
   return (Math.round(startSec * fps) + frameIndex) / fps;
 }
 
-export function createFrameEvaluator(startSec: number, fps: number) {
+export function createFrameEvaluator(
+  startSec: number,
+  fps: number,
+  /**
+   * v0.4A: visual signals are not a function of (project, analysis, timeSec) —
+   * they read pixels, so the caller supplies the snapshot published by the
+   * PREVIOUS analysed frame. Export builds its own, from its own canonical
+   * calibration state, exactly as it builds its own SmoothingState.
+   */
+  visualProvider?: () => Record<string, number>,
+) {
   const { project } = useProjectStore.getState();
   const analysis = useAudioStore.getState().analysis;
 
@@ -311,6 +326,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     // preview reconfigures its context on the same store change, so mirror
     // it here for exact parity.
     sourceCtx.projectSeed = working.seed;
+    if (visualProvider) sourceCtx.visual = visualProvider();
     const sources = evalSources(timeSec, sourceCtx);
     lastSources = sources;
     // Macro values are project state (deterministic snapshot); live macro
@@ -517,10 +533,48 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
      * frame and makes every evaluator-side state subrange-stable by
      * construction.
      */
-    const evaluate = createFrameEvaluator(0, request.fps);
+    const project0 = useProjectStore.getState().project;
+    const exportDemand = visualDemand(project0.modulations);
+    /** Canonical calibration for THIS export — never the preview's session
+     * state, for the same reason export never reuses preview smoothing. */
+    const exportCalibration = new CalibrationStore();
+    const exportOrigin = pixelOriginKey(
+      project0.sources.find((s) => s.id === project0.composition.sourceId) ?? null,
+    );
+    let lastVisualSec = -1;
+    const advanceVisual = (timeSec: number): void => {
+      if (exportDemand.size === 0) return;
+      const stats = engine.visualSignalStats;
+      const dt = lastVisualSec >= 0 ? Math.min(Math.abs(timeSec - lastVisualSec), 1) : 1 / request.fps;
+      lastVisualSec = timeSec;
+      exportCalibration.advance(exportOrigin, stats, dt);
+    };
+    const visualSnapshot = (): Record<string, number> =>
+      publishVisualSignals(engine.visualSignalStats, exportDemand, (id, raw) =>
+        exportCalibration.value(exportOrigin, id, raw),
+      );
+
+    const evaluate = createFrameEvaluator(0, request.fps, visualSnapshot);
     const startFrame = Math.round(request.startSec * request.fps);
     let primeTemporal = true;
     let prerolled = false;
+
+    /**
+     * v0.4A: visual-signal CALIBRATION is history-dependent too, but unlike
+     * feedback its estimator has provably finite memory — sample influence is
+     * bounded by exp(-T/tauContract) uniformly over every input sequence — so
+     * it needs a BOUNDED window rather than the whole timeline. At six time
+     * constants the calibrated output of a subrange is within 0.025 of a full
+     * export, worst case (asserted in tests/calibration.test.ts).
+     *
+     * One walk, per-subsystem start frames. Two loops would double the GPU
+     * work over the overlap and make `prerolled` mean two different things.
+     */
+    const demand = exportDemand;
+    const visualFrom =
+      demand.size > 0 ? Math.max(0, startFrame - Math.ceil(CALIBRATION_PREROLL_SEC * request.fps)) : startFrame;
+    const walkGpuFrom = engine.isFeedbackTechnique ? 0 : visualFrom;
+    const walkFrom = Math.min(walkGpuFrom, visualFrom);
 
     if (startFrame > 0) {
       // A feedback technique additionally needs its SURFACE walked forward:
@@ -529,22 +583,28 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // source evolve.
       const probe = createFrameEvaluator(request.startSec, request.fps)(0);
       rendererSync.sync(probe.techniqueId, probe.params);
-      const walkGpu = engine.isFeedbackTechnique;
+      const walkGpu = engine.isFeedbackTechnique || demand.size > 0;
       for (let f = 0; f < startFrame; f++) {
         if (useExportStore.getState().cancelRequested) break;
         const frame = evaluate(f); // advances smoothing + triggers
-        if (!walkGpu) continue;
+        if (!walkGpu || f < walkFrom) continue;
         rendererSync.sync(frame.techniqueId, frame.params);
         engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
         engine.prepareFlowForExport(
           frame.timeSec,
           `export:${f}`,
-          f === 0,
+          f === walkFrom,
           request.width,
           request.height,
           frame.params,
         );
-        engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
+        if (f >= visualFrom) {
+          engine.updateVisualStatsForExport(`export:${f}`);
+          advanceVisual(frame.timeSec);
+        }
+        if (engine.isFeedbackTechnique) {
+          engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
+        }
       }
       prerolled = walkGpu;
     }
@@ -580,6 +640,11 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         request.height,
         params,
       );
+      // v0.4A: analyse AFTER the source and flow exist for this frame, and
+      // keyed by GLOBAL frame so a subrange drives the reducer exactly as a
+      // full export does. The value is consumed by the NEXT frame's evaluate().
+      engine.updateVisualStatsForExport(`export:${startFrame + i}`);
+      advanceVisual(timeSec);
       // CE1G: render the A side into the snapshot with A's own renderer,
       // then hand the renderer back to B for the frame proper.
       if (transition) {

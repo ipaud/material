@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
 import { OpticalFlowField } from './flow/OpticalFlowField';
+import { ImageStatsReducer } from './analysis/ImageStatsReducer';
+import { demandNeedsFlow } from '@/signals/visual/demand';
+import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import {
   TransitionCompositor,
   type TransitionParams,
@@ -120,6 +123,9 @@ export class RenderEngine {
     this.flow?.dispose();
     this.flow = null; // updateFlowService rebuilds it on demand
     this.compositor.release();
+    this.visualStats?.dispose();
+    this.visualStats = null;
+    this.latestVisual = null;
     this.resetFeedback();
     (
       this.techniqueRenderer as { onContextRestored?: () => void } | null
@@ -322,6 +328,15 @@ export class RenderEngine {
   // 30fps source yields ~30 flow computes/s under a 120Hz loop.
   private flow: OpticalFlowField | null = null;
 
+  /**
+   * v0.4A: flow is needed when a TECHNIQUE wants it OR a motion signal is
+   * demanded. Without this, mapping `motion.amount` while a non-flow technique
+   * is active would dispose the very field the signal measures.
+   */
+  private flowIsNeeded(): boolean {
+    return this.techniqueWantsFlow() || demandNeedsFlow(this.visualDemand);
+  }
+
   private techniqueWantsFlow(): boolean {
     const r = this.techniqueRenderer as {
       usesFlow?: boolean;
@@ -379,7 +394,7 @@ export class RenderEngine {
   }
 
   private updateFlowService(renderer: THREE.WebGLRenderer, frameKey?: string): void {
-    if (!this.techniqueWantsFlow()) {
+    if (!this.flowIsNeeded()) {
       if (this.flow) {
         // Demand-driven (§77): nothing needs flow — release the targets.
         this.flow.dispose();
@@ -425,7 +440,7 @@ export class RenderEngine {
     const renderer = this.renderer;
     if (!renderer) return;
     if (params) this.syncScene(params);
-    if (!this.techniqueWantsFlow()) return;
+    if (!this.flowIsNeeded()) return;
     if (isFirstFrame) {
       this.flow?.reset();
       // CE1F: prime the pair with the PREVIOUS frame's source so the first
@@ -441,6 +456,105 @@ export class RenderEngine {
     }
     this.updateFlowService(renderer, frameKey);
     if (params) this.syncScene(params); // rebind ctx.flow after compute
+  }
+
+  // ---- v0.4A: image / motion signal analysis -------------------------------
+  private visualStats: ImageStatsReducer | null = null;
+  private visualDemand: ReadonlySet<VisualSignalId> = new Set();
+  private latestVisual: RawVisualStats | null = null;
+  private lastVisualMs = 0;
+  /** Preview analysis rate. Export is gated by frame key alone, so every
+   * exported frame analyses exactly once. */
+  private static readonly VISUAL_HZ = 30;
+
+  private visualSink: ((stats: RawVisualStats | null) => void) | null = null;
+
+  /** Where analysed stats go. The engine must not import the modulation
+   * runtime, so authority wires this from the bridge. */
+  setVisualSink(fn: ((stats: RawVisualStats | null) => void) | null): void {
+    this.visualSink = fn;
+  }
+
+  /** Editor authority pushes the demanded set; empty releases the targets. */
+  setVisualDemand(ids: ReadonlySet<VisualSignalId>): void {
+    this.visualDemand = ids;
+    if (ids.size === 0) {
+      this.visualStats?.dispose();
+      this.visualStats = null;
+      this.latestVisual = null;
+    }
+    this.invalidate();
+  }
+
+  get visualSignalStats(): RawVisualStats | null {
+    return this.latestVisual;
+  }
+
+  get visualDiagnostics(): { reductions: number; bytes: number; width: number; height: number } | null {
+    return this.visualStats
+      ? {
+          reductions: this.visualStats.reductions,
+          bytes: this.visualStats.bytes,
+          ...this.visualStats.resolution,
+        }
+      : null;
+  }
+
+  /** Analysis grid: the flow grid when flow is live (sampling a vector field
+   * 1:1 matters — bilinear resampling before `length()` under-reads magnitude
+   * wherever directions oppose), else the source fitted under a cap. */
+  private visualGrid(): { width: number; height: number } | null {
+    const flowRes = this.flow?.resolution;
+    if (flowRes && flowRes.width > 1) return flowRes;
+    const img = (
+      this.sourceTexture as {
+        image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number };
+      } | null
+    )?.image;
+    const w = img?.videoWidth ?? img?.width ?? 0;
+    const h = img?.videoHeight ?? img?.height ?? 0;
+    if (w < 2 || h < 2) return null;
+    const scale = Math.min(256 / Math.max(w, h), 1);
+    return { width: Math.max(Math.round(w * scale), 8), height: Math.max(Math.round(h * scale), 8) };
+  }
+
+  /**
+   * Reduce this frame's source (and flow) to scalars.
+   *
+   * Called AFTER syncScene in preview, so `evalSources` has already consumed
+   * what frame N-1 published. That one-frame delay is not a nicety: preview
+   * evaluates signals after the source renders and export evaluates them
+   * before, so sampling N-1 in both is what makes them agree.
+   */
+  private updateVisualStats(renderer: THREE.WebGLRenderer, frameKey?: string): void {
+    if (this.visualDemand.size === 0) return;
+    if (!frameKey) {
+      const now = performance.now();
+      if (now - this.lastVisualMs < 1000 / RenderEngine.VISUAL_HZ) return;
+      this.lastVisualMs = now;
+    }
+    const grid = this.visualGrid();
+    if (!grid) return;
+    if (!this.visualStats) this.visualStats = new ImageStatsReducer();
+    const next = this.visualStats.analyse(
+      renderer,
+      this.sourceTexture,
+      demandNeedsFlow(this.visualDemand) ? (this.flow?.texture() ?? null) : null,
+      grid.width,
+      grid.height,
+      frameKey ?? this.sourceFrameKey(),
+    );
+    if (next !== this.latestVisual) {
+      this.latestVisual = next;
+      this.visualSink?.(next);
+    }
+  }
+
+  /** EXPORT: analyse this frame, keyed by GLOBAL frame so a subrange drives the
+   * reducer exactly as a full export does. */
+  updateVisualStatsForExport(frameKey: string): void {
+    if (!this.renderer) return;
+    this.updateVisualStats(this.renderer, frameKey);
   }
 
   get flowStats(): { updates: number; width: number; height: number; bytes: number } | null {
@@ -788,6 +902,9 @@ export class RenderEngine {
     const h = Math.max(gl.drawingBufferHeight, 2);
     this.compositor.capture(renderer, w, h, () => {
       this.syncScene();
+      // v0.4A: analyse AFTER syncScene — evalSources has already consumed the
+      // previous frame's publication (the N-1 contract).
+      this.updateVisualStats(renderer);
       renderer.render(this.scene, this.camera);
     });
   }

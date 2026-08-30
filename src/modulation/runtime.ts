@@ -2,6 +2,9 @@ import type { NumberParamDef } from '@/techniques/types';
 import type { ModulationMapping, ParamRecord } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { evalSources, type SourceContext } from './sources';
+import { calibrationStore } from '@/signals/visual/calibrationStore';
+import { publishVisualSignals } from '@/signals/visual/publish';
+import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import { applySourceModulations, applyModulations, SmoothingState } from './evaluator';
 import { applyPulses } from '@/signals/pulseEngine';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
@@ -33,6 +36,44 @@ class ModulationRuntime {
    * initialiser made the fallback below unreachable and skipped every
    * `source.*` mapping on the first frame. */
   lastSourceValues: Record<string, number> | null = null;
+
+  // ---- v0.4A: image / motion signals ---------------------------------------
+  private visualDemand: ReadonlySet<VisualSignalId> = new Set();
+  private visualOrigin: string | null = null;
+  private lastVisualStats: RawVisualStats | null = null;
+  private lastVisualAtSec = -1;
+
+  setVisualDemand(ids: ReadonlySet<VisualSignalId>): void {
+    this.visualDemand = ids;
+  }
+
+  /** The pixel origin calibration is scoped to. Null clears publication. */
+  setVisualOrigin(origin: string | null): void {
+    this.visualOrigin = origin;
+  }
+
+  /**
+   * Analysed stats arrive here from the engine, one frame BEHIND the params
+   * that will consume them. Calibration advances on arrival, so it is driven
+   * by analysis cadence rather than render cadence.
+   */
+  setVisualStats(stats: RawVisualStats | null, atSec: number): void {
+    const dt = this.lastVisualAtSec >= 0 ? Math.min(Math.abs(atSec - this.lastVisualAtSec), 1) : 1 / 30;
+    this.lastVisualAtSec = atSec;
+    this.lastVisualStats = stats;
+    calibrationStore.advance(this.visualOrigin, stats, dt);
+  }
+
+  /** Latest published visual values — also what the scope reads. */
+  visualValues(): Record<string, number> {
+    return publishVisualSignals(this.lastVisualStats, this.visualDemand, (id, raw) =>
+      calibrationStore.value(this.visualOrigin, id, raw),
+    );
+  }
+
+  get visualStats(): RawVisualStats | null {
+    return this.lastVisualStats;
+  }
 
   configure(mappings: ModulationMapping[], techniqueId: string | null, ctx: SourceContext): void {
     this.mappings = mappings;
@@ -79,7 +120,7 @@ class ModulationRuntime {
     if (!definition) return base;
     const dt = this.lastTime >= 0 ? Math.min(Math.abs(timeSec - this.lastTime), 0.1) : 1 / 60;
     this.lastTime = timeSec;
-    const sources = evalSources(timeSec, this.sourceCtx);
+    const sources = evalSources(timeSec, { ...this.sourceCtx, visual: this.visualValues() });
     this.lastSourceValues = sources;
     // Evaluation order (docs/PARAMETER_EVALUATION.md):
     // (morph base) → macros → continuous modulation (freeze inside) →
@@ -109,6 +150,10 @@ class ModulationRuntime {
   }
 
   reset(): void {
+    this.lastVisualStats = null;
+    this.lastVisualAtSec = -1;
+    this.lastSourceValues = null;
+    calibrationStore.reset();
     this.smoothing.reset();
     this.lastTime = -1;
   }

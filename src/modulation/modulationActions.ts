@@ -1,17 +1,22 @@
 import { useProjectStore } from '@/state/projectStore';
 import { uid } from '@/utils/id';
+import { visualSignalDef } from '@/signals/visual/types';
 import { modulationRuntime } from './runtime';
 import type { ModulationMapping } from '@shared/schemas/project';
 
 export function addMapping(source: string, target: string): void {
+  // v0.4A: a CENTRED signal rests at 0.5, so a 0..1 range would make "still"
+  // contribute half the parameter span. The signal declares the range that
+  // makes it neutral at rest.
+  const range = visualSignalDef(source)?.defaultMapping ?? { min: 0, max: 1 };
   const mapping: ModulationMapping = {
     id: uid('mod'),
     enabled: true,
     source,
     target,
     amount: 0.5,
-    min: 0,
-    max: 1,
+    min: range.min,
+    max: range.max,
     invert: false,
     smoothing: 0.25,
     curve: 'linear',

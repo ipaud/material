@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { MOD_SOURCES } from '@/modulation/sources';
+
+/** Grouped once, from the registry's own `group` field — the picker used to
+ * hardcode a flat list, which does not survive a growing signal set. */
+const GROUP_LABELS: Record<string, string> = {
+  audio: 'Audio',
+  time: 'Time',
+  beat: 'Beat',
+  image: 'Image',
+  motion: 'Motion',
+};
+const SOURCE_GROUPS: [string, typeof MOD_SOURCES][] = Object.entries(GROUP_LABELS)
+  .map(([g, label]) => [label, MOD_SOURCES.filter((s) => s.group === g)] as [string, typeof MOD_SOURCES])
+  .filter(([, defs]) => defs.length > 0);
 import { patternSourceKey } from '@/pattern/patternSourceRuntime';
 import { patternLabel } from '@/patterns/PatternsSection';
 import {
@@ -69,12 +82,16 @@ export function ModulationSection() {
                 value={m.source}
                 onChange={(e) => updateMapping(m.id, { source: e.target.value })}
               >
-                {MOD_SOURCES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
+                {SOURCE_GROUPS.map(([label, defs]) => (
+              <optgroup key={label} label={label}>
+                {defs.map((sd) => (
+                  <option key={sd.id} value={sd.id}>
+                    {sd.label}
                   </option>
                 ))}
-                {patternSources.length > 0 && (
+              </optgroup>
+            ))}
+            {patternSources.length > 0 && (
                   <optgroup label="Pattern">
                     {patternSources.map((p, i) => (
                       <option key={p.id} value={patternSourceKey(p.id)}>
@@ -127,10 +144,14 @@ export function ModulationSection() {
                   defaultValue={0.25}
                   onChange={(v) => updateMapping(m.id, { smoothing: v })}
                 />
+                {/* v0.4A: -1..1, not 0..1. A CENTRED signal like Motion X
+                    rests at 0.5, so it needs min -1 / max 1 for "still" to
+                    contribute nothing — the output range is where polarity
+                    lives, since the evaluator clamps every signal to 0..1. */}
                 <ParameterSlider
                   label="Min"
                   value={m.min}
-                  min={0}
+                  min={-1}
                   max={1}
                   step={0.01}
                   defaultValue={0}
@@ -139,7 +160,7 @@ export function ModulationSection() {
                 <ParameterSlider
                   label="Max"
                   value={m.max}
-                  min={0}
+                  min={-1}
                   max={1}
                   step={0.01}
                   defaultValue={1}

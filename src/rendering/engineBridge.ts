@@ -8,6 +8,9 @@ import { audioEngine } from '@/audio/AudioEngine';
 import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
+import { visualDemand } from '@/signals/visual/demand';
+import { pixelOriginKey } from '@/signals/visual/originKey';
+import { calibrationStore } from '@/signals/visual/calibrationStore';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { captureManager, useCaptureStore } from '@/sources/captureManager';
@@ -47,6 +50,9 @@ function syncFromProject(): void {
   if (projectGeneration !== lastProjectGeneration) {
     lastProjectGeneration = projectGeneration;
     runtimeBus.reset();
+    // v0.4A: calibration is per-session, per-origin state — a replaced
+    // document must not inherit the previous project's ranges.
+    calibrationStore.reset();
   }
 
   engine.setComposition(composition.width, composition.height, composition.background);
@@ -280,6 +286,18 @@ function configureModulation(): void {
     patterns: resolvePatternHandles(project.patternSources),
     projectSeed: project.explore.lastSeed ?? 1,
   });
+  // v0.4A: visual signals are demand-driven — nothing mapped means the
+  // reducer sleeps and releases its targets, exactly like the flow service.
+  const demand = visualDemand(project.modulations);
+  modulationRuntime.setVisualDemand(demand);
+  engine.setVisualDemand(demand);
+  const active = project.sources.find((s) => s.id === project.composition.sourceId) ?? null;
+  modulationRuntime.setVisualOrigin(
+    pixelOriginKey(active, {
+      activeCameraDeviceId: useCameraStore.getState().devices[0]?.deviceId ?? null,
+      chosenWindowId: useCaptureStore.getState().chosenWindowId,
+    }),
+  );
   modulationRuntime.configureMacros(project.macros);
   configureTriggers(project.triggers, {
     bpm: project.timeline.bpm,
@@ -320,6 +338,9 @@ export function startEngineBridge(): () => void {
     }
   });
   engine.setParamTransform((base, t) => modulationRuntime.transform(base, t));
+  // The engine owns the GPU reduction; the runtime owns calibration. This is
+  // the only wire between them, so neither imports the other.
+  engine.setVisualSink((stats) => modulationRuntime.setVisualStats(stats, playback.getTime()));
   syncFromProject();
   syncFromUi();
   return () => {

@@ -6,7 +6,11 @@ import {
   VISUAL_SIGNAL_IDS,
   isVisualSignalId,
   visualSignalDef,
+  type RawVisualStats,
+  type VisualSignalId,
 } from '@/signals/visual/types';
+import { publishVisualSignals } from '@/signals/visual/publish';
+import { demandNeedsFlow, visualDemand } from '@/signals/visual/demand';
 
 const src = (...p: string[]) => readFileSync(join(__dirname, '..', ...p), 'utf8');
 
@@ -95,5 +99,103 @@ describe('reducer structural rules (§A2)', () => {
   it('is registered as a geometry owner so the leak check sees it', () => {
     const lifecycle = src('tests', 'gpu-lifecycle.test.ts');
     expect(lifecycle).toContain('ImageStatsReducer.ts');
+  });
+});
+
+describe('publication uses absence as the neutral (§A1)', () => {
+  const demandAll = new Set<VisualSignalId>(['image.luminance', 'motion.amount', 'motion.x']);
+  const stats = (over: Partial<RawVisualStats> = {}): RawVisualStats => ({
+    n: 100,
+    luminance: 0.4,
+    motionAmount: 2,
+    motionX: 0.7,
+    hasFlow: true,
+    ...over,
+  });
+
+  it('omits motion entirely when there is no flow — never publishes zero motion', () => {
+    // Publishing 0 would drive every motion mapping to its `min` instead of
+    // leaving it alone, because 0 is a value and absence is the neutral.
+    const out = publishVisualSignals(stats({ hasFlow: false }), demandAll, (_, raw) => raw);
+    expect('motion.amount' in out).toBe(false);
+    expect('motion.x' in out).toBe(false);
+    expect(out['image.luminance']).toBeCloseTo(0.4, 6);
+  });
+
+  it('omits a signal that is still warming', () => {
+    const out = publishVisualSignals(stats(), demandAll, (id) =>
+      id === 'image.luminance' ? null : 1,
+    );
+    expect('image.luminance' in out).toBe(false);
+    expect('motion.amount' in out).toBe(true);
+  });
+
+  it('publishes nothing at all before the first analysis', () => {
+    expect(publishVisualSignals(null, demandAll, (_, raw) => raw)).toEqual({});
+  });
+
+  it('only publishes what is demanded', () => {
+    const out = publishVisualSignals(stats(), new Set(['motion.x']), (_, raw) => raw);
+    expect(Object.keys(out)).toEqual(['motion.x']);
+  });
+
+  it('motion.x bypasses calibration — it is already normalised', () => {
+    const out = publishVisualSignals(stats({ motionX: 0.7 }), demandAll, () => 0.123);
+    expect(out['motion.x']).toBeCloseTo(0.7, 6);
+    expect(out['motion.amount']).toBeCloseTo(0.123, 6);
+  });
+});
+
+describe('demand drives the analyser and the flow field (§A4)', () => {
+  const map = (source: string, enabled = true) =>
+    ({ id: source, enabled, source, target: 'scale' }) as never;
+
+  it('collects enabled visual mappings only', () => {
+    const d = visualDemand([map('image.luminance'), map('motion.x', false), map('bass')]);
+    expect([...d]).toEqual(['image.luminance']);
+  });
+
+  it('an open scope keeps a signal alive with no mapping', () => {
+    expect([...visualDemand([], new Set(['motion.amount']))]).toEqual(['motion.amount']);
+  });
+
+  it('a motion signal demands the flow field; luminance does not', () => {
+    // Without this the flow service would dispose the very field motion
+    // measures, whenever the active technique did not want flow itself.
+    expect(demandNeedsFlow(visualDemand([map('motion.amount')]))).toBe(true);
+    expect(demandNeedsFlow(visualDemand([map('image.luminance')]))).toBe(false);
+  });
+
+  it('the engine widens its flow gate to include signal demand', () => {
+    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    expect(engine).toContain('demandNeedsFlow(this.visualDemand)');
+    expect(engine).toMatch(/flowIsNeeded\(\)/);
+  });
+});
+
+describe('export path (§A8)', () => {
+  const runner = src('src', 'export', 'exportRunner.ts');
+
+  it('analyses every exported frame, keyed by GLOBAL frame', () => {
+    expect(runner).toContain('engine.updateVisualStatsForExport(`export:${startFrame + i}`)');
+  });
+
+  it('uses its own canonical calibration, never the preview session state', () => {
+    expect(runner).toContain('new CalibrationStore()');
+    expect(runner).toContain('exportCalibration');
+  });
+
+  it('prerolls a BOUNDED window rather than the whole timeline', () => {
+    // The estimator has provably finite memory, so six time constants suffice.
+    expect(runner).toContain('CALIBRATION_PREROLL_SEC');
+    expect(runner).toContain('Math.max(0, startFrame - Math.ceil(CALIBRATION_PREROLL_SEC');
+  });
+
+  it('feeds the snapshot into the evaluator rather than a second context', () => {
+    // The first attempt wired ctx.visual only on the preview path; export built
+    // its own SourceContext, so every visual signal was silently absent from
+    // the render. Determinism passed 12/12 anyway — an absent signal is
+    // perfectly reproducible. The anti-noop gate is what caught it.
+    expect(runner).toContain('createFrameEvaluator(0, request.fps, visualSnapshot)');
   });
 });

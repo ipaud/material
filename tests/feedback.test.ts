@@ -170,8 +170,11 @@ describe('structural gates (§5, §16, §86-87)', () => {
     expect(runner).toContain('engine.isFeedbackTechnique');
     // The preroll evaluator starts at the ORIGIN so modulation smoothing and
     // triggers replay exactly as they did in a full export.
-    expect(runner).toContain('createFrameEvaluator(0, request.fps)');
+    expect(runner).toMatch(/createFrameEvaluator\(\s*0,\s*request\.fps/);
     expect(runner).toContain('engine.prepareGeneratorForExport(frame.timeSec');
+    // v0.4A: feedback stepping is now conditional, because the same walk also
+    // serves the bounded visual-calibration preroll.
+    expect(runner).toContain('if (engine.isFeedbackTechnique) {');
   });
 
   it('preview prepass runs on wall time; export never runs the preview prepass', () => {
