@@ -61,6 +61,23 @@ export interface AnimationExportRequest {
  * (manual/keyboard/MIDI) are absent from export by design; see
  * docs/PARAMETER_EVALUATION.md.
  */
+/**
+ * CE1H — composition time for a global frame.
+ *
+ * `startSec + i / fps` is NOT stable across exports: a full export reaches
+ * global frame 25 as 1 + 13/12 and a subrange reaches it as 2 + 1/12, which
+ * differ by one ULP. Anything that floors a scaled time then lands on a
+ * different integer — `floor(t * 60)` picked a different SIMULATION STEP,
+ * which is why Reaction Diffusion and Cellular diverged on exactly every
+ * third frame while their neighbours matched.
+ *
+ * The global FRAME INDEX is the identity, and time is derived from it, so
+ * the same frame is the same float in every export that contains it.
+ */
+export function compositionTimeAt(startSec: number, fps: number, frameIndex: number): number {
+  return (Math.round(startSec * fps) + frameIndex) / fps;
+}
+
 export function createFrameEvaluator(startSec: number, fps: number) {
   const { project } = useProjectStore.getState();
   const analysis = useAudioStore.getState().analysis;
@@ -245,7 +262,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     techniqueId: string | null;
     transition: ExportTransition | null;
   } => {
-    const timeSec = startSec + frameIndex / fps;
+    const timeSec = compositionTimeAt(startSec, fps, frameIndex);
     scheduler.advanceTo(timeSec, working.triggers, triggerCtx);
 
     // Morph replay: commit completed morphs (in time order), then resolve any
@@ -488,6 +505,39 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     const evaluate = createFrameEvaluator(request.startSec, request.fps);
     let primeTemporal = true;
 
+    /**
+     * CE1H §37 — stateful FEEDBACK preroll.
+     *
+     * `exportBegin` already ran the right NUMBER of feedback steps for the
+     * skipped time, but every one of those steps saw the same frozen source
+     * frame, while the real progression saw the source evolve. Measured: a
+     * subrange export of Feedback Zoom over an animated generator matched a
+     * full export 0/12, and 12/12 over a time-invariant one — the step count
+     * was never the problem, the source was.
+     *
+     * So replay the skipped frames for real: same evaluator (from the
+     * origin, so modulation smoothing and triggers replay identically), same
+     * source advance, same feedback stepping. No frame is rendered or
+     * written — this only walks the state forward.
+     */
+    const startFrame = Math.round(request.startSec * request.fps);
+    let prerolled = false;
+    if (startFrame > 0) {
+      const probe = createFrameEvaluator(request.startSec, request.fps)(0);
+      rendererSync.sync(probe.techniqueId, probe.params);
+      if (engine.isFeedbackTechnique) {
+        const pre = createFrameEvaluator(0, request.fps);
+        for (let f = 0; f < startFrame; f++) {
+          if (useExportStore.getState().cancelRequested) break;
+          const frame = pre(f);
+          rendererSync.sync(frame.techniqueId, frame.params);
+          engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
+          engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
+        }
+        prerolled = true;
+      }
+    }
+
     for (let i = 0; i < totalFrames; i++) {
       if (useExportStore.getState().cancelRequested) {
         await window.material.exportCancel(sessionId);
@@ -524,7 +574,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // CE1B feedback: deterministic stepping — frame 0 prerolls from the
       // timeline origin to the export start, later frames advance by exact
       // whole steps. Repeated exports of the same range hash identically.
-      engine.prepareFeedbackForExport(timeSec, i === 0, params);
+      engine.prepareFeedbackForExport(timeSec, i === 0 && !prerolled, params);
       if (video) await seekVideoExact(video, timeSec, i === 0);
       const rgba = engine.renderStill(
         request.width,

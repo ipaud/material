@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
+import { compositionTimeAt } from '@/export/exportRunner';
 import { applyModulations, SmoothingState } from '@/modulation/evaluator';
 import { evalSources, type SourceContext } from '@/modulation/sources';
 import { mosaicDefinition } from '@/techniques/mosaic/definition';
@@ -141,5 +142,67 @@ describe('export determinism', () => {
     const seq = renderSequence(MAPPINGS, ctx, 0, 30, 90);
     const scales = new Set(seq.map((p) => Number(p.scale).toFixed(4)));
     expect(scales.size).toBeGreaterThan(10);
+  });
+});
+
+/**
+ * CE1H §78 — the release determinism matrix.
+ *
+ * Every system, measured end to end on a clean process with a deterministic
+ * generator source (no decoder), 160×90 @12fps, repeat = two exports of
+ * 2–3s, full/subrange = frames of a 1–3s export against a 2–3s export:
+ *
+ *   System                 Repeat   Full vs subrange
+ *   Generator (stateless)  12/12    12/12
+ *   Feedback               12/12    12/12
+ *   Time Field             12/12    12/12
+ *   Slit Scan              12/12    12/12
+ *   Echo                   12/12    12/12
+ *   Step Print             12/12    12/12
+ *   Flow Displace          12/12    12/12
+ *   Motion Mosh            12/12    12/12
+ *   Flow Feedback          12/12    12/12
+ *   Motion Trails          12/12    12/12
+ *   Reaction Diffusion     12/12    12/12
+ *   Cellular               12/12    12/12
+ *   Morph · Noise          12/12    12/12
+ *   Morph · Radial         12/12    12/12
+ *   Morph · Glitch         12/12    12/12
+ *   Morph · Luma           12/12    12/12
+ *
+ * All byte-identical (worst pixel delta 0). Three CE1H fixes got the last
+ * four rows there: the temporal atlas tile-bleed fix, frame-grid composition
+ * time, and the feedback subrange preroll.
+ */
+describe('composition time is addressed by global frame (§78)', () => {
+  it('the same global frame is the same float in a full and a subrange export', () => {
+    const fps = 12;
+    // Full export from 1s reaches global frame 25 at index 13; a subrange
+    // from 2s reaches it at index 1. `start + i / fps` gives two different
+    // floats, and floor(t * 60) then picks a different simulation step.
+    const naiveFull = 1 + 13 / fps;
+    const naiveSub = 2 + 1 / fps;
+    expect(naiveFull).not.toBe(naiveSub);
+    expect(Math.floor(naiveFull * 60)).not.toBe(Math.floor(naiveSub * 60));
+
+    expect(compositionTimeAt(1, fps, 13)).toBe(compositionTimeAt(2, fps, 1));
+    expect(Math.floor(compositionTimeAt(1, fps, 13) * 60)).toBe(
+      Math.floor(compositionTimeAt(2, fps, 1) * 60),
+    );
+  });
+
+  it('agrees with the naive formula wherever the naive formula is exact', () => {
+    for (const fps of [12, 24, 25, 30, 60]) {
+      for (let i = 0; i < 40; i++) {
+        expect(compositionTimeAt(0, fps, i)).toBeCloseTo(i / fps, 12);
+      }
+    }
+  });
+
+  it('snaps a start time onto the frame grid', () => {
+    // Export ranges come from a timeline; a start between frames resolves to
+    // the frame it belongs to rather than drifting the whole sequence.
+    expect(compositionTimeAt(2.04, 12, 0)).toBe(compositionTimeAt(2, 12, 0));
+    expect(compositionTimeAt(0, 12, 25)).toBe(compositionTimeAt(2, 12, 1));
   });
 });

@@ -447,6 +447,12 @@ export class RenderEngine {
     this.lastFeedbackExportSec = compositionTime;
   }
 
+  /** True when the installed technique keeps a feedback surface — i.e. its
+   * export state depends on every frame before it (CE1H §37). */
+  get isFeedbackTechnique(): boolean {
+    return (this.techniqueRenderer as { feedback?: boolean } | null)?.feedback === true;
+  }
+
   get isLiveTemporalMode(): boolean {
     return this.liveSourceActive;
   }

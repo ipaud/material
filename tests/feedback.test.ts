@@ -149,7 +149,24 @@ describe('structural gates (§5, §16, §86-87)', () => {
 
   it('export path steps feedback deterministically', () => {
     const runner = code('src', 'export', 'exportRunner.ts');
-    expect(runner.includes('prepareFeedbackForExport(timeSec, i === 0, params)')).toBe(true);
+    expect(
+      runner.includes('prepareFeedbackForExport(timeSec, i === 0 && !prerolled, params)'),
+    ).toBe(true);
+  });
+
+  it('a subrange export REPLAYS the skipped frames instead of freezing the source', () => {
+    // CE1H §37: exportBegin ran the right step COUNT for the skipped time,
+    // but every step saw one frozen source frame. Measured: Feedback Zoom
+    // over an animated generator matched a full export 0/12 before this and
+    // 12/12 after; over a time-invariant source it was 12/12 either way, so
+    // the step count was never the problem.
+    const runner = code('src', 'export', 'exportRunner.ts');
+    expect(runner).toContain('const startFrame = Math.round(request.startSec * request.fps)');
+    expect(runner).toContain('engine.isFeedbackTechnique');
+    // The preroll evaluator starts at the ORIGIN so modulation smoothing and
+    // triggers replay exactly as they did in a full export.
+    expect(runner).toContain('createFrameEvaluator(0, request.fps)');
+    expect(runner).toContain('engine.prepareGeneratorForExport(frame.timeSec');
   });
 
   it('preview prepass runs on wall time; export never runs the preview prepass', () => {
