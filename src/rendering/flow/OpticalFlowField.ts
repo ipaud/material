@@ -140,6 +140,10 @@ export class OpticalFlowField {
   private hasPrev = false;
   /** Diagnostics: how many unique source frames produced a flow update. */
   updates = 0;
+  /** Real LK solves since the last prime. The priming update CLEARS the field,
+   * so its all-zero result is not a measurement of anything — a consumer that
+   * treats it as "no motion" feeds a false extreme to whatever it drives. */
+  private solves = 0;
 
   private camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
   private lumaMat = new THREE.ShaderMaterial({ vertexShader: FSQ_VERT, fragmentShader: LUMA_FRAG, depthTest: false, depthWrite: false, uniforms: { uTex: { value: null }, uPrevPacked: { value: null }, uTexel: { value: new THREE.Vector2() } } });
@@ -258,6 +262,13 @@ export class OpticalFlowField {
 
     this.lumaFlip = !this.lumaFlip; // curr becomes prev for the next frame
     this.updates++;
+    this.solves++;
+  }
+
+  /** True once a real Lucas-Kanade solve has run since the last prime. Until
+   * then the field is cleared, not measured. */
+  get ready(): boolean {
+    return this.solves > 0;
   }
 
   /** Discontinuity (seek, loop, source switch, context restore): next
@@ -265,6 +276,7 @@ export class OpticalFlowField {
   reset(): void {
     this.hasPrev = false;
     this.lastFrameKey = null;
+    this.solves = 0;
   }
 
   get bytes(): number {

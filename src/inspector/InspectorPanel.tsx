@@ -8,6 +8,7 @@ import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
 import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
+import { SignalScope } from './SignalScope';
 import { TriggersSection } from './TriggersSection';
 import { MidiSection } from './MidiSection';
 import { MacrosSection } from './MacrosSection';
@@ -202,6 +203,13 @@ export function InspectorPanel() {
               </div>
             </CollapsibleSection>
 
+            {/* Closed by default on purpose: an open scope registers analysis
+                demand of its own, so leaving it open would keep the GPU
+                reducer running for a panel nobody is reading. */}
+            <CollapsibleSection label="Signal Scope" count={0} defaultOpen={false}>
+              <SignalScope />
+            </CollapsibleSection>
+
             <CollapsibleSection label="Material" count={0}>
               <div className="param-row">
                 <span className="param-label">Shape</span>
@@ -266,12 +274,14 @@ function CollapsibleSection({
   label,
   count,
   children,
+  defaultOpen = true,
 }: {
   label: string;
   count: number;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="inspector-section">
       <button className="inspector-section-header" onClick={() => setOpen(!open)}>

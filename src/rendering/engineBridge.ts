@@ -9,6 +9,7 @@ import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
 import { visualDemand } from '@/signals/visual/demand';
+import { useScopeStore } from '@/signals/visual/scopeStore';
 import { pixelOriginKey } from '@/signals/visual/originKey';
 import { calibrationStore } from '@/signals/visual/calibrationStore';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
@@ -288,7 +289,7 @@ function configureModulation(): void {
   });
   // v0.4A: visual signals are demand-driven — nothing mapped means the
   // reducer sleeps and releases its targets, exactly like the flow service.
-  const demand = visualDemand(project.modulations);
+  const demand = visualDemand(project.modulations, useScopeStore.getState().watching);
   modulationRuntime.setVisualDemand(demand);
   engine.setVisualDemand(demand);
   const active = project.sources.find((s) => s.id === project.composition.sourceId) ?? null;
@@ -329,6 +330,8 @@ export function startEngineBridge(): () => void {
     }
   });
   const unsubUi = useUiStore.subscribe(syncFromUi);
+  // An open scope registers demand of its own, and closing it gives it back.
+  const unsubScope = useScopeStore.subscribe(configureModulation);
   const unsubAudio = useAudioStore.subscribe(configureModulation);
   let lastDuration = -1;
   const unsubPlayback = usePlaybackStore.subscribe((s) => {
@@ -340,7 +343,13 @@ export function startEngineBridge(): () => void {
   engine.setParamTransform((base, t) => modulationRuntime.transform(base, t));
   // The engine owns the GPU reduction; the runtime owns calibration. This is
   // the only wire between them, so neither imports the other.
-  engine.setVisualSink((stats) => modulationRuntime.setVisualStats(stats, playback.getTime()));
+  // Calibration advances on WALL time, not transport time: the preview
+  // analyser runs whenever pixels are produced, including while the transport
+  // is stopped (live camera, simulation generator). Feeding it `getTime()`
+  // pinned dt at 0 whenever playback was paused, so the warmup window never
+  // elapsed and every visual signal stayed `warming` forever. Export does not
+  // use this path — it owns a separate store stepped by frame time.
+  engine.setVisualSink((stats) => modulationRuntime.setVisualStats(stats, performance.now() / 1000));
   syncFromProject();
   syncFromUi();
   return () => {
@@ -349,6 +358,7 @@ export function startEngineBridge(): () => void {
     unsubCapture();
     unsubUi();
     unsubAudio();
+    unsubScope();
     unsubPlayback();
     engine.setParamTransform(null);
     activeSourceRuntime?.dispose();

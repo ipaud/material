@@ -539,7 +539,14 @@ export class RenderEngine {
     const next = this.visualStats.analyse(
       renderer,
       this.sourceTexture,
-      demandNeedsFlow(this.visualDemand) ? (this.flow?.texture() ?? null) : null,
+      // `ready` and not merely present: the priming update clears the field,
+      // and publishing that zero seeds the motion calibrator with a low
+      // extreme it then takes ~10 s to give back (measured: calibrated motion
+      // sat at 0.89 mean, saturating at 1, on a source whose raw span was
+      // 0.42-0.59). Absence is the honest report — publish.ts omits the keys.
+      demandNeedsFlow(this.visualDemand) && this.flow?.ready
+        ? (this.flow.texture() ?? null)
+        : null,
       grid.width,
       grid.height,
       frameKey ?? this.sourceFrameKey(),
@@ -825,6 +832,10 @@ export class RenderEngine {
     // CE1D: refresh the shared flow service first — syncScene binds ctx.flow.
     if (!this.exportMode) this.updateFlowService(renderer);
     this.syncScene();
+    // v0.4A: analyse AFTER syncScene — evalSources has already consumed what
+    // frame N-1 published, which is the N-1 contract that makes preview and
+    // export agree despite evaluating in opposite order.
+    if (!this.exportMode) this.updateVisualStats(renderer);
     // CE1B feedback prepass: preview steps on WALL time (live, paused
     // transport and static images all evolve — export steps separately and
     // deterministically via prepareFeedbackForExport).
@@ -902,9 +913,6 @@ export class RenderEngine {
     const h = Math.max(gl.drawingBufferHeight, 2);
     this.compositor.capture(renderer, w, h, () => {
       this.syncScene();
-      // v0.4A: analyse AFTER syncScene — evalSources has already consumed the
-      // previous frame's publication (the N-1 contract).
-      this.updateVisualStats(renderer);
       renderer.render(this.scene, this.camera);
     });
   }

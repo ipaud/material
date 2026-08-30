@@ -145,3 +145,81 @@ into a `Float32Array`. The encode-to-RGBA8 rule exists for signed, unknown-scale
 diagnostics; sums reaching 57 600 cannot survive 8 bits.
 
 **Proceeding to A3/A4.**
+
+## A6 — signal diagnostics (scope) + three defects only a live run could find
+
+The scope panel is a `CollapsibleSection` closed by default, because an open
+scope registers analysis demand of its own: leaving it open would keep the GPU
+reducer running for a panel nobody is reading. `{open && children}` unmounts
+the body, so closing releases the demand through the same path a deleted
+mapping takes.
+
+Measured round-trip, no mappings at all in the project:
+
+| state | `engine.visualDemand` | reducer |
+|---|---|---|
+| scope closed | `[]` | disposed (`visualDiagnostics === null`) |
+| scope open | `['image.luminance']` | 39 reductions in 1.5 s ≈ 26 Hz |
+| scope closed again | `[]` | disposed again |
+
+Three defects surfaced only once the thing ran against real pixels. Every one
+of them passed the whole unit suite first.
+
+**1. The analysis call was in the wrong render path.** It sat in
+`captureTransitionSnapshot`, which runs only when a transition opens. Demand
+was set, the source texture was present, the grid was valid — and the reducer
+ran zero times in 2.5 s of preview. Moved into `renderFrame`, immediately after
+`syncScene()`, which is where the N−1 contract requires it.
+
+**2. Calibration was advanced on transport time.** The sink passed
+`playback.getTime()`, so with the transport stopped `dt` was 0 on every step:
+`elapsedSec` never reached `warmupSec` and every visual signal stayed `warming`
+forever. The analyser runs on *produced pixels* — a live camera and a
+simulation generator produce them with the transport parked — so preview
+calibration advances on wall time. Export is untouched: it owns a separate
+store stepped by frame time, which is what keeps it deterministic.
+
+**3. The optical-flow priming frame was published as a measurement.**
+`OpticalFlowField.update()` deliberately clears its targets on the first update
+after a prime, so no garbage field is ever produced. That all-zero field then
+reached the reducer, and `motionAmount = 0` seeded the motion calibrator's LOW
+envelope with an extreme the source never produces. Measured on a clean
+calibration key before the fix:
+
+| | raw min | raw max | calibrated mean | calibrated max |
+|---|---|---|---|---|
+| before | 0.419 | 0.585 | **0.894** | 1.000 (saturating) |
+| after | 0.348 | 0.567 | **0.447** | 0.869 |
+
+τ_contract = 4 s gives the range back only slowly, so one false zero flattened
+the knob for ~10 s. `OpticalFlowField` now counts real Lucas–Kanade solves and
+exposes `ready`; the engine passes the field to the reducer only when it is
+ready, and `publish.ts` omits the motion keys entirely in the meantime —
+absence, not zero, which is the same neutral the rest of the contract uses.
+`reset()` clears the counter, so a seek or source switch re-primes honestly.
+
+Calibration on a clean key, generator `noise` seed 91, 3 s of samples:
+
+| signal | raw span | calibrated span | calibrated mean |
+|---|---|---|---|
+| `image.luminance` | 0.445–0.503 (0.058) | 0.119–0.605 | 0.407 |
+| `motion.amount` | 0.348–0.567 (0.219) | 0.136–0.869 | 0.447 |
+| `motion.x` | 0.390–0.470 | pass-through, uncalibrated | 0.434 |
+
+A 0.058 raw luminance band becomes 0.486 of usable travel. That is the whole
+point of the RAW/CALIBRATED split, and it is the CE1H `mids`/`highs` lesson
+answered.
+
+**One non-defect, recorded so it is not re-investigated.** A mid-flight source
+switch stops the transport and, with a stateless generator, the preview loop is
+dirty-driven — so analysis legitimately stops until playback resumes. An early
+probe read this as "analysis dies on source switch"; `generatorRevision` frozen
+while `getTime()` returned to 0 is what distinguishes the two.
+
+A second false alarm cost a detour: a probe passing only `{scale, speed}` to
+the `noise` generator left `detail`, `warp` and `contrast` at 0 through the
+positional `GENERATOR_PARAM_ORDER` mapping, producing a **flat** field. Bit-
+identical luminance across 111 reductions is the signature of a constant image,
+not of a stale texture.
+
+**Proceeding to A9.**

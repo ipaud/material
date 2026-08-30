@@ -199,3 +199,38 @@ describe('export path (§A8)', () => {
     expect(runner).toContain('createFrameEvaluator(0, request.fps, visualSnapshot)');
   });
 });
+
+describe('measured live defects (§A6)', () => {
+  it('analyses inside the preview frame, not only the transition snapshot', () => {
+    // First wiring put the call in captureTransitionSnapshot, which runs only
+    // when a transition opens. Measured: demand set, texture present, grid
+    // valid, and zero reductions in 2.5 s of preview.
+    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    const frame = engine.slice(engine.indexOf('private renderFrame()'));
+    expect(frame).toMatch(/this\.syncScene\(\);[\s\S]{0,400}?this\.updateVisualStats\(renderer\)/);
+  });
+
+  it('advances calibration on wall time, never on transport time', () => {
+    // Feeding playback.getTime() pinned dt at 0 whenever the transport was
+    // stopped, so warmupSec never elapsed and every signal stayed `warming`
+    // forever — the analyser runs on produced pixels, not on transport.
+    const bridge = src('src', 'rendering', 'engineBridge.ts');
+    expect(bridge).toMatch(/setVisualSink\(\(stats\) =>\s*modulationRuntime\.setVisualStats\(stats, performance\.now\(\) \/ 1000\)\)/);
+    expect(bridge).not.toContain('setVisualStats(stats, playback.getTime())');
+  });
+
+  it('ignores the flow field until a real solve has run', () => {
+    // The priming update CLEARS the targets, so its zero is not a measurement.
+    // Measured before the fix: calibrated motion.amount sat at 0.894 mean and
+    // saturated at 1.0 on a source whose raw span was 0.42-0.59, because the
+    // priming zero pinned the low envelope and τ_contract gives it back slowly.
+    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    expect(engine).toContain('this.flow?.ready');
+    const flow = src('src', 'rendering', 'flow', 'OpticalFlowField.ts');
+    expect(flow).toMatch(/get ready\(\): boolean \{\s*return this\.solves > 0;/);
+    // A discontinuity must make the field un-ready again, or a seek would
+    // publish the cleared field as measured motion.
+    const reset = flow.slice(flow.indexOf('reset(): void'));
+    expect(reset.slice(0, 200)).toContain('this.solves = 0');
+  });
+});

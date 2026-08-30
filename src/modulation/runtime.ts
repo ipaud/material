@@ -64,6 +64,11 @@ class ModulationRuntime {
     calibrationStore.advance(this.visualOrigin, stats, dt);
   }
 
+  /** The pixel origin calibration is currently scoped to (scope readout). */
+  get visualOriginKey(): string | null {
+    return this.visualOrigin;
+  }
+
   /** Latest published visual values — also what the scope reads. */
   visualValues(): Record<string, number> {
     return publishVisualSignals(this.lastVisualStats, this.visualDemand, (id, raw) =>

@@ -1,0 +1,55 @@
+
+/* v0.4A — visual signal scope. RAW and CALIBRATED are both always visible:
+   a calibrated value you cannot see the derivation of is a value you cannot
+   trust when a mapping stops behaving. */
+.signal-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+}
+.scope-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+}
+.scope-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.scope-name {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scope-validity {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+.scope-validity.live { color: var(--accent); }
+.scope-validity.warming { color: var(--text-dim); }
+.scope-validity.inactive { color: var(--text-dim); opacity: 0.5; }
+.scope-values {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.scope-range { margin-left: auto; }
+.scope-spark {
+  width: 100%;
+  height: 22px;
+  color: var(--accent);
+  opacity: 0.75;
+}
+.scope-unit {
+  font-size: 9px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}

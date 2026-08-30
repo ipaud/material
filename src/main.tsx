@@ -16,6 +16,7 @@ import { getPatternCompileCount, getPatternDiagnostics } from './pattern/pattern
 import { useOutputStore } from './state/outputStore';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
 import { modulationRuntime } from './modulation/runtime';
+import { useScopeStore } from './signals/visual/scopeStore';
 import * as modulationActions from './modulation/modulationActions';
 import { playback } from './playback/PlaybackController';
 import { createFrameEvaluator, runAnimationExport } from './export/exportRunner';
@@ -599,6 +600,7 @@ if (import.meta.env.DEV) {
       openProjectFromPath,
       modulationRuntime,
       modulationActions,
+      scopeStore: useScopeStore,
       playback,
       createFrameEvaluator,
       useExportStore,
