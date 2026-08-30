@@ -59,6 +59,19 @@ export class FeedbackSurface {
     this.generation++;
   }
 
+  /**
+   * CE1H §57: after a WebGL context restore the old targets are dead GL
+   * handles — touching one raises INVALID_OPERATION. Same size, so resize()
+   * would no-op; this forces the reallocation.
+   */
+  recreate(): void {
+    this.a.dispose();
+    this.b.dispose();
+    this.a = this.make(this.width, this.height);
+    this.b = this.make(this.width, this.height);
+    this.reset();
+  }
+
   /** Reallocate on incompatible size; contents are gone → reset. */
   resize(width: number, height: number): void {
     if (width === this.width && height === this.height) return;

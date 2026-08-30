@@ -106,12 +106,24 @@ export class RenderEngine {
   };
 
   private onContextRestored = (): void => {
-    // CE1B: feedback contents are gone with the context — fresh prime.
+    console.warn('[engine] WebGL context restored — rebuilding GPU state');
+    // CE1H §57: marking state stale is not enough. Every render target
+    // allocated on the LOST context is a dead GL handle, and the first pass
+    // that touches one raises INVALID_OPERATION (measured: 1282 after
+    // restore on Time Field, Motion Mosh and Reaction Diffusion). The
+    // targets have to be reallocated, not just emptied.
+    if (this.temporal) {
+      const config = this.temporal.config;
+      this.temporal.dispose();
+      this.temporal = new TemporalFrameProvider(config);
+    }
+    this.flow?.dispose();
+    this.flow = null; // updateFlowService rebuilds it on demand
+    this.compositor.release();
     this.resetFeedback();
-    // CE1D: flow pair is gone too.
-    this.flow?.reset();
-    console.warn('[engine] WebGL context restored — rebuilding');
-    this.temporal?.invalidate();
+    (
+      this.techniqueRenderer as { onContextRestored?: () => void } | null
+    )?.onContextRestored?.();
     this.invalidate();
   };
 

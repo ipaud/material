@@ -185,6 +185,11 @@ export class SimulationTechniqueRenderer implements TechniqueRenderer {
       : null;
   }
 
+  /** CE1H §57: the simulation state pair died with the context. */
+  onContextRestored(): void {
+    this.runner?.contextRestored();
+  }
+
   dispose(): void {
     this.runner?.dispose();
     this.runner = null;

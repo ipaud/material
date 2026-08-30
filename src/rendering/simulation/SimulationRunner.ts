@@ -108,6 +108,12 @@ export class SimulationRunner {
     this.clock.reset();
   }
 
+  /** CE1H §57: context restored — the state pair is a pair of dead handles. */
+  contextRestored(): void {
+    this.surface.recreate();
+    this.clock.reset();
+  }
+
   resize(width: number, height: number): void {
     this.surface.resize(width, height);
     const texel = new THREE.Vector2(1 / width, 1 / height);

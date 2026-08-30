@@ -279,6 +279,12 @@ export class FeedbackRenderer implements TechniqueRenderer {
     return this.bloomOut!.texture;
   }
 
+  /** CE1H §57: the ping-pong pair died with the context. */
+  onContextRestored(): void {
+    this.surface?.recreate();
+    this.needsReset = true;
+  }
+
   dispose(): void {
     this.surface?.dispose();
     this.surface = null;

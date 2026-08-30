@@ -142,7 +142,12 @@ describe('structural gates (§5, §16, §86-87)', () => {
     const setSource = engine.slice(engine.indexOf('setSource(texture'), engine.indexOf('setComposition('));
     expect(setSource.includes('resetFeedback()')).toBe(true);
     const restored = engine.slice(engine.indexOf('onContextRestored'));
-    expect(restored.slice(0, 400).includes('resetFeedback()')).toBe(true);
+    // CE1H §57: a restore must REALLOCATE, not just mark stale — every
+    // target from the lost context is a dead GL handle.
+    expect(restored.slice(0, 900).includes('resetFeedback()')).toBe(true);
+    expect(restored.slice(0, 900)).toContain('onContextRestored?.()');
+    expect(restored.slice(0, 900)).toContain('new TemporalFrameProvider(config)');
+    expect(restored.slice(0, 900)).toContain('this.flow = null');
     const candidate = code('src', 'performance', 'candidateRuntime.ts');
     expect(candidate.includes('engine.resetFeedback()')).toBe(true);
   });

@@ -83,6 +83,16 @@ export class SimulationSurface {
     this.stepIndex = 0;
   }
 
+  /** CE1H §57: rebuild after a context restore (see FeedbackSurface). */
+  recreate(): void {
+    this.a.dispose();
+    this.b.dispose();
+    this.a = this.make();
+    this.b = this.make();
+    this.flipped = false;
+    this.reset();
+  }
+
   resize(width: number, height: number): void {
     if (width === this.width && height === this.height) return;
     this.a.dispose();
