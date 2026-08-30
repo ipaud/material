@@ -1,0 +1,3920 @@
+{
+  "techniques": [
+    {
+      "id": "cellular",
+      "name": "Cellular",
+      "category": "image",
+      "sections": [
+        "Rule",
+        "World"
+      ],
+      "params": [
+        {
+          "id": "rule",
+          "label": "Rule",
+          "type": "select",
+          "options": [
+            "life",
+            "highlife",
+            "seeds",
+            "maze",
+            "daynight"
+          ],
+          "default": "life",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "wrap",
+          "label": "Wrap",
+          "type": "boolean",
+          "default": true,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "grid",
+          "label": "Grid",
+          "type": "number",
+          "min": 64,
+          "max": 512,
+          "step": 64,
+          "default": 256,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "density",
+          "label": "Density",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.6,
+          "step": 0.01,
+          "default": 0.28,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "seedOffset",
+          "label": "Variation",
+          "type": "number",
+          "min": 0,
+          "max": 64,
+          "step": 1,
+          "default": 0,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "sourceTint",
+          "label": "Source Tint",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "directional-smear",
+      "name": "Directional Smear",
+      "category": "image",
+      "sections": [
+        "Motion"
+      ],
+      "params": [
+        {
+          "id": "amount",
+          "label": "Length",
+          "type": "number",
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "default": 1.6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "samples",
+          "label": "Samples",
+          "type": "number",
+          "min": 2,
+          "max": 16,
+          "step": 1,
+          "default": 8,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 0.5,
+          "step": 0.005,
+          "default": 0.05,
+          "modulatable": true,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "echo",
+      "name": "Echo",
+      "category": "time",
+      "sections": [
+        "Copies",
+        "Transform",
+        "Distribution"
+      ],
+      "params": [
+        {
+          "id": "copies",
+          "label": "Copies",
+          "type": "number",
+          "min": 1,
+          "max": 64,
+          "step": 1,
+          "default": 8,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "delaySec",
+          "label": "Delay",
+          "type": "number",
+          "min": 0,
+          "max": 0.5,
+          "step": 0.005,
+          "default": 0.12,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "decay",
+          "label": "Decay",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.78,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offsetX",
+          "label": "Offset X",
+          "type": "number",
+          "min": -20,
+          "max": 20,
+          "step": 0.1,
+          "default": 1.5,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offsetY",
+          "label": "Offset Y",
+          "type": "number",
+          "min": -20,
+          "max": 20,
+          "step": 0.1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "copyScale",
+          "label": "Scale",
+          "type": "number",
+          "min": 0.8,
+          "max": 1.2,
+          "step": 0.001,
+          "default": 1.01,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "copyRotation",
+          "label": "Rotation",
+          "type": "number",
+          "min": -30,
+          "max": 30,
+          "step": 0.1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "opacity",
+          "label": "Opacity",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "distribution",
+          "label": "Spread",
+          "type": "select",
+          "options": [
+            "linear",
+            "radial",
+            "random"
+          ],
+          "default": "linear",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "blend",
+          "label": "Blend",
+          "type": "select",
+          "options": [
+            "normal",
+            "add",
+            "screen"
+          ],
+          "default": "normal",
+          "modulatable": false,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "feedback-bloom",
+      "name": "Feedback Bloom",
+      "category": "feedback",
+      "sections": [
+        "Bloom",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.55,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "radius",
+          "label": "Radius",
+          "type": "number",
+          "min": 0.5,
+          "max": 6,
+          "step": 0.1,
+          "default": 2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "gain",
+          "label": "Gain",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "zoom",
+          "label": "Zoom",
+          "type": "number",
+          "min": 0.97,
+          "max": 1.05,
+          "step": 0.001,
+          "default": 1.008,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.9,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "feedback-displace",
+      "name": "Feedback Displace",
+      "category": "feedback",
+      "sections": [
+        "Field",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "amount",
+          "label": "Amount",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "scale",
+          "label": "Scale",
+          "type": "number",
+          "min": 1,
+          "max": 20,
+          "step": 0.1,
+          "default": 6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 0,
+          "max": 5,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.9,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.65,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "feedback-drift",
+      "name": "Feedback Drift",
+      "category": "feedback",
+      "sections": [
+        "Motion",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "driftX",
+          "label": "X Drift",
+          "type": "number",
+          "min": -3,
+          "max": 3,
+          "step": 0.02,
+          "default": 0.6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "driftY",
+          "label": "Y Drift",
+          "type": "number",
+          "min": -3,
+          "max": 3,
+          "step": 0.02,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.92,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "feedback-kaleido",
+      "name": "Feedback Kaleido",
+      "category": "feedback",
+      "sections": [
+        "Symmetry",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "segments",
+          "label": "Segments",
+          "type": "number",
+          "min": 2,
+          "max": 16,
+          "step": 1,
+          "default": 6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "rotation",
+          "label": "Rotation",
+          "type": "number",
+          "min": -10,
+          "max": 10,
+          "step": 0.1,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "zoom",
+          "label": "Zoom",
+          "type": "number",
+          "min": 0.96,
+          "max": 1.08,
+          "step": 0.001,
+          "default": 1.015,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.93,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.55,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "feedback-rgb",
+      "name": "RGB Feedback",
+      "category": "feedback",
+      "sections": [
+        "Channels",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "redShift",
+          "label": "Red Shift",
+          "type": "number",
+          "min": 0,
+          "max": 8,
+          "step": 0.05,
+          "default": 2.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "greenShift",
+          "label": "Green Shift",
+          "type": "number",
+          "min": 0,
+          "max": 8,
+          "step": 0.05,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "blueShift",
+          "label": "Blue Shift",
+          "type": "number",
+          "min": 0,
+          "max": 8,
+          "step": 0.05,
+          "default": 3,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "zoom",
+          "label": "Zoom",
+          "type": "number",
+          "min": 0.97,
+          "max": 1.04,
+          "step": 0.001,
+          "default": 1.004,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.93,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.55,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "feedback-rotate",
+      "name": "Feedback Rotate",
+      "category": "feedback",
+      "sections": [
+        "Motion",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "rotation",
+          "label": "Rotation",
+          "type": "number",
+          "min": -10,
+          "max": 10,
+          "step": 0.1,
+          "default": 1.5,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "zoom",
+          "label": "Zoom",
+          "type": "number",
+          "min": 0.96,
+          "max": 1.06,
+          "step": 0.001,
+          "default": 1.005,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "centerX",
+          "label": "Center X",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "centerY",
+          "label": "Center Y",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.93,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.55,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "feedback-zoom",
+      "name": "Feedback Zoom",
+      "category": "feedback",
+      "sections": [
+        "Motion",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "zoom",
+          "label": "Zoom",
+          "type": "number",
+          "min": 0.94,
+          "max": 1.1,
+          "step": 0.001,
+          "default": 1.02,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "centerX",
+          "label": "Center X",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "centerY",
+          "label": "Center Y",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.94,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "flow-displace",
+      "name": "Flow Displace",
+      "category": "image",
+      "sections": [
+        "Motion"
+      ],
+      "params": [
+        {
+          "id": "amount",
+          "label": "Amount",
+          "type": "number",
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 0.5,
+          "step": 0.005,
+          "default": 0.04,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "against",
+          "label": "Against Motion",
+          "type": "boolean",
+          "default": false,
+          "modulatable": false,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "flow-feedback",
+      "name": "Flow Feedback",
+      "category": "feedback",
+      "sections": [
+        "Motion",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "flow",
+          "label": "Flow",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.94,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "mosaic",
+      "name": "Mosaic",
+      "category": "space",
+      "sections": [
+        "Grid",
+        "Element",
+        "Sampling",
+        "Mapping",
+        "Scatter",
+        "Temporal",
+        "Depth"
+      ],
+      "params": [
+        {
+          "id": "columns",
+          "label": "Columns",
+          "type": "number",
+          "min": 2,
+          "max": 250,
+          "step": 1,
+          "default": 48,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "rows",
+          "label": "Rows",
+          "type": "number",
+          "min": 2,
+          "max": 250,
+          "step": 1,
+          "default": 27,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "scale",
+          "label": "Scale",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "minScale",
+          "label": "Min Scale",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "maxScale",
+          "label": "Max Scale",
+          "type": "number",
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "default": 2,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "spacing",
+          "label": "Spacing",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "default": 0.1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "rotation",
+          "label": "Rotation",
+          "type": "number",
+          "min": -180,
+          "max": 180,
+          "step": 1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "randomRotation",
+          "label": "Random Rot",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "opacity",
+          "label": "Opacity",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "contrast",
+          "label": "Contrast",
+          "type": "number",
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "gamma",
+          "label": "Gamma",
+          "type": "number",
+          "min": 0.2,
+          "max": 4,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "invert",
+          "label": "Invert",
+          "type": "boolean",
+          "default": false,
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "lumToScale",
+          "label": "Lum → Scale",
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.85,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "lumToRotation",
+          "label": "Lum → Rotation",
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "lumToOpacity",
+          "label": "Lum → Opacity",
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "lumToDepth",
+          "label": "Lum → Depth",
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "jitterX",
+          "label": "Jitter X",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "jitterY",
+          "label": "Jitter Y",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "tileMode",
+          "label": "Tile Mode",
+          "type": "select",
+          "options": [
+            "off",
+            "tile"
+          ],
+          "default": "off",
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "offsetMode",
+          "label": "Distribution",
+          "type": "select",
+          "options": [
+            "uniform",
+            "radial",
+            "linearX",
+            "linearY",
+            "distanceCenter",
+            "random",
+            "luminance",
+            "noise"
+          ],
+          "default": "radial",
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "maxOffsetSec",
+          "label": "Max Offset",
+          "type": "number",
+          "min": 0,
+          "max": 2.29,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "falloff",
+          "label": "Falloff",
+          "type": "number",
+          "min": 0.2,
+          "max": 4,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "temporalDirection",
+          "label": "Direction",
+          "type": "select",
+          "options": [
+            "outward",
+            "inward"
+          ],
+          "default": "outward",
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "centerX",
+          "label": "Center X",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "centerY",
+          "label": "Center Y",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "depth",
+          "label": "Depth",
+          "type": "number",
+          "min": 0,
+          "max": 1200,
+          "step": 1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "perspective",
+          "label": "Perspective",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.35,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "motion-mosh",
+      "name": "Motion Mosh",
+      "category": "feedback",
+      "sections": [
+        "Motion",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "flow",
+          "label": "Motion",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.12,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "blockiness",
+          "label": "Blockiness",
+          "type": "number",
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "default": 3,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "chromaDrift",
+          "label": "Chroma Drift",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.15,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.985,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.65,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "motion-rgb",
+      "name": "Motion RGB",
+      "category": "image",
+      "sections": [
+        "Motion"
+      ],
+      "params": [
+        {
+          "id": "amount",
+          "label": "Amount",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 0.5,
+          "step": 0.005,
+          "default": 0.03,
+          "modulatable": true,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "motion-trails",
+      "name": "Motion Trails",
+      "category": "feedback",
+      "sections": [
+        "Motion",
+        "State"
+      ],
+      "params": [
+        {
+          "id": "flow",
+          "label": "Flow",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.08,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "persistence",
+          "label": "Persistence",
+          "type": "number",
+          "min": 0.5,
+          "max": 0.995,
+          "step": 0.001,
+          "default": 0.95,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "injection",
+          "label": "Injection",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.85,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mix",
+          "label": "Mix",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "reaction-diffusion",
+      "name": "Reaction Diffusion",
+      "category": "image",
+      "sections": [
+        "Chemistry",
+        "World"
+      ],
+      "params": [
+        {
+          "id": "feed",
+          "label": "Feed",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.09,
+          "step": 0.0005,
+          "default": 0.055,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "kill",
+          "label": "Kill",
+          "type": "number",
+          "min": 0.045,
+          "max": 0.07,
+          "step": 0.0002,
+          "default": 0.062,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 1,
+          "max": 8,
+          "step": 1,
+          "default": 4,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "grid",
+          "label": "Scale",
+          "type": "number",
+          "min": 128,
+          "max": 512,
+          "step": 64,
+          "default": 320,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "density",
+          "label": "Seed Density",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.4,
+          "step": 0.005,
+          "default": 0.06,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "seedOffset",
+          "label": "Variation",
+          "type": "number",
+          "min": 0,
+          "max": 64,
+          "step": 1,
+          "default": 0,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "contrast",
+          "label": "Contrast",
+          "type": "number",
+          "min": 0.5,
+          "max": 6,
+          "step": 0.05,
+          "default": 2.2,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "sourceInfluence",
+          "label": "Source Influence",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "sourceTint",
+          "label": "Source Tint",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "slit-scan",
+      "name": "Slit Scan",
+      "category": "time",
+      "sections": [
+        "Scan"
+      ],
+      "params": [
+        {
+          "id": "axis",
+          "label": "Axis",
+          "type": "select",
+          "options": [
+            "horizontal",
+            "vertical"
+          ],
+          "default": "horizontal",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "strips",
+          "label": "Strips",
+          "type": "number",
+          "min": 2,
+          "max": 512,
+          "step": 1,
+          "default": 96,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "spanSec",
+          "label": "Time Span",
+          "type": "number",
+          "min": 0,
+          "max": 2.29,
+          "step": 0.01,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offsetSec",
+          "label": "Offset",
+          "type": "number",
+          "min": 0,
+          "max": 2.29,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "direction",
+          "label": "Direction",
+          "type": "select",
+          "options": [
+            "forward",
+            "reverse"
+          ],
+          "default": "forward",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "interpolate",
+          "label": "Smooth",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "step-print",
+      "name": "Step Print",
+      "category": "time",
+      "sections": [
+        "Step",
+        "Offset",
+        "Mode"
+      ],
+      "params": [
+        {
+          "id": "stepSec",
+          "label": "Frame Step",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.5,
+          "step": 0.005,
+          "default": 0.125,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "copies",
+          "label": "Copies",
+          "type": "number",
+          "min": 1,
+          "max": 32,
+          "step": 1,
+          "default": 4,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "hold",
+          "label": "Hold",
+          "type": "number",
+          "min": 1,
+          "max": 8,
+          "step": 1,
+          "default": 2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "decay",
+          "label": "Decay",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.8,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offsetX",
+          "label": "Offset X",
+          "type": "number",
+          "min": -20,
+          "max": 20,
+          "step": 0.1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offsetY",
+          "label": "Offset Y",
+          "type": "number",
+          "min": -20,
+          "max": 20,
+          "step": 0.1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "type": "select",
+          "options": [
+            "accumulate",
+            "replace",
+            "pingpong",
+            "random"
+          ],
+          "default": "accumulate",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "blend",
+          "label": "Blend",
+          "type": "select",
+          "options": [
+            "normal",
+            "add"
+          ],
+          "default": "normal",
+          "modulatable": false,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "time-field",
+      "name": "Time Field",
+      "category": "time",
+      "sections": [
+        "Field",
+        "Time"
+      ],
+      "params": [
+        {
+          "id": "field",
+          "label": "Field",
+          "type": "select",
+          "options": [
+            "horizontal",
+            "vertical",
+            "radial",
+            "spiral",
+            "noise",
+            "luminance",
+            "edges",
+            "motion"
+          ],
+          "default": "radial",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "invert",
+          "label": "Invert",
+          "type": "boolean",
+          "default": false,
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "centerX",
+          "label": "Center X",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "centerY",
+          "label": "Center Y",
+          "type": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "scale",
+          "label": "Scale",
+          "type": "number",
+          "min": 0.2,
+          "max": 6,
+          "step": 0.05,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.4,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "depth",
+          "label": "Depth",
+          "type": "number",
+          "min": 0,
+          "max": 2.29,
+          "step": 0.01,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offset",
+          "label": "Offset",
+          "type": "number",
+          "min": 0,
+          "max": 2.29,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    }
+  ],
+  "generators": [
+    {
+      "id": "cellular",
+      "name": "Cellular",
+      "mode": "simulation",
+      "params": [
+        {
+          "id": "rule",
+          "label": "Rule",
+          "type": "select",
+          "options": [
+            "life",
+            "highlife",
+            "seeds",
+            "maze",
+            "daynight"
+          ],
+          "default": "life",
+          "modulatable": false,
+          "randomizable": true
+        },
+        {
+          "id": "grid",
+          "label": "Grid",
+          "type": "number",
+          "min": 64,
+          "max": 512,
+          "step": 64,
+          "default": 256,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "density",
+          "label": "Density",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.6,
+          "step": 0.01,
+          "default": 0.28,
+          "modulatable": false,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "chladni",
+      "name": "Chladni Field",
+      "mode": "stateless",
+      "params": [
+        {
+          "id": "modeX",
+          "label": "Mode X",
+          "type": "number",
+          "min": 1,
+          "max": 12,
+          "step": 1,
+          "default": 3,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "modeY",
+          "label": "Mode Y",
+          "type": "number",
+          "min": 1,
+          "max": 12,
+          "step": 1,
+          "default": 5,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "threshold",
+          "label": "Threshold",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.6,
+          "step": 0.005,
+          "default": 0.08,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "softness",
+          "label": "Softness",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.25,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "phase",
+          "label": "Phase",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.15,
+          "modulatable": true,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "grid",
+      "name": "Grid",
+      "mode": "stateless",
+      "params": [
+        {
+          "id": "scale",
+          "label": "Scale",
+          "type": "number",
+          "min": 1,
+          "max": 80,
+          "step": 1,
+          "default": 12,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "width",
+          "label": "Line Width",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.5,
+          "step": 0.005,
+          "default": 0.08,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "rotation",
+          "label": "Rotation",
+          "type": "number",
+          "min": -180,
+          "max": 180,
+          "step": 1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "offsetX",
+          "label": "Offset X",
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "offsetY",
+          "label": "Offset Y",
+          "type": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "default": 0,
+          "modulatable": false,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "noise",
+      "name": "Noise Field",
+      "mode": "stateless",
+      "params": [
+        {
+          "id": "scale",
+          "label": "Scale",
+          "type": "number",
+          "min": 0.5,
+          "max": 24,
+          "step": 0.1,
+          "default": 4,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.2,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "detail",
+          "label": "Detail",
+          "type": "number",
+          "min": 1,
+          "max": 6,
+          "step": 1,
+          "default": 3,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "warp",
+          "label": "Warp",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "contrast",
+          "label": "Contrast",
+          "type": "number",
+          "min": 0.2,
+          "max": 4,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": true
+        }
+      ]
+    },
+    {
+      "id": "reaction-diffusion",
+      "name": "Reaction Diffusion",
+      "mode": "simulation",
+      "params": [
+        {
+          "id": "feed",
+          "label": "Feed",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.09,
+          "step": 0.0005,
+          "default": 0.055,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "kill",
+          "label": "Kill",
+          "type": "number",
+          "min": 0.045,
+          "max": 0.07,
+          "step": 0.0002,
+          "default": 0.062,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 1,
+          "max": 8,
+          "step": 1,
+          "default": 4,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "contrast",
+          "label": "Contrast",
+          "type": "number",
+          "min": 0.5,
+          "max": 6,
+          "step": 0.05,
+          "default": 2.4,
+          "modulatable": true,
+          "randomizable": false
+        },
+        {
+          "id": "grid",
+          "label": "Scale",
+          "type": "number",
+          "min": 128,
+          "max": 512,
+          "step": 64,
+          "default": 320,
+          "modulatable": false,
+          "randomizable": false
+        },
+        {
+          "id": "density",
+          "label": "Seed Density",
+          "type": "number",
+          "min": 0.01,
+          "max": 0.4,
+          "step": 0.005,
+          "default": 0.06,
+          "modulatable": false,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "voronoi",
+      "name": "Voronoi",
+      "mode": "stateless",
+      "params": [
+        {
+          "id": "scale",
+          "label": "Scale",
+          "type": "number",
+          "min": 1,
+          "max": 40,
+          "step": 0.5,
+          "default": 8,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "jitter",
+          "label": "Jitter",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.9,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "default": 0.25,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "edge",
+          "label": "Edges",
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "contrast",
+          "label": "Contrast",
+          "type": "number",
+          "min": 0.2,
+          "max": 4,
+          "step": 0.01,
+          "default": 1,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    },
+    {
+      "id": "waves",
+      "name": "Wave Interference",
+      "mode": "stateless",
+      "params": [
+        {
+          "id": "frequency",
+          "label": "Frequency",
+          "type": "number",
+          "min": 1,
+          "max": 60,
+          "step": 0.5,
+          "default": 14,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "count",
+          "label": "Sources",
+          "type": "number",
+          "min": 1,
+          "max": 8,
+          "step": 1,
+          "default": 3,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "speed",
+          "label": "Speed",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "step": 0.01,
+          "default": 0.6,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "spread",
+          "label": "Spread",
+          "type": "number",
+          "min": 0.05,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.45,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
+          "id": "contrast",
+          "label": "Contrast",
+          "type": "number",
+          "min": 0.2,
+          "max": 4,
+          "step": 0.01,
+          "default": 1.2,
+          "modulatable": true,
+          "randomizable": false
+        }
+      ]
+    }
+  ],
+  "transitionStyles": [
+    "smooth",
+    "cut",
+    "directional",
+    "noise",
+    "pixel",
+    "radial",
+    "zoom",
+    "displace",
+    "glitch",
+    "luma"
+  ],
+  "presets": [
+    {
+      "id": "builtin-activity-map",
+      "name": "Activity Map",
+      "category": "Studies",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "invert",
+        "scale"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-bad-antenna",
+      "name": "Bad Antenna",
+      "category": "Analog",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "interpolate",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-bar-shift",
+      "name": "Bar Shift",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "perspective",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 2
+    },
+    {
+      "id": "builtin-bass-bloom",
+      "name": "Bass Bloom",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-binary-field",
+      "name": "Binary Field",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "scale",
+        "threshold"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-block-loss",
+      "name": "Block Loss",
+      "category": "Digital Damage",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "invert",
+        "lumToScale",
+        "rows",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-block-storm",
+      "name": "Block Storm",
+      "category": "Motion",
+      "techniqueId": "motion-mosh",
+      "paramKeys": [
+        "blockiness",
+        "chromaDrift",
+        "flow",
+        "injection",
+        "persistence",
+        "threshold"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-body-ghost",
+      "name": "Body Ghost",
+      "category": "Motion",
+      "techniqueId": "flow-feedback",
+      "paramKeys": [
+        "flow",
+        "injection",
+        "mix",
+        "persistence"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-boiling-wall",
+      "name": "Boiling Wall",
+      "category": "Feedback",
+      "techniqueId": "feedback-displace",
+      "paramKeys": [
+        "amount",
+        "injection",
+        "mix",
+        "persistence",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-breath",
+      "name": "Breath",
+      "category": "Minimal",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "copies",
+        "copyScale",
+        "decay",
+        "delaySec",
+        "opacity"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-broadcast-noise",
+      "name": "Broadcast Noise",
+      "category": "Analog",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "jitterX",
+        "jitterY",
+        "lumToScale",
+        "randomRotation",
+        "rows"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-broken-codec",
+      "name": "Broken Codec",
+      "category": "Digital Damage",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "jitterX",
+        "jitterY",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "spacing",
+        "threshold",
+        "tileMode"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-broken-portrait",
+      "name": "Broken Portrait",
+      "category": "Digital Damage",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "jitterX",
+        "jitterY",
+        "lumToScale",
+        "randomRotation",
+        "rows",
+        "scale",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-broken-time",
+      "name": "Broken Time",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-cathedral",
+      "name": "Cathedral",
+      "category": "Feedback",
+      "techniqueId": "feedback-kaleido",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "rotation",
+        "segments",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-channel-drag",
+      "name": "Channel Drag",
+      "category": "Motion",
+      "techniqueId": "motion-rgb",
+      "paramKeys": [
+        "amount",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-channel-ghost",
+      "name": "Channel Ghost",
+      "category": "Feedback",
+      "techniqueId": "feedback-rgb",
+      "paramKeys": [
+        "blueShift",
+        "greenShift",
+        "injection",
+        "mix",
+        "persistence",
+        "redShift",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-chemical-bloom",
+      "name": "Chemical Bloom",
+      "category": "Simulation",
+      "techniqueId": "reaction-diffusion",
+      "paramKeys": [
+        "contrast",
+        "feed",
+        "grid",
+        "kill",
+        "speed"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-chrono-noise",
+      "name": "Chrono Noise",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-clean-mosaic",
+      "name": "Clean Mosaic",
+      "category": "Minimal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-clean-wake",
+      "name": "Clean Wake",
+      "category": "Motion",
+      "techniqueId": "motion-trails",
+      "paramKeys": [
+        "flow",
+        "injection",
+        "persistence",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-collapse",
+      "name": "Collapse",
+      "category": "Feedback",
+      "techniqueId": "feedback-zoom",
+      "paramKeys": [
+        "centerY",
+        "injection",
+        "mix",
+        "persistence",
+        "zoom"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-colony",
+      "name": "Colony",
+      "category": "Simulation",
+      "techniqueId": "cellular",
+      "paramKeys": [
+        "density",
+        "grid",
+        "rule"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-color-memory",
+      "name": "Color Memory",
+      "category": "Feedback",
+      "techniqueId": "feedback-rgb",
+      "paramKeys": [
+        "blueShift",
+        "greenShift",
+        "injection",
+        "mix",
+        "persistence",
+        "redShift",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-consumer-tv",
+      "name": "Consumer TV",
+      "category": "Analog",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-contact-sheet",
+      "name": "Contact Sheet",
+      "category": "Temporal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "spacing",
+        "tileMode"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-coral",
+      "name": "Coral",
+      "category": "Simulation",
+      "techniqueId": "reaction-diffusion",
+      "paramKeys": [
+        "contrast",
+        "feed",
+        "grid",
+        "kill",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-current",
+      "name": "Current",
+      "category": "Motion",
+      "techniqueId": "flow-feedback",
+      "paramKeys": [
+        "flow",
+        "injection",
+        "mix",
+        "persistence"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-data-collapse",
+      "name": "Data Collapse",
+      "category": "Digital Damage",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "lumToScale",
+        "rows",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-data-grid",
+      "name": "Data Grid",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "lumToScale",
+        "rows",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-deep-curtain",
+      "name": "Deep Curtain",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "offset"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-dense-grid",
+      "name": "Dense Grid",
+      "category": "Geometry",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-density",
+      "name": "Density",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "minScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-depth-stack",
+      "name": "Depth Stack",
+      "category": "Optical",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "depth",
+        "lumToDepth",
+        "perspective",
+        "rows",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-diamond-lattice",
+      "name": "Diamond Lattice",
+      "category": "Geometry",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rotation",
+        "rows",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-digital-snow",
+      "name": "Digital Snow",
+      "category": "Digital Damage",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "jitterX",
+        "jitterY",
+        "lumToScale",
+        "randomRotation",
+        "rows",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-echo-chamber",
+      "name": "Echo Chamber",
+      "category": "Temporal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "centerX",
+        "centerY",
+        "columns",
+        "falloff",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "scale",
+        "spacing",
+        "temporalDirection",
+        "tileMode"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-edge-of-time",
+      "name": "Edge of Time",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-falling-memory",
+      "name": "Falling Memory",
+      "category": "Feedback",
+      "techniqueId": "feedback-drift",
+      "paramKeys": [
+        "driftX",
+        "driftY",
+        "injection",
+        "mix",
+        "persistence"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-field-of-dots",
+      "name": "Field of Dots",
+      "category": "Minimal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-flow-pull",
+      "name": "Flow Pull",
+      "category": "Motion",
+      "techniqueId": "flow-displace",
+      "paramKeys": [
+        "amount",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-frame-cascade",
+      "name": "Frame Cascade",
+      "category": "Temporal",
+      "techniqueId": "step-print",
+      "paramKeys": [
+        "copies",
+        "decay",
+        "hold",
+        "mode",
+        "offsetX",
+        "offsetY",
+        "stepSec"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-frame-hold",
+      "name": "Frame Hold",
+      "category": "Digital Damage",
+      "techniqueId": "step-print",
+      "paramKeys": [
+        "copies",
+        "decay",
+        "hold",
+        "mode",
+        "stepSec"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-ghost-frame",
+      "name": "Ghost Frame",
+      "category": "Temporal",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "blend",
+        "copies",
+        "decay",
+        "delaySec",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-halftone",
+      "name": "Halftone",
+      "category": "Optical",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-halo-burn",
+      "name": "Halo Burn",
+      "category": "Feedback",
+      "techniqueId": "feedback-bloom",
+      "paramKeys": [
+        "gain",
+        "injection",
+        "mix",
+        "persistence",
+        "radius",
+        "threshold",
+        "zoom"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-hit",
+      "name": "Hit",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 2
+    },
+    {
+      "id": "builtin-infinite-tunnel",
+      "name": "Infinite Tunnel",
+      "category": "Feedback",
+      "techniqueId": "feedback-zoom",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-lens-array",
+      "name": "Lens Array",
+      "category": "Optical",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-lichen",
+      "name": "Lichen",
+      "category": "Simulation",
+      "techniqueId": "reaction-diffusion",
+      "paramKeys": [
+        "contrast",
+        "feed",
+        "grid",
+        "kill",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-life",
+      "name": "Life",
+      "category": "Simulation",
+      "techniqueId": "cellular",
+      "paramKeys": [
+        "density",
+        "grid",
+        "rule"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-line-weave",
+      "name": "Line Weave",
+      "category": "Geometry",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToRotation",
+        "rotation",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-live-trails",
+      "name": "Live Trails",
+      "category": "Live",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "copies",
+        "decay",
+        "delaySec",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-living-grid",
+      "name": "Living Grid",
+      "category": "Studies",
+      "techniqueId": "cellular",
+      "paramKeys": [
+        "density",
+        "grid",
+        "rule"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-living-mandala",
+      "name": "Living Mandala",
+      "category": "Feedback",
+      "techniqueId": "feedback-kaleido",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "rotation",
+        "segments",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-long-exposure",
+      "name": "Long Exposure",
+      "category": "Temporal",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "copies",
+        "copyScale",
+        "decay",
+        "delaySec",
+        "offsetX",
+        "offsetY",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-luma-memory",
+      "name": "Luma Memory",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-machine-vision",
+      "name": "Machine Vision",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "scale",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-maze-growth",
+      "name": "Maze Growth",
+      "category": "Simulation",
+      "techniqueId": "reaction-diffusion",
+      "paramKeys": [
+        "contrast",
+        "feed",
+        "grid",
+        "kill",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-memory",
+      "name": "Memory",
+      "category": "Temporal",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "copies",
+        "copyScale",
+        "decay",
+        "delaySec",
+        "distribution",
+        "opacity"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-memory-hit",
+      "name": "Memory Hit",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "falloff",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "scale",
+        "spacing",
+        "temporalDirection",
+        "tileMode"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 1
+    },
+    {
+      "id": "builtin-memory-leak",
+      "name": "Memory Leak",
+      "category": "Digital Damage",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "blend",
+        "copies",
+        "copyRotation",
+        "copyScale",
+        "decay",
+        "delaySec",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-memory-spiral",
+      "name": "Memory Spiral",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "scale"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-mirror-delay",
+      "name": "Mirror Delay",
+      "category": "Live",
+      "techniqueId": "step-print",
+      "paramKeys": [
+        "copies",
+        "decay",
+        "mode",
+        "offsetX",
+        "stepSec"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-mosh-drift",
+      "name": "Mosh Drift",
+      "category": "Motion",
+      "techniqueId": "motion-mosh",
+      "paramKeys": [
+        "blockiness",
+        "chromaDrift",
+        "flow",
+        "injection",
+        "persistence",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-motion-memory",
+      "name": "Motion Memory",
+      "category": "Motion",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "scale"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-night-grid",
+      "name": "Night Grid",
+      "category": "Simulation",
+      "techniqueId": "cellular",
+      "paramKeys": [
+        "density",
+        "grid",
+        "rule"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-packet-loss",
+      "name": "Packet Loss",
+      "category": "Digital Damage",
+      "techniqueId": "step-print",
+      "paramKeys": [
+        "copies",
+        "decay",
+        "hold",
+        "mode",
+        "stepSec"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-past-windows",
+      "name": "Past Windows",
+      "category": "Temporal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "spacing",
+        "tileMode"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-phosphor-bloom",
+      "name": "Phosphor Bloom",
+      "category": "Feedback",
+      "techniqueId": "feedback-bloom",
+      "paramKeys": [
+        "gain",
+        "injection",
+        "mix",
+        "persistence",
+        "radius",
+        "threshold",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-phosphor-grid",
+      "name": "Phosphor Grid",
+      "category": "Analog",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-phosphor-memory",
+      "name": "Phosphor Memory",
+      "category": "Analog",
+      "techniqueId": "step-print",
+      "paramKeys": [
+        "copies",
+        "decay",
+        "mode",
+        "stepSec"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-precision",
+      "name": "Precision",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "gamma",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-presence",
+      "name": "Presence",
+      "category": "Live",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows",
+        "threshold"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-prism-row",
+      "name": "Prism Row",
+      "category": "Optical",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "blend",
+        "copies",
+        "copyRotation",
+        "decay",
+        "delaySec",
+        "distribution",
+        "offsetX",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-pump",
+      "name": "Pump",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 1
+    },
+    {
+      "id": "builtin-radial-memory",
+      "name": "Radial Memory",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-rgb-echo",
+      "name": "RGB Echo",
+      "category": "Feedback",
+      "techniqueId": "feedback-rgb",
+      "paramKeys": [
+        "blueShift",
+        "greenShift",
+        "injection",
+        "mix",
+        "persistence",
+        "redShift",
+        "zoom"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-scan-error",
+      "name": "Scan Error",
+      "category": "Digital Damage",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "direction",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-shatter",
+      "name": "Shatter",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-signal-cells",
+      "name": "Signal Cells",
+      "category": "Simulation",
+      "techniqueId": "cellular",
+      "paramKeys": [
+        "density",
+        "grid",
+        "rule"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-signal-drift",
+      "name": "Signal Drift",
+      "category": "Feedback",
+      "techniqueId": "feedback-drift",
+      "paramKeys": [
+        "driftX",
+        "driftY",
+        "injection",
+        "mix",
+        "persistence"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-signal-tear",
+      "name": "Signal Tear",
+      "category": "Digital Damage",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "interpolate",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-single-line",
+      "name": "Single Line",
+      "category": "Minimal",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "interpolate",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-slow-burn",
+      "name": "Slow Burn",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "lumToScale",
+        "randomRotation",
+        "rows",
+        "scale",
+        "spacing",
+        "threshold",
+        "tileMode"
+      ],
+      "modulationCount": 3,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-slow-melt",
+      "name": "Slow Melt",
+      "category": "Feedback",
+      "techniqueId": "feedback-displace",
+      "paramKeys": [
+        "amount",
+        "injection",
+        "mix",
+        "persistence",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-slow-orbit",
+      "name": "Slow Orbit",
+      "category": "Feedback",
+      "techniqueId": "feedback-rotate",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "rotation",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-slow-shutter",
+      "name": "Slow Shutter",
+      "category": "Live",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "blend",
+        "copies",
+        "copyScale",
+        "decay",
+        "delaySec",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-soft-focus",
+      "name": "Soft Focus",
+      "category": "Optical",
+      "techniqueId": "echo",
+      "paramKeys": [
+        "blend",
+        "copies",
+        "copyScale",
+        "decay",
+        "delaySec",
+        "offsetX",
+        "opacity"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-soft-memory",
+      "name": "Soft Memory",
+      "category": "Feedback",
+      "techniqueId": "feedback-zoom",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-spiral-echo",
+      "name": "Spiral Echo",
+      "category": "Feedback",
+      "techniqueId": "feedback-rotate",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "rotation",
+        "zoom"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-spore-field",
+      "name": "Spore Field",
+      "category": "Simulation",
+      "techniqueId": "reaction-diffusion",
+      "paramKeys": [
+        "contrast",
+        "density",
+        "feed",
+        "grid",
+        "kill",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-strobe-cut",
+      "name": "Strobe Cut",
+      "category": "Performance",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToScale",
+        "rows"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-swarm",
+      "name": "Swarm",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "jitterX",
+        "jitterY",
+        "lumToScale",
+        "rows",
+        "scale"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-temporal-terrain",
+      "name": "Temporal Terrain",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-time-curtain",
+      "name": "Time Curtain",
+      "category": "Temporal",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "interpolate",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-time-fracture",
+      "name": "Time Fracture",
+      "category": "Temporal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "falloff",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "scale",
+        "spacing",
+        "tileMode"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-time-iris",
+      "name": "Time Iris",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "invert"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-time-rings",
+      "name": "Time Rings",
+      "category": "Temporal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "falloff",
+        "lumToScale",
+        "maxOffsetSec",
+        "offsetMode",
+        "rows",
+        "spacing",
+        "temporalDirection",
+        "tileMode"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-time-slice",
+      "name": "Time Slice",
+      "category": "Temporal",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "interpolate",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-time-veil",
+      "name": "Time Veil",
+      "category": "Temporal",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "field",
+        "offset"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-triangle-field",
+      "name": "Triangle Field",
+      "category": "Geometry",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "lumToRotation",
+        "randomRotation",
+        "rows",
+        "spacing"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-two-tones",
+      "name": "Two Tones",
+      "category": "Minimal",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "lumToScale",
+        "rows",
+        "scale",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-undertow",
+      "name": "Undertow",
+      "category": "Motion",
+      "techniqueId": "flow-displace",
+      "paramKeys": [
+        "against",
+        "amount",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-vector-smear",
+      "name": "Vector Smear",
+      "category": "Motion",
+      "techniqueId": "directional-smear",
+      "paramKeys": [
+        "amount",
+        "samples",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-vhs-tracking",
+      "name": "VHS Tracking",
+      "category": "Analog",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "axis",
+        "offsetSec",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-white-signal",
+      "name": "White Signal",
+      "category": "Studies",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "columns",
+        "contrast",
+        "invert",
+        "lumToScale",
+        "rows",
+        "threshold"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-worm-field",
+      "name": "Worm Field",
+      "category": "Simulation",
+      "techniqueId": "reaction-diffusion",
+      "paramKeys": [
+        "contrast",
+        "feed",
+        "grid",
+        "kill",
+        "speed"
+      ],
+      "modulationCount": 0,
+      "triggerCount": 0
+    }
+  ]
+}

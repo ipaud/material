@@ -1,5 +1,6 @@
 import React from 'react';
 import type * as THREE from 'three';
+import { TemporalFrameProvider } from './rendering/temporal/TemporalFrameProvider';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { engine } from './rendering/RenderEngine';
@@ -83,6 +84,125 @@ if (import.meta.env.DEV) {
       transitionGoldens() {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         return e.renderer ? transDiag.runTransitionGoldens(e.renderer) : null;
+      },
+      TemporalFrameProvider,
+      /** CE1H §32: replicate the EXPORT loop for one time two ways (full
+       * progression vs subrange prime) and hash each stage, to find which
+       * input actually differs. */
+      async temporalExportProbe(T = 2, fps = 12, from = 1, w = 160, h = 90) {
+        const e = engine as unknown as {
+          renderer: THREE.WebGLRenderer | null;
+          temporal: import('./rendering/temporal/TemporalFrameProvider').TemporalFrameProvider | null;
+          generator: { texture(): THREE.Texture | null } | null;
+        };
+        if (!e.renderer) return null;
+        const params = useProjectStore.getState().project.techniques[0]?.params ?? {};
+        const hash = (buf: Uint8Array) => {
+          let x = 2166136261;
+          for (let i = 0; i < buf.length; i += 13) x = Math.imul(x ^ buf[i]!, 16777619);
+          return (x >>> 0).toString(16);
+        };
+        const stage = async (t: number, first: boolean) => {
+          engine.setExportPreviousTime(first ? Math.max(t - 1 / fps, 0) : null);
+          engine.prepareGeneratorForExport(t, w, h);
+          if (engine.isTemporalActive) await engine.prepareTemporalForExport(t, first);
+          engine.prepareFeedbackForExport(t, first, params);
+        };
+        const probe = () => ({
+          raw: e.temporal ? e.temporal.readAtlas(e.renderer!) : null,
+          atlas: e.temporal ? e.temporal.slotHashes(e.renderer!).join('|') : '',
+          head: e.temporal ? e.temporal.getUniforms().head : -1,
+          filled: e.temporal ? e.temporal.getUniforms().filled : -1,
+          anchor: e.temporal ? e.temporal.getUniforms().anchorTime : -1,
+          frame: hash(engine.renderStill(w, h, params)),
+        });
+        engine.beginExportMode();
+        // SUBRANGE: the export starts at T.
+        e.temporal?.invalidate();
+        await stage(T, true);
+        const sub = probe();
+        // FULL: starts at `from` and walks to T.
+        e.temporal?.invalidate();
+        let first = true;
+        for (let t = from; t <= T + 1e-9; t += 1 / fps) {
+          await stage(t, first);
+          first = false;
+        }
+        const full = probe();
+        engine.endExportMode();
+        // Full-byte atlas comparison, reported per tile and per tile-edge.
+        let rawDiff = 0;
+        const tiles = new Set<number>();
+        let edgeDiff = 0;
+        if (sub.raw && full.raw) {
+          const { width, pixels: pa } = sub.raw;
+          const pb = full.raw.pixels;
+          const sw = e.temporal!.config.slotWidth;
+          const sh = e.temporal!.config.slotHeight;
+          for (let i = 0; i < pa.length; i += 4) {
+            if (pa[i] !== pb[i] || pa[i + 1] !== pb[i + 1] || pa[i + 2] !== pb[i + 2]) {
+              rawDiff++;
+              const px = (i / 4) % width;
+              const py = Math.floor(i / 4 / width);
+              const tx = Math.floor(px / sw);
+              const ty = Math.floor(py / sh);
+              tiles.add(ty * e.temporal!.cols + tx);
+              const ix = px % sw;
+              const iy = py % sh;
+              if (ix === 0 || ix === sw - 1 || iy === 0 || iy === sh - 1) edgeDiff++;
+            }
+          }
+        }
+        return {
+          atlasSame: sub.atlas === full.atlas,
+          rawAtlasDiffPx: rawDiff,
+          rawAtlasDiffTiles: [...tiles].sort((x, y) => x - y),
+          rawAtlasEdgeDiffPx: edgeDiff,
+          frameSame: sub.frame === full.frame,
+          headSub: sub.head,
+          headFull: full.head,
+          filledSub: sub.filled,
+          filledFull: full.filled,
+          anchorSub: sub.anchor,
+          anchorFull: full.anchor,
+          frameSub: sub.frame,
+          frameFull: full.frame,
+        };
+      },
+      /** CE1H §32: build the SAME composition time two ways and compare the
+       * atlas by logical slot — separates content from placement. */
+      async temporalPathCompare(T = 2, fps = 12, from = 1) {
+        const e = engine as unknown as {
+          renderer: THREE.WebGLRenderer | null;
+          temporal: import('./rendering/temporal/TemporalFrameProvider').TemporalFrameProvider | null;
+          temporalSource: unknown;
+          boundaryMode: string;
+        };
+        if (!e.renderer || !e.temporal || !e.temporalSource) return null;
+        const tp = e.temporal;
+        const src = e.temporalSource as Parameters<typeof tp.primeExact>[2];
+        const mode = e.boundaryMode as Parameters<typeof tp.primeExact>[3];
+        // Path A: prime directly at T (what a SUBRANGE export does).
+        await tp.primeExact(e.renderer, T, src, mode);
+        const a = { head: tp.getStats().anchorTime, hashes: tp.slotHashes(e.renderer) };
+        // Path B: prime at `from`, then advance frame by frame to T.
+        tp.invalidate();
+        await tp.primeExact(e.renderer, from, src, mode);
+        for (let t = from + 1 / fps; t <= T + 1e-9; t += 1 / fps) {
+          await tp.advanceExact(e.renderer, t, src, mode);
+        }
+        const b = { head: tp.getStats().anchorTime, hashes: tp.slotHashes(e.renderer) };
+        const diff: number[] = [];
+        for (let k = 0; k < a.hashes.length; k++) if (a.hashes[k] !== b.hashes[k]) diff.push(k);
+        return {
+          anchorA: a.head,
+          anchorB: b.head,
+          slots: a.hashes.length,
+          differing: diff.length,
+          firstDiffering: diff.slice(0, 12),
+          sampleA: a.hashes.slice(0, 6),
+          sampleB: b.hashes.slice(0, 6),
+        };
       },
       /** CE1G: visual contact sheet — every style at .25/.5/.75, as a PNG
        * data URL, for curation by eye. */

@@ -144,6 +144,47 @@ export class TemporalFrameProvider {
     return this.cols * this.config.slotWidth * this.rows * this.config.slotHeight * 4;
   }
 
+  /** Dev-only (CE1H §32): read the atlas back for path comparison. */
+  readAtlas(renderer: THREE.WebGLRenderer): {
+    width: number;
+    height: number;
+    pixels: Uint8Array;
+    head: number;
+    anchorTime: number;
+  } {
+    const width = this.target.width;
+    const height = this.target.height;
+    const pixels = new Uint8Array(width * height * 4);
+    renderer.readRenderTargetPixels(this.target, 0, 0, width, height, pixels);
+    return { width, height, pixels, head: this.head, anchorTime: this.anchorTime };
+  }
+
+  /** Dev-only: per-logical-slot hash of the atlas, so a path comparison is
+   * about CONTENT rather than physical placement. */
+  slotHashes(renderer: THREE.WebGLRenderer): string[] {
+    const { width, pixels } = this.readAtlas(renderer);
+    const sw = this.config.slotWidth;
+    const sh = this.config.slotHeight;
+    const out: string[] = [];
+    for (let k = 0; k < this.slotCount; k++) {
+      const physical = this.physicalSlot(k);
+      const bx = (physical % this.cols) * sw;
+      const by = Math.floor(physical / this.cols) * sh;
+      let h = 2166136261;
+      // Sparse sample: every 7th row/col is plenty to identify a frame.
+      for (let y = 0; y < sh; y += 7) {
+        for (let x = 0; x < sw; x += 7) {
+          const i = ((by + y) * width + bx + x) * 4;
+          h = Math.imul(h ^ pixels[i]!, 16777619);
+          h = Math.imul(h ^ pixels[i + 1]!, 16777619);
+          h = Math.imul(h ^ pixels[i + 2]!, 16777619);
+        }
+      }
+      out.push((h >>> 0).toString(16));
+    }
+    return out;
+  }
+
   getUniforms(): TemporalUniforms {
     return {
       texture: this.target.texture,

@@ -17,13 +17,27 @@ uniform float uTemporalFilled;
 uniform float uTemporalSpacing;
 
 // Sample the history buffer offsetSeconds before the anchor.
+//
+// The half-texel inset is load-bearing, not cosmetic. Slots are tiles in one
+// atlas, so a bilinear tap at a tile's edge blends in the NEIGHBOURING tile —
+// a different moment in time. Which tile is adjacent depends on head, and
+// head depends on how the history was built: a subrange export primes with
+// head 0 while a full export arrives at the same instant with head N. Same
+// history, same anchor, different bleed — that was the CE1C full-vs-subrange
+// divergence (0/12). Clamping each tap inside its own tile makes sampling
+// head-invariant, and also stops history frames leaking into each other at
+// the frame border during normal preview.
 vec4 sampleTemporal(vec2 uv, float offsetSeconds) {
   float maxK = max(uTemporalFilled - 1.0, 0.0);
   float k = clamp(floor(offsetSeconds / max(uTemporalSpacing, 1e-6) + 0.5), 0.0, maxK);
   float physical = mod(uTemporalHead - k + uTemporalCount * 2.0, uTemporalCount);
   vec2 base = vec2(mod(physical, uTemporalCols), floor(physical / uTemporalCols));
+  vec2 grid = vec2(uTemporalCols, uTemporalRows);
   vec2 cell = clamp(uv, vec2(0.0), vec2(1.0));
-  return texture(uTemporalTex, (base + cell) / vec2(uTemporalCols, uTemporalRows));
+  vec2 halfTexel = 0.5 / vec2(textureSize(uTemporalTex, 0));
+  vec2 lo = base / grid + halfTexel;
+  vec2 hi = (base + 1.0) / grid - halfTexel;
+  return texture(uTemporalTex, clamp((base + cell) / grid, lo, hi));
 }
 `;
 

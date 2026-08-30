@@ -1,4 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   resolveBoundary,
   snapToGrid,
@@ -184,5 +186,51 @@ describe('temporal memory budget', () => {
   test('buffer span covers the advertised max offset', () => {
     const span = (slotCount - 1) * spacingSec;
     expect(span).toBeGreaterThanOrEqual(2.29);
+  });
+});
+
+/**
+ * CE1H §30-34 — the CE1C debt, root-caused and closed.
+ *
+ * Symptom: a subrange export of a temporal technique never matched the same
+ * global frames of a full export (0/12), even with a decoder-free
+ * deterministic generator source.
+ *
+ * It was never the schedule. Measured with the GPU harness
+ * (`window.__dev.temporalPathCompare`), the atlas built by priming at T and
+ * the atlas built by priming earlier and advancing to T are IDENTICAL by
+ * logical slot, with the same anchor, spacing and filled count. The only
+ * difference is `head` — where logical slot 0 physically sits in the atlas.
+ *
+ * The slots are tiles in one texture, so a bilinear tap at a tile edge
+ * blended in the NEIGHBOURING tile — a different moment in time. Rotating
+ * the physical placement changes which frame is adjacent, so identical
+ * history rendered differently. `sampleTemporal` now clamps each tap half a
+ * texel inside its own tile, which makes sampling head-invariant.
+ *
+ * Measured after the fix (clean process, deterministic `waves` generator,
+ * 320×180 @12fps, full 1–3s vs subrange 2–3s):
+ *   Time Field  12/12 byte-identical (worst pixel delta 0)
+ *   Slit Scan   12/12 byte-identical (worst pixel delta 0)
+ * and `temporalExportProbe` reports frameSame=true at T=2 and T=2.5 for
+ * both techniques.
+ */
+describe('temporal atlas sampling is head-invariant (CE1C debt, CE1H §32-34)', () => {
+  const shader = readFileSync(
+    join(__dirname, '..', 'src', 'rendering', 'shaders', 'temporal.ts'),
+    'utf8',
+  );
+
+  it('every tap is clamped inside its own atlas tile', () => {
+    // Without this, a subrange export cannot reproduce a full export: the
+    // bleed depends on head, and head depends on how history was built.
+    expect(shader).toContain('halfTexel');
+    expect(shader).toContain('textureSize(uTemporalTex, 0)');
+    expect(shader).toMatch(/clamp\(\(base \+ cell\) \/ grid, lo, hi\)/);
+  });
+
+  it('the tile bounds are derived from the atlas grid, not hardcoded', () => {
+    expect(shader).toContain('vec2 lo = base / grid + halfTexel;');
+    expect(shader).toContain('vec2 hi = (base + 1.0) / grid - halfTexel;');
   });
 });
