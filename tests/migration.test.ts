@@ -251,3 +251,80 @@ describe('v2 round-trip', () => {
     expect(back).toEqual(project);
   });
 });
+
+/**
+ * CE1H §77 — project format audit at the Creative Expansion boundary.
+ *
+ * Everything CE1A–CE1G added was additive and defaulted, so the format never
+ * moved past v3. These lock that claim: a project written before any of it
+ * must open with the new fields at their v0.3 meanings, not merely parse.
+ */
+describe('projects predating Creative Expansion (§77)', () => {
+  /** A complete v3 document with every CE1x addition stripped back out. */
+  function preExpansion(): Record<string, unknown> {
+    const p = JSON.parse(JSON.stringify(createEmptyProject('pre-expansion'))) as Record<
+      string,
+      unknown
+    >;
+    p.morphEvents = [
+      {
+        id: 'm1',
+        startTime: 1,
+        endTime: 3,
+        curve: 'linear',
+        targetLookId: 'look-1',
+        sourceSnapshot: {
+          techniqueId: 'mosaic',
+          params: { columns: 40 },
+          material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
+          modulations: [],
+          triggers: [],
+          seed: 1,
+        },
+      },
+    ];
+    return p;
+  }
+
+  test('a v3 project written before CE1G replays its morphs as Smooth', () => {
+    // A recorded morph with no transition must not suddenly acquire a wipe.
+    const parsed = parseProject(preExpansion());
+    expect(parsed.version).toBe(3);
+    expect(parsed.morphEvents[0]!.transition.style).toBe('smooth');
+    expect(parsed.morphEvents[0]!.transition.softness).toBe(0.15);
+  });
+
+  test('an old project gains no live or generator sources by opening', () => {
+    const parsed = parseProject(preExpansion());
+    expect(parsed.sources.every((s) => 'path' in s)).toBe(true);
+  });
+
+  test('a generator source round-trips through the schema', () => {
+    const withGenerator = parseProject({
+      ...preExpansion(),
+      sources: [{ id: 'g1', kind: 'generator', generator: 'noise', params: { scale: 6 }, seed: 7 }],
+    });
+    const source = withGenerator.sources[0]!;
+    expect(source.kind).toBe('generator');
+    expect('path' in source).toBe(false);
+    // parse(serialize(parse(x))) is stable.
+    expect(parseProject(JSON.parse(JSON.stringify(withGenerator)))).toEqual(withGenerator);
+  });
+
+  test('a morph transition survives a save/reload round trip', () => {
+    const doc = preExpansion();
+    (doc.morphEvents as Record<string, unknown>[])[0]!.transition = {
+      style: 'radial',
+      softness: 0.3,
+      amount: 1,
+      scale: 0.5,
+      centerX: 0,
+      centerY: 0,
+      angle: 0,
+      seed: 1,
+    };
+    const parsed = parseProject(JSON.parse(JSON.stringify(parseProject(doc))));
+    expect(parsed.morphEvents[0]!.transition.style).toBe('radial');
+    expect(parsed.morphEvents[0]!.transition.softness).toBe(0.3);
+  });
+});

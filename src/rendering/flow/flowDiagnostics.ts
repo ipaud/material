@@ -165,120 +165,15 @@ export function regionStats(
   };
 }
 
-/** A/B canaries: A replicates the exact probe that measured GREEN before
- * (constant → FloatType RT → Float32 read); B is identical except the
- * target is RGBA8/Uint8. Run both to isolate which half breaks. */
-export function canaryAB(renderer: THREE.WebGLRenderer): {
-  A: number[];
-  B: number[];
-} {
-  const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy*2.0,0.0,1.0); }';
-  const fsA = 'void main(){ gl_FragColor = vec4(0.25, -0.5, 3.0, 1.0); }';
-  const fsB = 'void main(){ gl_FragColor = vec4(0.25, 0.5, 0.75, 1.0); }';
-  const cam = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
-  const run = (fs: string, float: boolean): number[] => {
-    const rt = new THREE.WebGLRenderTarget(8, 8, {
-      depthBuffer: false,
-      ...(float ? { type: THREE.FloatType } : {}),
-    });
-    const mat = new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false });
-    const sc = new THREE.Scene();
-    sc.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat));
-    const prev = renderer.getRenderTarget();
-    renderer.setRenderTarget(rt);
-    renderer.setScissorTest(false);
-    renderer.render(sc, cam);
-    renderer.setRenderTarget(prev);
-    let out: number[];
-    if (float) {
-      const b = new Float32Array(8 * 8 * 4);
-      renderer.readRenderTargetPixels(rt, 0, 0, 8, 8, b);
-      out = [b[0]!, b[1]!, b[2]!];
-    } else {
-      const b = new Uint8Array(8 * 8 * 4);
-      renderer.readRenderTargetPixels(rt, 0, 0, 8, 8, b);
-      out = [b[0]!, b[1]!, b[2]!];
-    }
-    rt.dispose();
-    mat.dispose();
-    return out;
-  };
-  return { A: run(fsA, true), B: run(fsB, false) };
-}
+/**
+ * CE1D-2's A-E canaries lived here. They isolated the setViewport-after-
+ * setRenderTarget bug (viewport units are multiplied by pixelRatio, so the
+ * pass was confined to a quadrant) and were removed in CE1H: the bug is
+ * fixed, and every affected subsystem now has a structural test asserting
+ * the call is absent. The self-test and the synthetic goldens below are the
+ * parts with ongoing value.
+ */
 
-/** Canary C: the real SELFTEST_FRAG but plain mesh + 8×8 target.
- * Canary D: plain constant but 320×180 target. Isolates shader vs mesh
- * flags vs size. */
-export function canaryCD(renderer: THREE.WebGLRenderer): { C: number[]; D: number[] } {
-  const cam = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
-  const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy*2.0,0.0,1.0); }';
-  const run = (fs: string, w: number, h: number, uniforms: Record<string, { value: unknown }>, sampleX: number, sampleY: number): number[] => {
-    const rt = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
-    const mat = new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false, uniforms });
-    const sc = new THREE.Scene();
-    sc.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat));
-    const prev = renderer.getRenderTarget();
-    renderer.setRenderTarget(rt);
-    renderer.setScissorTest(false);
-    renderer.render(sc, cam);
-    renderer.setRenderTarget(prev);
-    const b = new Uint8Array(w * h * 4);
-    renderer.readRenderTargetPixels(rt, 0, 0, w, h, b);
-    const i = (sampleY * w + sampleX) * 4;
-    const out = [b[i]!, b[i + 1]!, b[i + 2]!];
-    rt.dispose();
-    mat.dispose();
-    return out;
-  };
-  const SELF = `
-precision highp float;
-varying vec2 vUv;
-uniform float uMax;
-void main() {
-  float x = vUv.x < 0.45 ? -uMax : (vUv.x > 0.55 ? uMax : 0.0);
-  float y = vUv.y < 0.45 ? -uMax : (vUv.y > 0.55 ? uMax : 0.0);
-  vec2 s = clamp(vec2(x, y) / uMax, -1.0, 1.0) * 0.5 + 0.5;
-  float dotm = (vUv.x < 0.06 && vUv.y > 0.94) ? 1.0 : 0.0;
-  gl_FragColor = vec4(max(s.x, dotm), max(s.y, dotm), dotm, 1.0);
-}`;
-  return {
-    C: run(SELF, 8, 8, { uMax: { value: 0.03 } }, 6, 4), // right side → R≈255
-    D: run('void main(){ gl_FragColor = vec4(0.25, 0.5, 0.75, 1.0); }', 320, 180, {}, 160, 90),
-  };
-}
-
-/** Canary E: RawShaderMaterial with hand-declared attributes — bypasses
- * Three's ShaderMaterial prefix entirely. */
-export function canaryE(renderer: THREE.WebGLRenderer): number[] {
-  const cam = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
-  const rt = new THREE.WebGLRenderTarget(8, 8, { depthBuffer: false });
-  const mat = new THREE.RawShaderMaterial({
-    vertexShader:
-      'attribute vec3 position; attribute vec2 uv; varying vec2 vUv;' +
-      'void main(){ vUv = uv; gl_Position = vec4(position.xy*2.0, 0.0, 1.0); }',
-    fragmentShader:
-      'precision highp float; varying vec2 vUv;' +
-      'void main(){ gl_FragColor = vec4(vUv.x, vUv.y, 0.5, 1.0); }',
-    depthTest: false,
-    depthWrite: false,
-  });
-  const sc = new THREE.Scene();
-  sc.add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat));
-  const prev = renderer.getRenderTarget();
-  renderer.setRenderTarget(rt); // setRenderTarget applies the RT's full
-  // viewport WITHOUT pixelRatio; a manual setViewport would multiply by the
-  // canvas ratio (=2) and paint only the lower-left quadrant — the root
-  // cause of every zero readback in CE1D (see ADR).
-  renderer.setScissorTest(false);
-  renderer.render(sc, cam);
-  renderer.setRenderTarget(prev);
-  const b = new Uint8Array(8 * 8 * 4);
-  renderer.readRenderTargetPixels(rt, 0, 0, 8, 8, b);
-  rt.dispose();
-  mat.dispose();
-  const i = (4 * 8 + 6) * 4; // x=6,y=4 → expect R≈207, G≈143
-  return [b[i]!, b[i + 1]!, b[i + 2]!];
-}
 
 export class FlowProbe {
   private encodeMat = new THREE.ShaderMaterial({

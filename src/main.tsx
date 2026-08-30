@@ -317,7 +317,7 @@ if (import.meta.env.DEV) {
         // SECOND module graph with a second 'three' — objects from one copy
         // rendered by the other fail silently. This was the root cause of
         // every zero/contradictory probe in CE1D.
-        const { runFlowGolden, FlowProbe, canaryAB, canaryCD, canaryE } = flowDiag;
+        const { runFlowGolden, FlowProbe } = flowDiag;
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         // standalone harness self-test at a fixed grid
@@ -337,8 +337,7 @@ if (import.meta.env.DEV) {
           { name: 'RIGHT8', du: px(8), dv: 0 },
           { name: 'RIGHT16', du: px(16), dv: 0 },
         ];
-        const canary = { ...canaryAB(e.renderer), ...canaryCD(e.renderer), E: canaryE(e.renderer) };
-        const out: Record<string, unknown> = { canary, selfTest: self };
+        const out: Record<string, unknown> = { selfTest: self };
         for (const kase of cases) {
           try {
             out[kase.name] = runFlowGolden(e.renderer, kase);
