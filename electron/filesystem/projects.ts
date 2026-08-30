@@ -27,8 +27,10 @@ export async function readProjectFile(filePath: string): Promise<Project> {
   }
   const project = parseProject(raw);
   // Re-approve referenced media so material:// can serve it after reopening.
+  // Live sources (camera/screen/window) and generators have no file to
+  // approve — only the file-backed variants carry a path.
   for (const source of project.sources) {
-    approveMediaPath(source.path);
+    if ('path' in source) approveMediaPath(source.path);
   }
   return project;
 }

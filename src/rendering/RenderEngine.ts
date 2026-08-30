@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
 import { OpticalFlowField } from './flow/OpticalFlowField';
+import {
+  TransitionCompositor,
+  type TransitionParams,
+} from './transition/TransitionCompositor';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import {
   TemporalFrameProvider,
@@ -176,7 +180,21 @@ export class RenderEngine {
   // it every frame with the RESOLVED source params (modulation is evaluated
   // by the editor's authority, exactly like technique params), and hands
   // the resulting texture to whatever technique is active.
-  private generator: { renderFrame: Function; advancePreview: Function; texture(): THREE.Texture | null; isStateless: boolean; dispose(): void; reset(): void } | null = null;
+  private generator: {
+    renderFrame(
+      renderer: THREE.WebGLRenderer,
+      timeSec: number,
+      params: ParamRecord,
+      force?: boolean,
+      width?: number,
+      height?: number,
+    ): void;
+    advancePreview(renderer: THREE.WebGLRenderer, wallSec: number, params: ParamRecord): void;
+    texture(): THREE.Texture | null;
+    isStateless: boolean;
+    dispose(): void;
+    reset(): void;
+  } | null = null;
   private sourceParams: ParamRecord = {};
   private sourceParamTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
 
@@ -653,8 +671,89 @@ export class RenderEngine {
         }
       ).feedbackPrepass?.(renderer, performance.now() / 1000);
     }
+    // CE1G: with a transition reveal open, the live render becomes the B
+    // side and is composited against the snapshot taken at the identity
+    // switch. Authority stays in the editor: it decides progress/style; the
+    // Output receives resolved values and composites its OWN local frames.
+    const transition = this.transitionState;
+    if (transition && this.compositor.hasSnapshot) {
+      const live = this.ensureLiveTarget(renderer);
+      const prevTarget = renderer.getRenderTarget();
+      renderer.setRenderTarget(live);
+      renderer.setScissorTest(false);
+      renderer.render(this.scene, this.camera);
+      renderer.setRenderTarget(prevTarget);
+      renderer.setViewport(rectX, rectY, rectW, rectH);
+      renderer.setScissor(rectX, rectY, rectW, rectH);
+      renderer.setScissorTest(true);
+      this.compositor.composite(
+        renderer,
+        live.texture,
+        transition.progress,
+        transition.params,
+        this.compWidth / Math.max(this.compHeight, 1),
+      );
+      renderer.setScissorTest(false);
+      return;
+    }
     renderer.render(this.scene, this.camera);
     renderer.setScissorTest(false);
+  }
+
+  // ---- CE1G transition plumbing ----
+  private compositor = new TransitionCompositor();
+  private liveTarget: THREE.WebGLRenderTarget | null = null;
+  private transitionState: { progress: number; params: TransitionParams } | null = null;
+
+  private ensureLiveTarget(renderer: THREE.WebGLRenderer): THREE.WebGLRenderTarget {
+    const gl = renderer.getContext();
+    const w = Math.max(gl.drawingBufferWidth, 2);
+    const h = Math.max(gl.drawingBufferHeight, 2);
+    if (!this.liveTarget || this.liveTarget.width !== w || this.liveTarget.height !== h) {
+      this.liveTarget?.dispose();
+      this.liveTarget = new THREE.WebGLRenderTarget(w, h, {
+        depthBuffer: false,
+        colorSpace: THREE.SRGBColorSpace,
+      });
+    }
+    return this.liveTarget;
+  }
+
+  /** Editor/replica set this each frame from RESOLVED values. */
+  transitionGeneration = 0;
+
+  setTransition(state: { progress: number; params: TransitionParams } | null): void {
+    if (state && !this.transitionState) this.transitionGeneration++;
+    this.transitionState = state;
+    if (!state) this.compositor.release();
+    this.invalidate();
+  }
+
+  /** Take the A snapshot from the CURRENT visual (called at the switch). */
+  captureTransitionSnapshot(): void {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const gl = renderer.getContext();
+    const w = Math.max(gl.drawingBufferWidth, 2);
+    const h = Math.max(gl.drawingBufferHeight, 2);
+    this.compositor.capture(renderer, w, h, () => {
+      this.syncScene();
+      renderer.render(this.scene, this.camera);
+    });
+  }
+
+  get transitionDiagnostics(): {
+    snapshots: number;
+    allocations: number;
+    disposals: number;
+    bytes: number;
+  } {
+    return {
+      snapshots: this.compositor.hasSnapshot ? 1 : 0,
+      allocations: this.compositor.allocations,
+      disposals: this.compositor.disposals,
+      bytes: this.compositor.snapshotBytes,
+    };
   }
 
   private syncScene(paramsOverride?: ParamRecord): void {
@@ -677,6 +776,22 @@ export class RenderEngine {
             params,
             this.isTemporalActive,
             this.generator ? this.resolvedSourceParams() : undefined,
+            this.transitionState
+              ? {
+                  generation: this.transitionGeneration,
+                  progress: this.transitionState.progress,
+                  style: this.transitionState.params.style,
+                  params: {
+                    softness: this.transitionState.params.softness,
+                    amount: this.transitionState.params.amount,
+                    scale: this.transitionState.params.scale,
+                    centerX: this.transitionState.params.centerX,
+                    centerY: this.transitionState.params.centerY,
+                    angle: this.transitionState.params.angle,
+                    seed: this.transitionState.params.seed,
+                  },
+                }
+              : undefined,
           );
         }
         this.techniqueRenderer.update(params, {
@@ -749,11 +864,41 @@ export class RenderEngine {
     this.compHeight = prevH;
   }
 
+  /**
+   * EXPORT: capture the transition's A side from EXPLICIT params, at export
+   * resolution. Unlike the preview capture this reads nothing from the
+   * canvas — the snapshot is a pure function of the params handed in, which
+   * is what lets a subrange export reproduce a full export's frames.
+   */
+  captureExportSnapshot(width: number, height: number, params: ParamRecord): void {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const prevPixelRatio = renderer.getPixelRatio();
+    try {
+      renderer.setPixelRatio(1);
+      this.updateCamera(width / height);
+      this.compositor.capture(renderer, width, height, () => {
+        renderer.setClearColor(this.compBackground, 1);
+        renderer.clear();
+        this.syncScene(params);
+        renderer.render(this.scene, this.camera);
+      });
+    } finally {
+      renderer.setPixelRatio(prevPixelRatio);
+    }
+  }
+
+  /** Drop any A snapshot held for export. */
+  releaseTransitionSnapshot(): void {
+    this.compositor.release();
+  }
+
   renderStill(
     width: number,
     height: number,
     paramsOverride?: ParamRecord,
     transparent = false,
+    transition?: { progress: number; params: TransitionParams },
   ): Uint8Array {
     const renderer = this.renderer;
     if (!renderer) throw new Error('Engine not initialized');
@@ -773,8 +918,38 @@ export class RenderEngine {
       else renderer.setClearColor(this.compBackground, 1);
       renderer.clear();
       this.updateCamera(width / height);
-      this.syncScene(paramsOverride);
-      renderer.render(this.scene, this.camera);
+      if (transition && this.compositor.hasSnapshot) {
+        // Dual render: B into its own target, then the SAME shader the
+        // preview uses composites it against the A snapshot. One
+        // implementation of the mask math — export cannot drift from what
+        // the user watched.
+        const bTarget = new THREE.WebGLRenderTarget(width, height, {
+          colorSpace: THREE.SRGBColorSpace,
+          depthBuffer: false,
+        });
+        try {
+          renderer.setRenderTarget(bTarget);
+          if (transparent) renderer.setClearColor('#000000', 0);
+          else renderer.setClearColor(this.compBackground, 1);
+          renderer.clear();
+          this.syncScene(paramsOverride);
+          renderer.render(this.scene, this.camera);
+          renderer.setRenderTarget(target);
+          renderer.clear();
+          this.compositor.composite(
+            renderer,
+            bTarget.texture,
+            transition.progress,
+            transition.params,
+            width / height,
+          );
+        } finally {
+          bTarget.dispose();
+        }
+      } else {
+        this.syncScene(paramsOverride);
+        renderer.render(this.scene, this.camera);
+      }
       const pixels = new Uint8Array(width * height * 4);
       renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
       // GL reads bottom row first — flip vertically.

@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import { RenderEngine } from '@/rendering/RenderEngine';
 import { getTechnique } from '@/techniques/registry';
 import { FileImageSource } from '@/sources/FileImageSource';
@@ -41,6 +42,7 @@ export class OutputReplica {
   private capture: OutputCaptureSource | null = null;
   private generator: GeneratorSource | null = null;
   private generatorParams: Record<string, string | number | boolean> = {};
+  private transitionGeneration = 0;
   private sourceKey: string | null = null;
   private generation = -999;
   private clock: ClockBase = { authorityTimeSec: 0, atWall: Date.now(), playing: false };
@@ -272,10 +274,39 @@ export class OutputReplica {
   }
 
   private applyFrame(msg: FrameStateMsg): void {
+    // CE1G: the Output composites its OWN local A/B frames using the
+    // RESOLVED progress/style the editor sent. It never evaluates morph
+    // schedule, easing or Look interpolation — the authority rule holds.
+    const tr = msg.transition;
+    if (tr) {
+      if (tr.generation !== this.transitionGeneration) {
+        this.transitionGeneration = tr.generation;
+        // Snapshot the replica's CURRENT visual as its own A side. Opening
+        // the Output mid-morph therefore starts from what it is showing
+        // (documented: it cannot reconstruct the editor's earlier A).
+        this.engine.captureTransitionSnapshot();
+      }
+      this.engine.setTransition({
+        progress: tr.progress,
+        params: {
+          style: tr.style as never,
+          softness: tr.params.softness ?? 0.15,
+          amount: tr.params.amount ?? 1,
+          scale: tr.params.scale ?? 0.5,
+          centerX: tr.params.centerX ?? 0,
+          centerY: tr.params.centerY ?? 0,
+          angle: tr.params.angle ?? 0,
+          seed: tr.params.seed ?? 1,
+        },
+      });
+    } else if (this.transitionGeneration !== 0) {
+      this.transitionGeneration = 0;
+      this.engine.setTransition(null);
+    }
     // CE1F: drive the local generator with the params the EDITOR resolved.
     if (this.generator) {
       const params = msg.sourceParams ?? this.generatorParams;
-      const renderer = (this.engine as unknown as { renderer: import('three').WebGLRenderer | null })
+      const renderer = (this.engine as unknown as { renderer: THREE.WebGLRenderer | null })
         .renderer;
       if (renderer) {
         if (this.generator.isStateless) {

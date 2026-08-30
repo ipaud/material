@@ -1,3 +1,4 @@
+import type { NumberParamDef } from '@/techniques/types';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
@@ -185,7 +186,7 @@ function syncFromProject(): void {
     engine.setSourceParams(source.params);
     const genDef = getGeneratorDef(source.generator);
     const numeric = (genDef?.params ?? []).filter(
-      (p): p is import('@/techniques/types').NumberParamDef => p.type === 'number',
+      (p): p is NumberParamDef => p.type === 'number',
     );
     engine.setSourceParamTransform((base, t) => modulationRuntime.transformSource(base, t, numeric));
   } else {

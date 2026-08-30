@@ -52,6 +52,12 @@ export interface FrameStateMsg {
   /** CE1F: resolved generator source params (editor authority). Present
    * only while a generator source is active. */
   sourceParams?: ParamRecord | undefined;
+  /** CE1G: RESOLVED morph transition (editor authority). The Output
+   * composites its own local frames with these values; it never computes
+   * morph schedule, easing or progress. */
+  transition?:
+    | { generation: number; progress: number; style: string; params: Record<string, number> }
+    | undefined;
   materialState: MaterialState | null;
 }
 

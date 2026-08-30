@@ -1,3 +1,4 @@
+import type { NumberParamDef } from '@/techniques/types';
 import type { ModulationMapping, ParamRecord } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { evalSources, type SourceContext } from './sources';
@@ -52,7 +53,7 @@ class ModulationRuntime {
   transformSource(
     base: ParamRecord,
     timeSec: number,
-    paramDefs: readonly import('@/techniques/types').NumberParamDef[],
+    paramDefs: readonly NumberParamDef[],
   ): ParamRecord {
     if (!this.mappings.some((m) => m.enabled && m.target.startsWith('source.'))) return base;
     const dt = this.lastTime >= 0 ? Math.min(Math.abs(timeSec - this.lastTime), 0.1) : 1 / 60;

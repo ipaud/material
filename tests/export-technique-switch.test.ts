@@ -8,7 +8,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { defaultParams, type TechniqueRenderer } from '@/techniques/types';
 import { morphCurve } from '@/performance/interpolate';
-import { createEmptyProject, type PinnedLook, type Project } from '@shared/schemas/project';
+import { createEmptyProject, type PinnedLook, type Project, DEFAULT_MORPH_TRANSITION } from '@shared/schemas/project';
 import { uid } from '@/utils/id';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +69,7 @@ function projectWithMorph(fromId: string, toId: string): Project {
           seed: 1,
         },
         targetLookId: to.id,
+        transition: DEFAULT_MORPH_TRANSITION,
       },
     ],
   };

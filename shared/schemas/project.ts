@@ -289,6 +289,42 @@ export type LookCore = z.infer<typeof lookCoreSchema>;
  * export can replay it deterministically. Start/end are exact composition
  * times — musical durations were resolved when the morph launched.
  */
+/**
+ * CE1G — the pixel transition a morph was performed with. Recorded on the
+ * EVENT because export replays events, not runtime state: without it an
+ * exported morph would fall back to the hard switch the user did not see.
+ * Fully defaulted, so projects written before CE1G parse unchanged and
+ * replay exactly as they did (style 'smooth' = v0.3 behaviour).
+ * The style list is mirrored in TRANSITION_STYLES; transitions.test.ts
+ * fails if the two ever drift apart.
+ */
+export const morphTransitionSchema = z.object({
+  style: z
+    .enum(['smooth', 'cut', 'directional', 'noise', 'pixel', 'radial', 'zoom', 'displace', 'glitch', 'luma'])
+    .default('smooth'),
+  softness: z.number().min(0).max(1).default(0.15),
+  amount: z.number().min(0).max(2).default(1),
+  scale: z.number().min(0).max(1).default(0.5),
+  centerX: z.number().min(-1).max(1).default(0),
+  centerY: z.number().min(-1).max(1).default(0),
+  angle: z.number().default(0),
+  seed: z.number().int().default(1),
+});
+export type MorphTransition = z.infer<typeof morphTransitionSchema>;
+
+/** The v0.3 behaviour: no pixel transition. transitions.test.ts asserts
+ * this stays equal to the renderer's DEFAULT_TRANSITION. */
+export const DEFAULT_MORPH_TRANSITION: MorphTransition = {
+  style: 'smooth',
+  softness: 0.15,
+  amount: 1,
+  scale: 0.5,
+  centerX: 0,
+  centerY: 0,
+  angle: 0,
+  seed: 1,
+};
+
 export const morphEventSchema = z.object({
   id: z.string(),
   startTime: z.number().nonnegative(),
@@ -296,6 +332,7 @@ export const morphEventSchema = z.object({
   curve: morphCurveSchema,
   sourceSnapshot: lookCoreSchema,
   targetLookId: z.string(),
+  transition: morphTransitionSchema.default(DEFAULT_MORPH_TRANSITION),
 });
 export type MorphEvent = z.infer<typeof morphEventSchema>;
 

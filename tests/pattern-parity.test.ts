@@ -19,6 +19,7 @@ import {
   type PatternSource,
   type PinnedLook,
   type Project,
+  DEFAULT_MORPH_TRANSITION,
 } from '@shared/schemas/project';
 
 /**
@@ -431,7 +432,7 @@ describe('morph parity', () => {
     const withEvent: Project = {
       ...withLook,
       morphEvents: [
-        { id: 'morph-1', startTime, endTime, curve: 'linear', sourceSnapshot: source, targetLookId: look.id },
+        { id: 'morph-1', startTime, endTime, curve: 'linear', sourceSnapshot: source, targetLookId: look.id, transition: DEFAULT_MORPH_TRANSITION },
       ],
     };
     installProject(withEvent);
@@ -663,7 +664,7 @@ describe('seed and reload determinism', () => {
       qaProject({
         pinnedLooks: [look],
         morphEvents: [
-          { id: 'm-seed', startTime: 4, endTime: 4.001, curve: 'linear', sourceSnapshot: source, targetLookId: 'look-seed' },
+          { id: 'm-seed', startTime: 4, endTime: 4.001, curve: 'linear', sourceSnapshot: source, targetLookId: 'look-seed', transition: DEFAULT_MORPH_TRANSITION },
         ],
       }),
     );
@@ -769,7 +770,7 @@ describe('long and repeatable export', () => {
       return installProject({
         ...base,
         morphEvents: [
-          { id: 'm-x', startTime: 2, endTime: 6, curve: 'linear', sourceSnapshot: source, targetLookId: 'look-slit' },
+          { id: 'm-x', startTime: 2, endTime: 6, curve: 'linear', sourceSnapshot: source, targetLookId: 'look-slit', transition: DEFAULT_MORPH_TRANSITION },
         ],
       });
     };

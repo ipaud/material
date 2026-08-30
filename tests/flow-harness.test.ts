@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ENCODE_MAX, encodeByte, decodeByte, regionStats } from '@/rendering/flow/flowDiagnostics';
 
@@ -69,8 +70,7 @@ describe('Tikhonov regression (§14) — the intended normal equations', () => {
 
   it('the shipped shader carries diagonal regularization', () => {
     // Structural companion: the GLSL applies reg to a11/a22, not to det.
-    const fs = require('node:fs') as typeof import('node:fs');
-    const src = fs.readFileSync('src/rendering/flow/OpticalFlowField.ts', 'utf8');
+    const src = readFileSync('src/rendering/flow/OpticalFlowField.ts', 'utf8');
     expect(src.includes('a11 += reg;')).toBe(true);
     expect(src.includes('a22 += reg;')).toBe(true);
     expect(src.includes('det += reg')).toBe(false);

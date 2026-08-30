@@ -177,15 +177,18 @@ export function interpolateLookCore(
   a: LookCore,
   b: LookCore,
   progress: number,
+  /** Where a cross-technique morph commits to B. CE1G moves this earlier
+   * when a pixel transition covers the switch (see transitionWindow.ts). */
+  switchAt = 0.5,
 ): { core: LookCore; stats: MorphStats } {
   const p = Math.min(Math.max(progress, 0), 1);
   const stats: MorphStats = { interpolated: 0, switched: 0 };
 
   const sameTechnique = a.techniqueId === b.techniqueId;
-  const techniqueId = sameTechnique ? a.techniqueId : p < 0.5 ? a.techniqueId : b.techniqueId;
+  const techniqueId = sameTechnique ? a.techniqueId : p < switchAt ? a.techniqueId : b.techniqueId;
   const params = sameTechnique
     ? interpolateParams(a.params, b.params, p, stats)
-    : p < 0.5
+    : p < switchAt
       ? { ...a.params }
       : { ...b.params };
   if (!sameTechnique) stats.switched++;
@@ -207,7 +210,7 @@ export function interpolateLookCore(
       material,
       modulations: interpolateModulations(a.modulations, b.modulations, p, stats),
       triggers: interpolateTriggers(a.triggers, b.triggers, p, stats),
-      seed: p < 0.5 ? a.seed : b.seed,
+      seed: p < switchAt ? a.seed : b.seed,
     },
     stats,
   };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FeedbackSurface } from './FeedbackSurface';
+import type { FeedbackSurface } from './FeedbackSurface';
 
 /**
  * The shared feedback STEP: one fullscreen pass that samples the previous

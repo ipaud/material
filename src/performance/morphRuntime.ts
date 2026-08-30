@@ -4,6 +4,9 @@ import { playback } from '@/playback/PlaybackController';
 import { nextBoundary } from '@/signals/quantize';
 import { blockedByExport } from '@/export/exportGuard';
 import { uid } from '@/utils/id';
+import { engine } from '@/rendering/RenderEngine';
+import { DEFAULT_TRANSITION, type TransitionParams } from '@/rendering/transition/TransitionCompositor';
+import { revealProgress, switchPoint } from './transitionWindow';
 import { captureLookCore, lookToCore, projectWithLookCore } from './lookCore';
 import { interpolateLookCore, morphCurve, type MorphStats } from './interpolate';
 import type { LookCore, MorphCurve, QuantizeMode } from '@shared/schemas/project';
@@ -43,6 +46,53 @@ export interface ActiveMorph {
 }
 
 class MorphRuntime {
+  /**
+   * CE1G — the visual TRANSITION style. A performance setting, not Look
+   * content: Looks stay pure creative state (§50-51). `smooth` reproduces
+   * v0.3 behaviour exactly, so existing projects never change.
+   */
+  private transition: TransitionParams = { ...DEFAULT_TRANSITION };
+  /** Bumped whenever a morph activates — the Output's snapshot trigger. */
+  transitionGeneration = 0;
+  private snapshotTaken = false;
+
+  setTransition(next: Partial<TransitionParams>): void {
+    this.transition = { ...this.transition, ...next };
+  }
+
+  getTransition(): TransitionParams {
+    return this.transition;
+  }
+
+  /** True when a style other than Smooth is armed for the active morph. */
+  private get hasPixelTransition(): boolean {
+    return this.active !== null && this.transition.style !== 'smooth';
+  }
+
+  private get crossTechnique(): boolean {
+    return this.active !== null && this.active.source.techniqueId !== this.active.target.techniqueId;
+  }
+
+  /** Reveal progress at a composition time — see transitionWindow.ts. */
+  transitionProgressAt(t: number): number | null {
+    if (!this.active || !this.hasPixelTransition) return null;
+    const raw = this.progressAt(t);
+    if (raw === null) return null;
+    return revealProgress(morphCurve(raw, this.active.curve), this.crossTechnique, true);
+  }
+
+  /** True while the reveal window is open (snapshot must exist). */
+  transitionActive(t: number): boolean {
+    const p = this.transitionProgressAt(t);
+    return p !== null && p > 0 && p < 1;
+  }
+
+  /** The instant the snapshot must be taken: just before the reveal opens. */
+  transitionArmed(t: number): boolean {
+    const p = this.transitionProgressAt(t);
+    return p !== null && p <= 0;
+  }
+
   private active: ActiveMorph | null = null;
   private lastStats: MorphStats | null = null;
   /** Which identity side the store currently reflects (-1 A, 1 B). */
@@ -92,6 +142,7 @@ class MorphRuntime {
       endTime,
       curve: options.curve,
     };
+    this.transitionGeneration++;
     this.committedSide = -1;
     // A morph owns the overlay from here: drop any candidate audition so the
     // performer never has two "not the document" states at once.
@@ -130,7 +181,12 @@ class MorphRuntime {
     const raw = this.progressAt(t);
     if (raw === null) return null;
     const p = morphCurve(raw, this.active.curve);
-    const { core, stats } = interpolateLookCore(this.active.source, this.active.target, p);
+    const { core, stats } = interpolateLookCore(
+      this.active.source,
+      this.active.target,
+      p,
+      switchPoint(this.hasPixelTransition),
+    );
     this.lastStats = stats;
     return core;
   }
@@ -142,9 +198,33 @@ class MorphRuntime {
    * when playback crosses the end.
    */
   tick(t: number): void {
-    if (!this.active) return;
+    if (!this.active) {
+      if (this.snapshotTaken) {
+        this.snapshotTaken = false;
+        engine.setTransition(null); // cancel/complete → release resources
+      }
+      return;
+    }
     const raw = this.progressAt(t);
     if (raw === null) return;
+
+    // CE1G: the snapshot is taken when the reveal is ARMED — i.e. at real
+    // activation, never when a future morph is merely scheduled (that would
+    // resurrect the zombie). Then the compositor drives every frame from
+    // resolved progress.
+    const tp = this.transitionProgressAt(t);
+    if (tp !== null) {
+      if (!this.snapshotTaken && tp <= 0) {
+        engine.captureTransitionSnapshot();
+        this.snapshotTaken = true;
+      }
+      if (this.snapshotTaken && tp > 0 && tp < 1) {
+        engine.setTransition({ progress: tp, params: this.transition });
+      } else if (tp >= 1 && this.snapshotTaken) {
+        this.snapshotTaken = false;
+        engine.setTransition(null);
+      }
+    }
 
     if (raw >= 1) {
       this.complete(t);
@@ -152,7 +232,10 @@ class MorphRuntime {
     }
 
     const p = morphCurve(raw, this.active.curve);
-    const side: -1 | 1 = p < 0.5 ? -1 : 1;
+    // The identity switch sits at the reveal's OPENING when a pixel
+    // transition covers it, so the snapshot (taken just above, at tp <= 0)
+    // holds the outgoing frame instead of the mask popping mid-reveal.
+    const side: -1 | 1 = p < switchPoint(this.hasPixelTransition) ? -1 : 1;
     if (side !== this.committedSide) {
       this.committedSide = side;
       const identity = side < 0 ? this.active.source : this.active.target;
@@ -179,6 +262,8 @@ class MorphRuntime {
     const morph = this.active;
     if (!morph) return;
     this.active = null;
+    this.snapshotTaken = false;
+    engine.setTransition(null);
     useProjectStore.getState().apply((p) => ({
       ...projectWithLookCore(p, morph.target, morph.targetLookId),
       morphEvents: [
@@ -190,6 +275,7 @@ class MorphRuntime {
           curve: morph.curve,
           sourceSnapshot: morph.source,
           targetLookId: morph.targetLookId,
+          transition: { ...this.transition },
         },
       ],
     }));
@@ -201,6 +287,8 @@ class MorphRuntime {
   cancelKeep(atTime = playback.getTime()): void {
     const morph = this.active;
     if (!morph) return;
+    this.snapshotTaken = false;
+    engine.setTransition(null);
     const overlay = this.resolveOverlay(atTime);
     this.active = null;
     if (!overlay) return;
@@ -215,6 +303,7 @@ class MorphRuntime {
           curve: morph.curve,
           sourceSnapshot: morph.source,
           targetLookId: morph.targetLookId,
+          transition: { ...this.transition },
         },
       ],
     }));

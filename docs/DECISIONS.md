@@ -584,3 +584,44 @@ that — never raw CPU float readbacks of live class targets).
   renders BEFORE the temporal atlas and the flow pair — both read source
   pixels and must see the export-resolution source; flow additionally
   prerolls one previous frame at a subrange boundary.
+
+## CE1G — Morph transition styles
+
+- **ADR — snapshot A + live B, not a parallel render**: the transition
+  composites a one-shot RGBA8 snapshot of the outgoing frame against the
+  live, still-evolving render. A parallel "A universe" would need a second
+  feedback surface, a second simulation and a second flow field to keep a
+  state the user has already left. The snapshot costs one target for the
+  duration of the reveal and freezes A at the frame the user was looking at.
+- **ADR — the identity switch moves to the reveal's OPENING (0.25), not
+  0.5**: this is what makes the model work at all. With the switch at 0.5
+  and the reveal centred there, the mask is already half open when identity
+  flips, so half the frame pops — worse than shipping no transition. Moving
+  the switch under the snapshot converts the pop into the reveal.
+  `interpolateLookCore` takes the switch point as a parameter, defaulting to
+  0.5 so `smooth` and every pre-CE1G project are bit-unchanged.
+- **ADR — one window implementation** (`transitionWindow.ts`), imported by
+  both the preview runtime and the export replay. Mutating it fails tests on
+  both sides, so an exported morph cannot reveal differently from the
+  performed one.
+- **ADR — export re-renders A instead of snapshotting it**: preview must be
+  real-time (snapshot), export must be order-independent (pure function). A
+  subrange starting mid-reveal has no earlier frame to snapshot. Exported A
+  takes macros but NOT modulation, whose per-frame smoothing state would
+  make a subrange's A differ from a full export's. Both paths composite
+  through the same GLSL — the mask math is never reimplemented in TS.
+- **ADR — the transition is recorded on the morph EVENT**: export replays
+  events, so a style held only as runtime state would export as a hard
+  switch. `morphEvent.transition` is fully defaulted, so pre-CE1G projects
+  parse and replay as `smooth`. **Schema stays v3** (additive, defaulted).
+- **Curation**: all 10 styles kept. Two tuned rather than dropped — `luma`
+  gamma-lifts its order (raw luma on a dark scene compresses the whole
+  reveal into the last 10%), `zoom` pushes 0.6 instead of 0.35 (it shares a
+  mask with `smooth` by construction, so only the eye separates them).
+- **Debt found and paid in passing**: `main` was RED at CE1F — 34 lint
+  errors and one `tsc` error (`electron/filesystem/projects.ts` read `.path`
+  on a source union whose camera/screen/window/generator variants have no
+  path). Both fixed here; all four gates are green again.
+- **Debt carried**: a cross-technique reveal whose sides are TEMPORAL
+  techniques inherits the CE1C `primeExact`/`advanceExact` asymmetry via the
+  extra renderer swap. CE1H triage.

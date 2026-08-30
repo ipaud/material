@@ -10,6 +10,10 @@ import {
 } from '@/projects/lookActions';
 import { isLookDirty } from '@/performance/lookCore';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
+import {
+  TRANSITION_STYLES,
+  type TransitionStyle,
+} from '@/rendering/transition/TransitionCompositor';
 import { playback } from '@/playback/PlaybackController';
 import type { MorphCurve, QuantizeMode } from '@shared/schemas/project';
 import './looks.css';
@@ -191,6 +195,7 @@ function MorphPanel() {
   const [start, setStart] = useState<QuantizeMode>('off');
   const [durationId, setDurationId] = useState('1bar');
   const [curve, setCurve] = useState<MorphCurve>('easeInOut');
+  const [style, setStyle] = useState<TransitionStyle>('smooth');
   const progressRef = useRef<HTMLDivElement>(null);
 
   // Live progress readout — imperative, morph state lives outside React.
@@ -266,6 +271,24 @@ function MorphPanel() {
           {CURVE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
+            </option>
+          ))}
+        </select>
+        {/* CE1G: the visual transition STYLE — a performance control, not
+            Look content. 'Smooth' is v0.3 behaviour exactly. */}
+        <select
+          className="select"
+          value={style}
+          onChange={(e) => {
+            const next = e.target.value as TransitionStyle;
+            setStyle(next);
+            morphRuntime.setTransition({ style: next });
+          }}
+          title="Transition style"
+        >
+          {TRANSITION_STYLES.map((s) => (
+            <option key={s} value={s}>
+              {s === 'smooth' ? 'Smooth' : s[0]!.toUpperCase() + s.slice(1)}
             </option>
           ))}
         </select>

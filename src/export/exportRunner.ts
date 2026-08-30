@@ -14,19 +14,29 @@ import { applyPulses } from '@/signals/pulseEngine';
 import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
 import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
+import { revealProgress, switchPoint } from '@/performance/transitionWindow';
 import { lookToCore } from '@/performance/lookCore';
 import { applyMacros } from '@/performance/macros';
-import { isFileSource } from '@shared/schemas/project';
+import { DEFAULT_MORPH_TRANSITION, isFileSource } from '@shared/schemas/project';
 import type {
   LookCore,
   ModulationMapping,
   MorphCurve,
+  MorphTransition,
   ParamRecord,
   PinnedLook,
   Project,
   TriggerMapping,
 } from '@shared/schemas/project';
 import type { ExportFormat } from '@shared/ipc';
+
+/** One frame's pixel transition, fully resolved from replayed morph events. */
+interface ExportTransition {
+  progress: number;
+  params: MorphTransition;
+  aTechniqueId: string;
+  aParams: ParamRecord;
+}
 
 export interface AnimationExportRequest {
   format: ExportFormat;
@@ -108,6 +118,8 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     source: LookCore;
     target: LookCore;
     applied: boolean;
+    /** CE1G: the pixel transition this morph was performed with. */
+    transition: MorphTransition;
   }
   const lookById = new Map(project.pinnedLooks.map((l) => [l.id, l]));
   const virtualMorphs: VirtualMorph[] = project.morphEvents
@@ -119,6 +131,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
       source: e.sourceSnapshot,
       target: lookToCore(lookById.get(e.targetLookId) as PinnedLook),
       applied: false,
+      transition: e.transition,
     }));
 
   const workingCore = (): LookCore => ({
@@ -215,6 +228,9 @@ export function createFrameEvaluator(startSec: number, fps: number) {
         source: workingCore(),
         target: lookToCore(look),
         applied: false,
+        // A trigger-launched morph carries no recorded style (it never
+        // reached a morphEvent), so it replays as Smooth — the v0.3 look.
+        transition: DEFAULT_MORPH_TRANSITION,
       });
     },
   };
@@ -223,7 +239,12 @@ export function createFrameEvaluator(startSec: number, fps: number) {
 
   return (
     frameIndex: number,
-  ): { timeSec: number; params: ParamRecord; techniqueId: string | null } => {
+  ): {
+    timeSec: number;
+    params: ParamRecord;
+    techniqueId: string | null;
+    transition: ExportTransition | null;
+  } => {
     const timeSec = startSec + frameIndex / fps;
     scheduler.advanceTo(timeSec, working.triggers, triggerCtx);
 
@@ -231,19 +252,44 @@ export function createFrameEvaluator(startSec: number, fps: number) {
     // interval that covers this frame into an interpolated overlay core.
     virtualMorphs.sort((a, b) => a.startTime - b.startTime);
     let overlay: LookCore | null = null;
+    let transition: ExportTransition | null = null;
     for (const vm of virtualMorphs) {
       if (!vm.applied && timeSec >= vm.endTime) {
         applyCoreToWorking(vm.target);
         vm.applied = true;
       } else if (timeSec >= vm.startTime && timeSec < vm.endTime) {
         const raw = (timeSec - vm.startTime) / Math.max(vm.endTime - vm.startTime, 1e-6);
-        overlay = interpolateLookCore(vm.source, vm.target, morphCurve(raw, vm.curve)).core;
+        const eased = morphCurve(raw, vm.curve);
+        // CE1G: the same window and the same switch point as the preview —
+        // both sides import transitionWindow.ts, so an exported morph
+        // cannot reveal differently from the one the user performed.
+        const hasPixel = vm.transition.style !== 'smooth';
+        overlay = interpolateLookCore(vm.source, vm.target, eased, switchPoint(hasPixel)).core;
+        const cross = vm.source.techniqueId !== vm.target.techniqueId;
+        const p = revealProgress(eased, cross, hasPixel);
+        if (p !== null && p > 0 && p < 1) {
+          const aDef = getTechnique(vm.source.techniqueId);
+          transition = {
+            progress: p,
+            params: vm.transition,
+            aTechniqueId: vm.source.techniqueId,
+            // The A side is the OUTGOING look with macros applied and
+            // nothing else. Modulation is deliberately not run for it: it
+            // owns per-frame smoothing state, and a subrange export would
+            // enter the reveal with less history than a full export and
+            // produce a different A. Frozen A has no history to disagree
+            // about, so subrange and full agree by construction.
+            aParams: aDef
+              ? applyMacros({ ...vm.source.params }, project.macros, aDef)
+              : { ...vm.source.params },
+          };
+        }
       }
     }
 
     const techniqueId = overlay?.techniqueId ?? working.techniqueId;
     const definition = techniqueId ? getTechnique(techniqueId) : null;
-    if (!definition) return { timeSec, params: working.params, techniqueId };
+    if (!definition) return { timeSec, params: working.params, techniqueId, transition };
     // A replayed look apply can change the working seed mid-export; live
     // preview reconfigures its context on the same store change, so mirror
     // it here for exact parity.
@@ -264,6 +310,7 @@ export function createFrameEvaluator(startSec: number, fps: number) {
       timeSec,
       params: applyPulses(modulated, activeTriggers, timeSec, triggerCtx, definition),
       techniqueId,
+      transition,
     };
   };
 }
@@ -448,7 +495,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         store.finish('cancelled', 'Export cancelled');
         return;
       }
-      const { timeSec, params, techniqueId } = evaluate(i);
+      const { timeSec, params, techniqueId, transition } = evaluate(i);
       // Cross-technique morph: the renderer must match the evaluated frame's
       // technique before drawing it (see createExportRendererSync).
       if (rendererSync.sync(techniqueId, params)) primeTemporal = true;
@@ -461,6 +508,15 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // differently-sized source than the full export's same global frame.
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
+      // CE1G: render the A side into the snapshot with A's own renderer,
+      // then hand the renderer back to B for the frame proper.
+      if (transition) {
+        if (rendererSync.sync(transition.aTechniqueId, transition.aParams)) primeTemporal = true;
+        engine.captureExportSnapshot(request.width, request.height, transition.aParams);
+        if (rendererSync.sync(techniqueId, params)) primeTemporal = true;
+      } else {
+        engine.releaseTransitionSnapshot();
+      }
       if (engine.isTemporalActive) {
         await engine.prepareTemporalForExport(timeSec, primeTemporal);
         primeTemporal = false;
@@ -470,10 +526,17 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // whole steps. Repeated exports of the same range hash identically.
       engine.prepareFeedbackForExport(timeSec, i === 0, params);
       if (video) await seekVideoExact(video, timeSec, i === 0);
-      const rgba = engine.renderStill(request.width, request.height, params, alpha);
+      const rgba = engine.renderStill(
+        request.width,
+        request.height,
+        params,
+        alpha,
+        transition ? { progress: transition.progress, params: transition.params } : undefined,
+      );
       await window.material.exportFrame(sessionId, rgba);
       store.setProgress(i + 1);
     }
+    engine.releaseTransitionSnapshot();
     engine.endExportMode();
 
     const { outPath } = await window.material.exportFinish(sessionId);

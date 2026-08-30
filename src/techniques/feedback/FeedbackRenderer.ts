@@ -252,7 +252,7 @@ export class FeedbackRenderer implements TechniqueRenderer {
       });
     }
     const m = this.bloomMaterial!.uniforms;
-    const draw = (target: THREE.WebGLRenderTarget, vw: number, vh: number) => {
+    const draw = (target: THREE.WebGLRenderTarget, _vw: number, _vh: number) => {
       const prev = renderer.getRenderTarget();
       // No setPixelRatio: render-target viewports are raw pixels in Three.
       renderer.setRenderTarget(target); // full-RT viewport, no ratio (CE1D-2)

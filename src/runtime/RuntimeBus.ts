@@ -66,6 +66,12 @@ export interface FrameState {
   /** Final evaluated params (base → macros → modulation → overlay → pulses). */
   finalParams: ParamRecord;
   sourceParams?: ParamRecord | undefined;
+  /** CE1G: RESOLVED morph transition (editor authority). The Output
+   * composites its own local frames with these values; it never computes
+   * morph schedule, easing or progress. */
+  transition?:
+    | { generation: number; progress: number; style: string; params: Record<string, number> }
+    | undefined;
   materialState: MaterialState | null;
 }
 
@@ -135,6 +141,7 @@ class RuntimeBus {
     finalParams: ParamRecord,
     temporalActive: boolean,
     sourceParams?: ParamRecord,
+    transition?: FrameState['transition'],
   ): void {
     const frame: FrameState = {
       compTime,
@@ -144,6 +151,7 @@ class RuntimeBus {
       // CE1F: resolved generator params (authority = editor). Absent when no
       // generator is active, so the hot path does not grow for other sources.
       sourceParams,
+      transition,
       materialState: this.inputs.materialState,
     };
     this.lastFrame = frame;

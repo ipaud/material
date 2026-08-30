@@ -1,4 +1,5 @@
 import React from 'react';
+import type * as THREE from 'three';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { engine } from './rendering/RenderEngine';
@@ -37,6 +38,7 @@ import { captureManager, useCaptureStore } from './sources/captureManager';
 import { BUILTIN_PRESETS, applyPreset } from './projects/presetActions';
 import * as flowDiag from './rendering/flow/flowDiagnostics';
 import * as simDiag from './rendering/simulation/simDiagnostics';
+import * as transDiag from './rendering/transition/transitionDiagnostics';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -77,10 +79,34 @@ if (import.meta.env.DEV) {
       presets: { BUILTIN_PRESETS, applyPreset },
       importMediaPaths,
       runAnimationExport,
+      /** CE1G: transition goldens (endpoints, coverage, determinism). */
+      transitionGoldens() {
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
+        return e.renderer ? transDiag.runTransitionGoldens(e.renderer) : null;
+      },
+      /** CE1G: visual contact sheet — every style at .25/.5/.75, as a PNG
+       * data URL, for curation by eye. */
+      transitionSheet() {
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
+        if (!e.renderer) return null;
+        const s = transDiag.transitionContactSheet(e.renderer);
+        const cv = document.createElement('canvas');
+        cv.width = s.width;
+        cv.height = s.height;
+        const ctx = cv.getContext('2d')!;
+        const img = ctx.createImageData(s.width, s.height);
+        // GL reads bottom-up; flip into canvas order.
+        for (let y = 0; y < s.height; y++) {
+          const src = (s.height - 1 - y) * s.width * 4;
+          img.data.set(s.pixels.subarray(src, src + s.width * 4), y * s.width * 4);
+        }
+        ctx.putImageData(img, 0, 0);
+        return { url: cv.toDataURL('image/png'), labels: s.labels, w: s.width, h: s.height };
+      },
       /** CE1E: the simulation verification protocol (CA truth machine + RD
        * numeric stability), CE1D-2 methodology. */
       simHarness() {
-        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         const out: Record<string, unknown> = {};
         try {
@@ -118,7 +144,7 @@ if (import.meta.env.DEV) {
         // rendered by the other fail silently. This was the root cause of
         // every zero/contradictory probe in CE1D.
         const { runFlowGolden, FlowProbe, canaryAB, canaryCD, canaryE } = flowDiag;
-        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         // standalone harness self-test at a fixed grid
         const probe = new FlowProbe(e.renderer, 320, 180);
@@ -162,7 +188,7 @@ if (import.meta.env.DEV) {
       async testLKIsolated(shiftTexels = 2) {
         const three = await import('three');
         const { LK_FRAG_EXPORTED } = await import('./rendering/flow/OpticalFlowField');
-        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         const W = 128, H = 64;
         const cam = new three.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
@@ -182,7 +208,7 @@ if (import.meta.env.DEV) {
           depthTest: false, depthWrite: false,
           uniforms: { uPacked: { value: null }, uTexel: { value: new three.Vector2(1 / W, 1 / H) } } });
         const ls = new three.Scene(); ls.add(new three.Mesh(new three.PlaneGeometry(1, 1), lk));
-        const draw = (t: import('three').WebGLRenderTarget, s: import('three').Scene) => {
+        const draw = (t: THREE.WebGLRenderTarget, s: THREE.Scene) => {
           const p = e.renderer!.getRenderTarget();
           e.renderer!.setRenderTarget(t); e.renderer!.setViewport(0, 0, W, H);
           e.renderer!.setScissorTest(false); e.renderer!.render(s, cam);
@@ -210,7 +236,7 @@ if (import.meta.env.DEV) {
       /** CE1D dev-only: sample-a-texture → float RT; and 1-tap LK probe. */
       async testFloatSample() {
         const three = await import('three');
-        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         // luma-like source RT with a known gradient
         const src = new three.WebGLRenderTarget(8, 8, { depthBuffer: false });
@@ -226,7 +252,7 @@ if (import.meta.env.DEV) {
           fragmentShader: 'precision highp float; varying vec2 vUv; uniform sampler2D uT;\nvoid main(){ float a=0.0; for(int i=-2;i<=2;i++){ a+=texture2D(uT, vUv+vec2(float(i)*0.125,0.0)).r; } gl_FragColor=vec4(a, texture2D(uT,vUv).r*10.0, -2.0, 1.0);}',
           depthTest: false, depthWrite: false, uniforms: { uT: { value: null } } });
         const sc2 = new three.Scene(); sc2.add(new three.Mesh(new three.PlaneGeometry(1,1), smat));
-        const draw = (t: import('three').WebGLRenderTarget, s: import('three').Scene) => {
+        const draw = (t: THREE.WebGLRenderTarget, s: THREE.Scene) => {
           const p = e.renderer!.getRenderTarget();
           e.renderer!.setRenderTarget(t);
           e.renderer!.setViewport(0, 0, 8, 8);
@@ -247,7 +273,7 @@ if (import.meta.env.DEV) {
       /** CE1D dev-only: can we render a CONSTANT into a Float RT and read it? */
       async testFloatRT() {
         const three = await import('three');
-        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         const rt = new three.WebGLRenderTarget(8, 8, { depthBuffer: false, type: three.FloatType });
         const mat = new three.ShaderMaterial({
@@ -275,7 +301,7 @@ if (import.meta.env.DEV) {
       /** CE1D dev-only: isolated synthetic flow test (QA). */
       async testFlowSynthetic(dx = 10, dy = 0) {
         const { OpticalFlowField } = await import('./rendering/flow/OpticalFlowField');
-        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         if (!e.renderer) return null;
         const three = await import('three');
         const mk = (x: number, y: number) => {
@@ -295,23 +321,22 @@ if (import.meta.env.DEV) {
         const t2 = mk(100 + dx, 70 + dy);
         flow.update(e.renderer, t1, 320, 180, 'a');
         flow.update(e.renderer, t2, 320, 180, 'b');
-        const rt = (flow as unknown as { smoothFlow: import('three').WebGLRenderTarget }).smoothFlow;
+        const rt = (flow as unknown as { smoothFlow: THREE.WebGLRenderTarget }).smoothFlow;
         const buf = new Float32Array(320 * 180 * 4);
         e.renderer.readRenderTargetPixels(rt, 0, 0, 320, 180, buf);
-        let n = 0, sx = 0, sy = 0, mx = 0, bg = 0, bgn = 0;
+        let n = 0, sx = 0, sy = 0, mx = 0;
         for (let i = 0; i < 320 * 180; i++) {
           const x = buf[i * 4]!, y = buf[i * 4 + 1]!;
           const m = Math.hypot(x, y);
           if (m > mx) mx = m;
           if (m > 0.0015) { n++; sx += x; sy += y; }
-          else { bg += m; bgn++; }
         }
         // discriminate write-vs-read: the luma target is plain RGBA8.
         const fAny = flow as unknown as {
-          lumaA: import('three').WebGLRenderTarget;
-          lumaB: import('three').WebGLRenderTarget;
+          lumaA: THREE.WebGLRenderTarget;
+          lumaB: THREE.WebGLRenderTarget;
         };
-        const readL = (rt: import('three').WebGLRenderTarget) => {
+        const readL = (rt: THREE.WebGLRenderTarget) => {
           const b = new Uint8Array(320 * 180 * 4);
           e.renderer!.readRenderTargetPixels(rt, 0, 0, 320, 180, b);
           return b;
@@ -325,8 +350,7 @@ if (import.meta.env.DEV) {
           dsum += Math.abs(la[i]! - lb[i]!);
         }
         const lumaDiff = Math.round(dsum / (320 * 180));
-        const lbuf = la;
-        const rawRt = (flow as unknown as { rawFlow: import('three').WebGLRenderTarget }).rawFlow;
+        const rawRt = (flow as unknown as { rawFlow: THREE.WebGLRenderTarget }).rawFlow;
         const rbuf = new Float32Array(320 * 180 * 4);
         let rawErr = '';
         try { e.renderer.readRenderTargetPixels(rawRt, 0, 0, 320, 180, rbuf); } catch (err) { rawErr = String(err); }
@@ -345,11 +369,11 @@ if (import.meta.env.DEV) {
       readFlowStats() {
         const e = engine as unknown as {
           flow: { texture(): unknown; resolution: { width: number; height: number } } | null;
-          renderer: import('three').WebGLRenderer | null;
+          renderer: THREE.WebGLRenderer | null;
         };
         if (!e.flow || !e.renderer) return null;
         const { width, height } = e.flow.resolution;
-        const rt = (e.flow as unknown as { smoothFlow: import('three').WebGLRenderTarget }).smoothFlow;
+        const rt = (e.flow as unknown as { smoothFlow: THREE.WebGLRenderTarget }).smoothFlow;
         const buf = new Float32Array(width * height * 4);
         e.renderer.readRenderTargetPixels(rt, 0, 0, width, height, buf);
         let sx = 0, sy = 0, sm = 0, n = 0, bgm = 0, bgn = 0;
@@ -362,10 +386,10 @@ if (import.meta.env.DEV) {
         // luma pair delta (valid RGBA8<-Uint8 read): does the analyzed
         // texture actually advance?
         const fAny = e.flow as unknown as {
-          lumaA: import('three').WebGLRenderTarget;
-          lumaB: import('three').WebGLRenderTarget;
+          lumaA: THREE.WebGLRenderTarget;
+          lumaB: THREE.WebGLRenderTarget;
         };
-        const readL = (rt: import('three').WebGLRenderTarget) => {
+        const readL = (rt: THREE.WebGLRenderTarget) => {
           const b = new Uint8Array(width * height * 4);
           e.renderer!.readRenderTargetPixels(rt, 0, 0, width, height, b);
           return b;

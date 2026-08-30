@@ -43,3 +43,19 @@ on Slit Scan; the temporal SCHEDULE is exact in both).
 
 | Reaction Diffusion | image | SIMULATION | 1 + 4 solver iters | state pair | ✓ (as source influence) | ✓ det. | MEDIUM (120fps) |
 | Cellular | image | SIMULATION | 1 | state pair | ✓ (tint) | ✓ det. | LIGHT (120fps) |
+
+## Morph transitions (CE1G)
+
+Ten pixel transition styles, applied at the identity switch of a
+cross-technique morph (or across the whole morph when both sides share a
+technique). `smooth` is the default and reproduces v0.3 exactly.
+
+| Style | Passes | VRAM | Deterministic | Cost |
+|---|---|---|---|---|
+| smooth | 0 (no snapshot) | 0 | ✓ | free |
+| cut / directional / noise / pixel / radial | 1 composite | 1 RGBA8 snapshot (12.8 MB @ retina 1080p canvas) | ✓ | LIGHT |
+| zoom / displace / glitch / luma | 1 composite | same | ✓ | LIGHT |
+
+The snapshot exists only while the reveal is open (allocations = disposals,
+verified live). Full detail, goldens and the export contract:
+[MORPH_TRANSITIONS.md](MORPH_TRANSITIONS.md).
