@@ -515,3 +515,36 @@ that — never raw CPU float readbacks of live class targets).
 - 11 Motion presets (Flow Pull, Undertow, Vector Smear, Channel Drag,
   Body Ghost, Current, Mosh Drift, Block Storm, Clean Wake, Motion
   Memory + Activity Map under Studies).
+
+## Simulation primitive (CE1E)
+
+- **ADR — sibling of Feedback, not a refactor of it**: both ping-pong, but
+  simulation adds seeded canonical initial state, an integer step index and
+  per-system formats/filters (half-float+Linear for RD, RGBA8+Nearest for
+  cellular). `SimulationSurface` + `SimulationRunner` own the lifecycle;
+  each system supplies only a seed shader, a step shader, a format and a
+  grid — no DSL, no graph. FeedbackSurface was left untouched (stable code
+  wins).
+- **ADR — one fixed 60 Hz clock, two drivers**: preview accumulates wall
+  time (capped catch-up, evolves while paused/seeking/looping and with no
+  source); export derives the canonical INTEGER step index from
+  composition time and prerolls from the origin. Integer derivation is
+  what makes subrange exports reconstructible and long exports
+  drift-free. Preview ≠ export state, by design and documented.
+- **ADR — no persisted runtime state**: projects store technique, params
+  and seed only. Reload starts from the canonical seeded state; the
+  Output builds its own local state (no simulation IPC) and therefore
+  visibly warms up when opened mid-session.
+- **Curation over mathematics (§41)**: Gray-Scott ships its useful window
+  (feed .01–.09, kill .045–.07), not 0..1 of dead space; reset-only params
+  (grid/density/seed/rule) are explicitly non-modulatable so modulation
+  cannot restart the world every frame.
+- **Bug found by the numbers**: the first solver used dA=1.0/dB=0.5 with a
+  unit-weight Laplacian at dt=1 — outside the explicit-scheme stability
+  limit; it rendered a high-frequency checkerboard that *looked* like a
+  texture. The GPU stats (B collapsing, variance saturated) exposed it;
+  dA=0.2/dB=0.1 restored real Turing patterns. This is exactly why CE1E
+  built the harness before the visuals.
+- **CE1F debt carried forward**: the Motion Pack's deterministic export
+  goldens still need a decoder-free timeline source; CE1F's Generators are
+  the intended fixture (see CE1D-2 note).

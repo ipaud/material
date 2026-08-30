@@ -3194,6 +3194,319 @@ export const BUILTIN_PRESETS: Preset[] = [
       'flow'
     ]
   },
+  {
+    id: 'builtin-coral',
+    name: 'Coral',
+    techniqueId: 'reaction-diffusion',
+    params: {
+      feed: 0.0545,
+      kill: 0.062,
+      speed: 4,
+      contrast: 2.4,
+      grid: 320
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Chemistry grows branching reefs from a handful of seeds.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-worm-field',
+    name: 'Worm Field',
+    techniqueId: 'reaction-diffusion',
+    params: {
+      feed: 0.078,
+      kill: 0.061,
+      speed: 5,
+      contrast: 2.2,
+      grid: 320
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Long crawling filaments that never stop rearranging.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-maze-growth',
+    name: 'Maze Growth',
+    techniqueId: 'reaction-diffusion',
+    params: {
+      feed: 0.029,
+      kill: 0.057,
+      speed: 4,
+      contrast: 2.6,
+      grid: 384
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Corridors close and reopen \u2014 a labyrinth building itself.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-spore-field',
+    name: 'Spore Field',
+    techniqueId: 'reaction-diffusion',
+    params: {
+      feed: 0.037,
+      kill: 0.06,
+      speed: 3,
+      contrast: 3,
+      grid: 256,
+      density: 0.12
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Isolated cells divide into a slow spreading colony.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-chemical-bloom',
+    name: 'Chemical Bloom',
+    techniqueId: 'reaction-diffusion',
+    params: {
+      feed: 0.062,
+      kill: 0.0625,
+      speed: 6,
+      contrast: 2,
+      grid: 320
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [
+      {
+        id: 'bloom-bass',
+        enabled: true,
+        source: 'bass',
+        target: 'feed',
+        amount: 0.4,
+        min: 0.0,
+        max: 1.0,
+        invert: false,
+        smoothing: 0.25,
+        curve: 'linear',
+        frozenValue: null
+      }
+    ],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Pulsing growth; the low end feeds the reaction.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-lichen',
+    name: 'Lichen',
+    techniqueId: 'reaction-diffusion',
+    params: {
+      feed: 0.0435,
+      kill: 0.0595,
+      speed: 4,
+      contrast: 2.8,
+      grid: 448
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Fine encrusting texture, slow and organic.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-life',
+    name: 'Life',
+    techniqueId: 'cellular',
+    params: {
+      rule: 'life',
+      grid: 256,
+      density: 0.28
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Classic life rules — the canonical emergence machine.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-colony',
+    name: 'Colony',
+    techniqueId: 'cellular',
+    params: {
+      rule: 'highlife',
+      grid: 256,
+      density: 0.32
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'HighLife: replicators and drifting colonies.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-signal-cells',
+    name: 'Signal Cells',
+    techniqueId: 'cellular',
+    params: {
+      rule: 'seeds',
+      grid: 320,
+      density: 0.02
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Seeds: explosive propagation from almost nothing.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-night-grid',
+    name: 'Night Grid',
+    techniqueId: 'cellular',
+    params: {
+      rule: 'maze',
+      grid: 192,
+      density: 0.18
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Simulation',
+    description: 'Cellular maze weaving and unweaving itself.',
+    tags: [
+      'simulation'
+    ]
+  },
+  {
+    id: 'builtin-living-grid',
+    name: 'Living Grid',
+    techniqueId: 'cellular',
+    params: {
+      rule: 'daynight',
+      grid: 256,
+      density: 0.4
+    },
+    material: {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {
+        aspect: 1
+      },
+      assetPath: null
+    },
+    modulations: [],
+    triggers: [],
+    builtin: true,
+    category: 'Studies',
+    description: 'ORGANIC COMPUTATION study: symmetric day/night growth.',
+    tags: [
+      'simulation'
+    ]
+  },
 ];
 
 const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transients']);

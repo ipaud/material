@@ -6,6 +6,7 @@ import { stepPrintDefinition } from './step-print/definition';
 import { feedbackDefinitions } from './feedback/definitions';
 import { timeFieldDefinition } from './time-field/definition';
 import { motionDefinitions } from './motion/definitions';
+import { simulationDefinitions } from './simulation/definitions';
 
 const registry = new Map<string, TechniqueDefinition>();
 
@@ -30,6 +31,7 @@ registerTechnique(timeFieldDefinition);
 // synthetic goldens are green (cardinal signs, ±3% velocity at 2px,
 // LSB-level noise floor). See docs/GPU_TESTING.md + DECISIONS ADR.
 for (const d of motionDefinitions) registerTechnique(d);
+for (const d of simulationDefinitions) registerTechnique(d);
 registerTechnique(slitScanDefinition);
 
 /** Techniques that need composition-time frame history. */

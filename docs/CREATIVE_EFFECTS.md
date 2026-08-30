@@ -10,6 +10,8 @@ cost classes are MEASURED, not guessed.
 | HISTORY | temporal atlas (56×256×144, ~7.9MB) | rendering/temporal |
 | FEEDBACK | ping-pong pair at composition res (~16.6MB @1080p) | rendering/feedback |
 | FIELD | none — inline GLSL contract, zero passes, zero VRAM | rendering/shaders/fields |
+| FLOW | luma pair + flow targets at ≤320 (~1.5MB) | rendering/flow |
+| SIMULATION | seeded ping-pong state, integer stepping | rendering/simulation |
 
 ## Techniques
 
@@ -38,3 +40,6 @@ SUBRANGE export's bytes can differ from the same global frames of a
 full-range export because H.264 hardware decode is not bit-stable across
 different seek paths (pre-existing pipeline behavior — measured identical
 on Slit Scan; the temporal SCHEDULE is exact in both).
+
+| Reaction Diffusion | image | SIMULATION | 1 + 4 solver iters | state pair | ✓ (as source influence) | ✓ det. | MEDIUM (120fps) |
+| Cellular | image | SIMULATION | 1 | state pair | ✓ (tint) | ✓ det. | LIGHT (120fps) |

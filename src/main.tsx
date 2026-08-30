@@ -36,6 +36,7 @@ import { cameraManager, useCameraStore } from './sources/cameraManager';
 import { captureManager, useCaptureStore } from './sources/captureManager';
 import { BUILTIN_PRESETS, applyPreset } from './projects/presetActions';
 import * as flowDiag from './rendering/flow/flowDiagnostics';
+import * as simDiag from './rendering/simulation/simDiagnostics';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -76,6 +77,39 @@ if (import.meta.env.DEV) {
       presets: { BUILTIN_PRESETS, applyPreset },
       importMediaPaths,
       runAnimationExport,
+      /** CE1E: the simulation verification protocol (CA truth machine + RD
+       * numeric stability), CE1D-2 methodology. */
+      simHarness() {
+        const e = engine as unknown as { renderer: import('three').WebGLRenderer | null };
+        if (!e.renderer) return null;
+        const out: Record<string, unknown> = {};
+        try {
+          // CA GOLDENS — exact cell truth
+          out.block0 = simDiag.runCellularGolden(e.renderer, 'block', 0).cells;
+          out.block4 = simDiag.runCellularGolden(e.renderer, 'block', 4).cells;
+          out.blinker0 = simDiag.runCellularGolden(e.renderer, 'blinker', 0).cells;
+          out.blinker1 = simDiag.runCellularGolden(e.renderer, 'blinker', 1).cells;
+          out.blinker2 = simDiag.runCellularGolden(e.renderer, 'blinker', 2).cells;
+          out.glider0 = simDiag.runCellularGolden(e.renderer, 'glider', 0).cells;
+          out.glider4 = simDiag.runCellularGolden(e.renderer, 'glider', 4).cells;
+          out.glider8 = simDiag.runCellularGolden(e.renderer, 'glider', 8).cells;
+        } catch (err) {
+          out.caError = String(err);
+        }
+        try {
+          // RD stability + determinism
+          out.rd0 = simDiag.runRdGolden(e.renderer, 0);
+          out.rd10 = simDiag.runRdGolden(e.renderer, 10);
+          out.rd100 = simDiag.runRdGolden(e.renderer, 100);
+          out.rd500 = simDiag.runRdGolden(e.renderer, 500);
+          out.rdSeedA = simDiag.runRdGolden(e.renderer, 50, { seed: 7 });
+          out.rdSeedA2 = simDiag.runRdGolden(e.renderer, 50, { seed: 7 });
+          out.rdSeedB = simDiag.runRdGolden(e.renderer, 50, { seed: 99 });
+        } catch (err) {
+          out.rdError = String(err);
+        }
+        return out;
+      },
       /** CE1D-2: the full flow verification protocol on a clean process.
        * Self-tests first; throws loudly if the harness itself is broken. */
       async flowHarness() {

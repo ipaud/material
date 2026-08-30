@@ -49,8 +49,11 @@ glance"; presets as *performable starting points* (modulations included).
 - **Optical flow (CE1D)**: Lucas-Kanade & Horn-Schunck papers (public
   research); pyramidal GPU implementations as architecture reference;
   neural flow (RAFT et al.) explicitly out of scope for v1.
-- **Simulation (CE1E)**: Gray-Scott reaction-diffusion (Pearson 1993,
-  public literature); Game of Life / birth-survival mask automata.
+- **Simulation (CE1E, done)**: Gray-Scott reaction–diffusion (Pearson
+  1993) and life-like automata (Conway/Gardner 1970) — both implemented
+  from the published rules, original shaders, no external code. Stability
+  limits for explicit diffusion schemes come from standard numerical
+  literature (dA·dt ≤ 0.25 on a unit Laplacian).
 - **Transitions (CE1G)**: gl-transitions.com collection (individual
   transitions are MIT-licensed but the plan is original implementations of
   the *categories*: dissolve, directional, noise, radial, zoom, luma).
