@@ -34,7 +34,18 @@ npm run dist       # distributable build
 
 Other scripts: `npm test`, `npm run typecheck`, `npm run lint`, `npm run format`.
 
-## First five minutes
+## First five minutes — with nothing at all
+
+Since Creative Expansion 01 you do not need to import anything to start.
+
+1. Add a **Noise Field** or **Grid** source. The instrument is now running.
+2. Put a technique on it — try **Time Field**, then **Feedback Zoom**.
+3. Pin two Looks and morph between them with a transition style.
+
+See [CREATIVE_GUIDE.md](docs/CREATIVE_GUIDE.md) for what the seven creative
+areas do and which combinations are worth knowing.
+
+## First five minutes — with footage
 
 1. Drop a video on the window, and an audio file with it.
 2. **Mosaic** is applied automatically. Drag **Columns** and **Scale**.

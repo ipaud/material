@@ -68,3 +68,41 @@ shift at 320 = 6.25‰.
 Velocity accuracy ±3% at 2px. Useful range 1–4 grid-px (8px incoherent,
 16px dead — mono-scale LK limit, documented). Resolution sweep: 320
 optimal (256: +12% bias; 512: −32%, weaker signal). UP = +Y (UV-up).
+
+## CE1H additions
+
+Two more instruments, both built to answer a question that reading the code
+could not.
+
+### `temporalPathCompare(T, fps, from)`
+
+Builds the same composition time two ways — priming directly at `T` (what a
+subrange export does) versus priming earlier and advancing to `T` (what a full
+export does) — then compares the atlas **by logical slot**, so physical
+placement differences do not register as content differences.
+
+This is what closed the CE1C debt. It reported the two atlases identical, with
+the same anchor, spacing and filled count, which ruled out the schedule and
+the decoder in one measurement and left `head` as the only difference. The
+bug was bilinear taps bleeding across atlas tile borders, whose neighbours
+change when placement rotates.
+
+### `temporalExportProbe(T, fps, from)`
+
+Replicates the export loop for one frame both ways and hashes each stage:
+atlas, head, filled, anchor and the rendered frame. It reports `atlasSame`
+alongside `frameSame`, which is exactly the pair needed to separate "wrong
+history" from "right history, wrong sampling".
+
+### Lessons that generalise
+
+- **A comparison metric can hide the bug it is meant to find.** Comparing raw
+  atlas bytes said "2 million pixels differ" (true, and meaningless — the
+  atlas is a rotating buffer). Comparing by logical slot said "identical".
+  Same data, opposite conclusions; only one of them was the right question.
+- **Determinism is not correctness.** Optical flow was never computed during
+  export, and every determinism gate passed, because a constant flow field is
+  perfectly reproducible. The preset contact sheet caught it by rendering four
+  different Motion presets to byte-identical tiles. When a gate can be
+  satisfied by a system doing nothing, it needs a companion that fails when
+  nothing happens.

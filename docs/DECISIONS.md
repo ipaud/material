@@ -625,3 +625,66 @@ that — never raw CPU float readbacks of live class targets).
 - **Debt carried**: a cross-technique reveal whose sides are TEMPORAL
   techniques inherits the CE1C `primeExact`/`advanceExact` asymmetry via the
   extra renderer swap. CE1H triage.
+
+## CE1H — Curation / QA / Release closure
+
+- **ADR — the CE1C temporal debt was a SAMPLING bug, not a scheduling one.**
+  Three phases assumed the prime/advance schedules disagreed. Measured, they
+  are identical by logical slot, with the same anchor, spacing and filled
+  count; the only difference is `head`. History slots are tiles in one atlas
+  texture, so a bilinear tap at a tile edge blended in the neighbouring tile —
+  a different moment in time — and rotating the physical placement changes
+  which frame is adjacent. `sampleTemporal` now clamps every tap half a texel
+  inside its own tile. Time Field and Slit Scan went 0/12 → 12/12,
+  byte-identical. It also fixes a latent preview bug: history frames were
+  leaking into each other at the frame border.
+- **ADR — composition time is addressed by GLOBAL FRAME INDEX.**
+  `startSec + i / fps` is not stable across exports: a full export reaches
+  global frame 25 as 1 + 13/12 and a subrange as 2 + 1/12, one ULP apart, and
+  `floor(t * 60)` then picks a different simulation step. Reaction Diffusion
+  and Cellular diverged on exactly every third frame because of it. Time is
+  now derived from the frame index, so a frame is the same float in every
+  export containing it.
+- **ADR — a subrange export REPLAYS skipped frames for stateful feedback.**
+  `exportBegin` ran the right step count but every step saw one frozen source
+  frame. Proof: Feedback Zoom over an animated generator matched 0/12, and
+  over a time-invariant one 12/12 — the count was never the problem. The
+  preroll now walks the real frames with an evaluator started at the origin,
+  so modulation smoothing and triggers replay identically. Cost is linear in
+  the skipped range and nothing is rendered or written.
+- **Bug found by curation, not by tests — optical flow never ran during
+  export.** `renderFrame` skips flow in export mode and the export-path
+  function was never called. Every Motion technique exported against a stale
+  field or none. A constant field is perfectly deterministic, so every
+  determinism gate passed; the preset contact sheet caught it by rendering
+  four different Flow Displace presets to byte-identical tiles. **When a gate
+  can be satisfied by a system doing nothing, it needs a companion that fails
+  when nothing happens.**
+- **ADR — the catalog has a drift gate.** `docs/inventory.json` is generated
+  from the live registry and a test fails if the committed file disagrees.
+  Ids, names, parameter ranges, in-range defaults, preset targets, modulation
+  targets and preset categories are all mechanically checked, so a silent
+  catalog change is a build failure rather than a discovery.
+- **ADR — presets are curated by looking, against four sources.** A preset
+  judged on one clip is judged on that clip. Contact sheets are rendered
+  through the export preparation path (a bare `renderStill` primes no
+  history/feedback/flow and reported 292 false duplicates) and duplicate
+  comparisons use full-resolution tiles (downscaling made Coral and Worm
+  Field look identical when they differ by 204).
+- **ADR — context restore REALLOCATES.** Marking state stale left dead GL
+  handles from the lost context. Feedback and simulation surfaces recreate,
+  the temporal provider is rebuilt with its config, flow is dropped for lazy
+  rebuild, the transition snapshot is released. Measured: fps returns to
+  119–121, one transient INVALID_OPERATION during the rebuild itself, zero
+  errors in steady state over 120 frames.
+- **ADR — generator source presets DEFERRED, option B chosen for later.**
+  A named parameter-set list in the Source inspector is the right shape and
+  needs no change to the `Preset` schema. It is deferred because the cost is
+  the CONTENT, not the plumbing: a new preset surface deserves the same
+  four-source curation the 107 technique presets just received, and adding an
+  uncurated content surface during release closure is the scope creep CE1H
+  §83 exists to prevent. See BACKLOG.md.
+- **ADR — release is v0.3.5, not v0.4.** ROADMAP reserved v0.4 for Image /
+  Motion Signals before this work existed; taking the number would break a
+  promise already written down. Creative Expansion 01 ships as v0.3.5.
+- **Schema stays v3.** Every CE1x addition was additive and defaulted.

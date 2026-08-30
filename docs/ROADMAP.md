@@ -26,6 +26,26 @@ permissions, Display fullscreen output on a chosen monitor, passive Output
 replica with live fan-out, realtime temporal history for live sources,
 Pattern Engine v1 + v1.5. Project schema v3.
 
+## v0.3.5 — Creative Expansion 01 — shipped
+
+The creative layer. Six new primitives and the systems built on them:
+HISTORY, FEEDBACK, FIELD, OPTICAL FLOW, SIMULATION and GENERATOR.
+
+7 generator sources (Noise Field, Wave Interference, Voronoi, Grid, Chladni
+Field, Reaction Diffusion, Cellular Automata) that are first-class
+`SourceRuntime` implementations — the stateless ones are deterministic
+`TemporalSource`s, which makes MATERIAL usable with zero imports and zero
+permissions on first run. 20 techniques including the Feedback pack, Time
+Field, the Motion pack and Simulation. 10 morph transition styles. 107
+curated presets. A GPU numeric-testing harness (docs/GPU_TESTING.md) and a
+determinism contract that every system now meets.
+
+Project schema stays **v3** — every addition was additive and defaulted, so
+projects written before Creative Expansion open unchanged.
+
+Version note: this is 0.3.5, not 0.4. v0.4 is reserved below for Image /
+Motion Signals and that promise predates this work.
+
 ## Next — v0.4 candidate: IMAGE / MOTION SIGNALS
 
 Image-derived modulation sources: motion analysis, optical flow / movement

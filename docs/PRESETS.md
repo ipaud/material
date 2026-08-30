@@ -63,3 +63,54 @@ schema parse, unique ids/names, canonical categories, every parameter
 inside its definition range, select values legal, modulation sources real,
 targets numeric and existing, materials builtin, no near-identical twins.
 A drifting preset cannot ship silently.
+
+## Curation methodology (CE1H)
+
+The library is curated by LOOKING at it, not by reading parameter tables.
+`window.__dev.presetSheet(atSec, cell)` renders every preset against the
+current source and tiles the results into one contact sheet; the pass is run
+against four reference sources so no preset is judged on the one clip it was
+authored against:
+
+| Reference | Covers |
+|---|---|
+| Grid generator | graphic / hard geometry |
+| Wave Interference generator | landscape / smooth gradient |
+| Noise Field generator | live-like synthetic motion |
+| Real dance footage | human subject, real motion, real grain |
+
+Two things about the harness are load-bearing, because both produced
+confident wrong answers first:
+
+1. **Tiles go through the export preparation path.** A bare `renderStill`
+   primes no frame history, no feedback surface and no flow pair, so every
+   temporal preset renders the same bare frame. The first sheet reported 292
+   "duplicate" pairs that were entirely an artifact of this.
+2. **Duplicate comparisons use full-resolution tiles.** Downscaled thumbnails
+   average out high-frequency texture: Coral and Worm Field are identical at
+   32×18 and differ by 204 at full resolution.
+
+Signals the sheet is looking for: flat or blown tiles (a preset with no
+spatial variance is dead or saturated), presets that render identically to
+each other, presets that ignore the source entirely, and presets that are
+still empty at the capture time (a warm-up problem, not a look).
+
+### CE1H outcome
+
+108 presets in, 107 out.
+
+- **Removed — Single Line.** Slit Scan at 2 strips with interpolation is
+  mathematically Time Field horizontal; it rendered byte-identical to Deep
+  Curtain on all four sources. Signal Tear already covers the low-strip
+  territory, and the name described something the preset never did.
+- **Retuned — Memory Leak.** 36 additive copies at decay 0.985 saturated to
+  pure white on every source.
+- **Retuned — Field of Dots.** Dots too small against too much gap; mean
+  luminance 3–10 out of 255.
+- **Retuned — Chemical Bloom.** Its feed/kill pair sat in the dying region of
+  Gray-Scott — dark, and crowding Coral. Moved to unused low-feed/low-kill
+  territory.
+
+After the pass: zero flat-or-blown presets, zero full-resolution duplicate
+pairs. `tests/catalog.test.ts` holds the retuned values and asserts that every
+Reaction Diffusion preset occupies a distinct Gray-Scott regime.

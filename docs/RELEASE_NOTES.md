@@ -1,5 +1,94 @@
 # Release Notes
 
+## v0.3.5 — CREATIVE EXPANSION 01
+
+The creative layer. v0.3 made MATERIAL a live instrument; this release gives
+it something to play.
+
+### Generate your own material
+
+Seven **generator sources** produce pixels without importing anything:
+Noise Field, Wave Interference, Voronoi, Grid, Chladni Field, Reaction
+Diffusion and Cellular Automata. They are real sources, not a special case —
+anything that works on a video works on them, including temporal techniques,
+Patterns, modulation and export.
+
+The practical consequence: MATERIAL now opens to a working instrument with
+zero imports and zero permissions.
+
+### Time as a material
+
+**Time Field** treats the past as an image you can shape: a field decides how
+far back each part of the frame reaches, so brightness, position or motion can
+pull different moments into one picture. **Slit Scan**, **Echo** and **Step
+Print** address the same frame history from different angles.
+
+### Feedback
+
+Seven feedback techniques — Zoom, Rotate, Drift, RGB, Kaleido, Displace and
+Bloom — that reprocess their own output on a fixed clock. Static image, static
+parameters, and the image still evolves.
+
+### Motion
+
+Optical flow, computed on the GPU and shared by every technique that asks for
+it: **Flow Displace**, **Motion RGB**, **Motion Trails**, **Directional
+Smear**, **Flow Feedback** and **Motion Mosh** — the datamosh look, driven by
+real measured movement rather than a random shuffle.
+
+### Simulation
+
+**Reaction Diffusion** and **Cellular Automata** evolve their own state on a
+fixed step, seeded and reproducible, usable as techniques or as sources.
+
+### Morph transitions
+
+Morphing between two Looks of different techniques used to snap identity at
+the midpoint — a hard cut inside a smooth gesture. Ten transition styles now
+cover that moment: Smooth, Cut, Directional, Noise, Pixel, Radial, Zoom,
+Displace, Glitch and Luma. Smooth reproduces the old behaviour exactly, and
+projects saved before this release replay unchanged.
+
+### 107 presets
+
+Twelve families — Minimal, Temporal, Optical, Geometry, Analog, Digital
+Damage, Studies, Live, Performance, Feedback, Motion and Simulation — each
+curated against four reference sources rather than one.
+
+### What you can trust
+
+Every system exports deterministically. Repeat an export and you get the same
+bytes; export a range out of the middle of a timeline and you get the same
+frames a full export would have produced there. That holds for feedback,
+frame history, optical flow, simulations and morph transitions — all of which
+carry state that could have made it untrue.
+
+### Known limitations
+
+- Live sources (Camera / Screen / Window) have no timeline to seek, so
+  sequence and movie export stays unavailable for them; a PNG still is not.
+- The Output window renders locally and warms its own state. Feedback,
+  history and simulations there start when it opens rather than inheriting
+  what the editor has built.
+- Preview and export can differ for living systems: during a morph reveal the
+  outgoing image is frozen in preview and re-rendered in export, because
+  preview must run in real time and export must not depend on where it began.
+- Compressed video can decode to slightly different pixels for the same
+  timestamp depending on the seek path. The temporal *schedule* is exact; the
+  decoder is not.
+- Optical flow is single-scale: it reads ordinary movement well and very fast
+  movement poorly.
+- Reaction Diffusion needs time to mature — its patterns are a process, not a
+  frame.
+- Runtime state (feedback contents, simulation state, frame history) is never
+  written to a project file. Looks and projects carry configuration; the
+  image is rebuilt.
+
+### Release classification
+
+**INTERNAL.** Signing is still ad-hoc and the app is not notarized, so this
+is not ready for public distribution.
+
 ## v0.3.0 — LIVE / OUTPUT
 
 ### Live Sources
