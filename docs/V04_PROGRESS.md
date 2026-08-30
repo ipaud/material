@@ -374,3 +374,147 @@ Tests 1155 passing / 67 files · typecheck · lint · build · anti-dead on 16/1
 export anti-noop and determinism re-verified after the flow change.
 
 **Safe to proceed to E.**
+
+## E — curation, QA, release
+
+### Final public signal inventory
+
+Nine. Nothing was dropped in curation, because the duplication review found a
+discriminating fixture for every pair that could have been redundant.
+
+| pair reviewed | verdict | evidence |
+|---|---|---|
+| luminance vs contrast | both keep | contrast is 0 on a flat frame at ANY brightness; r = 0.57 on video |
+| contrast vs edgeEnergy | both keep | 16 stripes and one split have identical contrast and edge **31×** apart; r = 0.70 |
+| amount vs activity | both keep | 1/16 of the frame at 16× speed has identical amount, activity **16×** apart; r = 0.77 |
+| x/y vs centroidX/Y | both keep | direction and location are near-independent on real video: **r = 0.12** |
+
+Contrast and edge correlate most on real material, because a busy frame tends
+to be both. They are kept apart on the strength of the fixture and of their
+different dynamic ranges; if a future release finds no Look distinguishes them,
+that is the one to revisit.
+
+### Look portability, with clamp metrics
+
+Five Looks × three sources, 30 samples each, measured against each parameter's
+own bounds:
+
+| metric | result |
+|---|---|
+| samples at a clamp rail | **0.0%** — every row, every source |
+| range utilisation, video | 3.6% – 32.2% |
+| range utilisation, camera | 0.6% – 29.0% |
+| range utilisation, generator | 1.5% – 13.3% |
+
+Nothing saturates. Low utilisation appears exactly where the source has nothing
+to say about that quantity — Body Follow on a uniform-motion generator (uniform
+motion has no centre) and Structure React on a static camera view (constant
+edge energy). Those are honest readings, not dead knobs.
+
+### Coexistence and cost
+
+| configuration | fps | analysis | draws | readbacks | bytes | ladder | flow |
+|---|---|---|---|---|---|---|---|
+| nothing mapped | 120.0 | — | 0 | 0 | 0 | 0 | 0 |
+| 1 image signal | 120.0 | 26 Hz | 4 | **1** | 192 | 0.60 MB | **asleep** |
+| all 3 image signals | 119.7 | 25.7 Hz | 4 | **1** | 192 | 0.60 MB | **asleep** |
+| 3 motion signals | 119.0 | 26.2 Hz | 5 | **1** | 720 | 2.81 MB | 2.20 MB |
+| all 6 motion signals | 120.0 | 25.7 Hz | 5 | **1** | 720 | 2.81 MB | 2.20 MB |
+| **all nine** | **120.0** | 26.2 Hz | 5 | **1** | 720 | 2.81 MB | 2.20 MB |
+
+Analysis demand: nothing mapped and scope closed → no targets, no flow. Scope
+alone → analysis wakes. Scope closed → released again. Image-only demand never
+wakes optical flow.
+
+### Determinism
+
+| subject | repeat | full vs subrange | anti-noop |
+|---|---|---|---|
+| `image.luminance` | 12/12 | 12/12 | **12/12** |
+| `motion.amount` | 12/12 | 12/12 | **12/12** |
+| `motion.x` | 12/12 | 12/12 | **12/12** |
+| Body Follow | 12/12 | 12/12 | 24/24 distinct |
+| Movement Memory | 12/12 | 12/12 | 24/24 distinct |
+| Structure React | 12/12 | 12/12 | 24/24 distinct |
+| Activity Mosh | 12/12 | 12/12 | 24/24 distinct |
+| Luma Pulse | 12/12 | 12/12 | 24/24 distinct |
+
+### Runtime matrix
+
+| surface | result |
+|---|---|
+| Camera | live, 9/9 signals, calibration settles in a still room |
+| Screen | live, 9/9 signals (luminance 0.057–0.063, motion 0.000–0.208) |
+| Window | live, 9/9 signals, chosen by ephemeral id |
+| Video: play / pause | 9/9 published; paused holds the last analysis |
+| Video: seek in range | motion recovers immediately and stays live |
+| Video: seek past duration | clamps to 0 and stops — existing transport behaviour |
+| Generator, no imports | 9/9 published; the whole instrument works with nothing loaded |
+| Static source | centroid INVALID 0/20, held at 0.5, resolved centre exactly 0 |
+| Freeze | params hold to 1e-9 while signals keep publishing underneath |
+| Morph between signal Looks | overlay carries both Looks' signals; **2** published mid-morph |
+| Looks save/reload | signal ids, modes and windows persist; no calibration serialised |
+| Audio + visual, one target | sums, finite, no interference |
+| Pattern + visual | independent, finite |
+| Output | no evaluator, no calibration, no reducer, no mode strings |
+| Context loss + restore | reductions resume (61 → 83), targets re-allocated, 0 GL errors |
+
+### Soaks
+
+Both 10 minutes, cycling sources, demand and morphs every 800 ms:
+
+| metric | camera soak | generator soak |
+|---|---|---|
+| iterations | 744 | 745 |
+| textures, 1st vs 2nd half mean | 19.52 / **19.52** | 19.04 / **19.00** |
+| geometries | 10.28 / **10.28** | 11.00 / **11.00** |
+| programs | 11.24 / 11.28 | 11.96 / 12.00 |
+| ladder VRAM | 2.81 MB constant | 2.81 MB constant |
+| flow VRAM | 2.20 MB constant | 2.20 MB constant |
+| calibration entries | ≤ 23 | 23 constant |
+| GL errors | **0** | **0** |
+| fps | 111–122 | 101–115 |
+
+Half-vs-half means are the assertion: a leak shows as a rising floor. JS heap
+oscillates 23–53 MB with GC and its mean rose 13% over the camera run, which is
+noise against flat GPU counters, recorded rather than explained away.
+
+### Packaged
+
+`release/mac-arm64/MATERIAL.app`, **0.4.0**, ad-hoc signed, not notarised.
+
+- the shipping asar contains every v0.4 signal id, the Reactive Looks and the
+  Set mapping mode;
+- launches, stays alive past 27 s, quits cleanly, stderr empty;
+- **zero** listening sockets owned by the process; no CDP endpoint on 9222 or
+  9223.
+
+Per CE1H §66, that also means CDP-driven QA cannot run against the shipping
+artifact, so packaged verification of camera / screen / window remains limited
+by TCC identity for an ad-hoc signed build. Dev-build verification of all three
+is recorded above. Not faked, not claimed.
+
+### Compatibility and security
+
+Every committed project fixture opens as v3. A mapping serialised before v0.4C
+parses with the new fields absent and resolves to the same number as an
+explicit `add`. A source id from a future version degrades to neutral instead of
+throwing. No preload API was added, no frame data crosses IPC, and the analysis
+code loads nothing from disk or network.
+
+### Defects fixed in E
+
+- **Demand ignored morph overlays**, so a Look being morphed TO had its signals
+  dark for the whole transition and snapped into life at commit. The runtime
+  resolves the overlay, so it now owns effective demand; export unions every
+  Look its morph events can reach. Measured: 1 → **2** signals published
+  mid-morph, and a visibly wider interpolation.
+- **Requiring two flow solves would have deleted motion from the first frame of
+  every export.** Export constructs its pair deliberately with a two-tap prime,
+  so it now says so and keeps frame one.
+
+### Gate
+
+Tests **1166** passing / 69 files · typecheck · lint · build · package.
+
+**v0.4 COMPLETE.**
