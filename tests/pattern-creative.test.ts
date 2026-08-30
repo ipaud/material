@@ -19,8 +19,6 @@ import type { PatternDefinition } from '@/pattern/patternTypes';
  * Pattern Engine.
  */
 
-const TIMING = { bpm: 120, beatOffsetSec: 0, beatsPerBar: 4 };
-
 const PATTERNS: [string, PatternDefinition][] = [
   [
     'euclidean',

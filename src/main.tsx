@@ -92,7 +92,7 @@ if (import.meta.env.DEV) {
       async temporalExportProbe(T = 2, fps = 12, from = 1, w = 160, h = 90) {
         const e = engine as unknown as {
           renderer: THREE.WebGLRenderer | null;
-          temporal: import('./rendering/temporal/TemporalFrameProvider').TemporalFrameProvider | null;
+          temporal: TemporalFrameProvider | null;
           generator: { texture(): THREE.Texture | null } | null;
         };
         if (!e.renderer) return null;
@@ -174,7 +174,7 @@ if (import.meta.env.DEV) {
       async temporalPathCompare(T = 2, fps = 12, from = 1) {
         const e = engine as unknown as {
           renderer: THREE.WebGLRenderer | null;
-          temporal: import('./rendering/temporal/TemporalFrameProvider').TemporalFrameProvider | null;
+          temporal: TemporalFrameProvider | null;
           temporalSource: unknown;
           boundaryMode: string;
         };

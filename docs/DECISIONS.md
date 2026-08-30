@@ -688,3 +688,14 @@ that — never raw CPU float readbacks of live class targets).
   Motion Signals before this work existed; taking the number would break a
   promise already written down. Creative Expansion 01 ships as v0.3.5.
 - **Schema stays v3.** Every CE1x addition was additive and defaulted.
+- **Packaged QA method (§66), and what it can and cannot prove.** The
+  packaged build exposes NO remote debugging port — the switch is dev-only and
+  Electron's fuses reject it as a CLI argument in a packaged app. That is the
+  correct security posture, and it means CDP-driven QA cannot run against the
+  shipping artifact. Interactive packaged QA was therefore done as: build a
+  temporary variant, verify, then rebuild the shipping artifact from clean
+  source. Blind UI automation was NOT used — the desktop-safety rule from 18G
+  stands. What the shipping artifact was verified to do: launch, stay alive,
+  quit cleanly with an empty error log, report version 0.3.5, expose no
+  debugging port, and contain every creative system plus exactly 107 built-in
+  preset ids with the curated-away preset absent.
