@@ -534,3 +534,25 @@ project's grid. Dev-only, read-only.
 - A transform = a pure phase/index mapping applied in serialized order.
 - Anything that samples randomness goes through the deterministic
   hash — never `Math.random`, never stateful PRNG advanced per frame.
+
+## Creative playability on Creative Expansion parameters (CE1H §16)
+
+Patterns were driven through the real modulation pipeline against a
+representative parameter on every Creative Expansion family — Feedback Zoom,
+Feedback Bloom, Time Field, Slit Scan, Motion Mosh, Flow Displace, Reaction
+Diffusion and Cellular — with Euclidean, Sequence and Alternate patterns.
+Every combination stays inside its parameter range, produces genuinely
+distinct values, and is deterministic (`tests/pattern-creative.test.ts`).
+
+One measured behaviour is worth knowing before mapping anything:
+
+**Modulation is additive from the parameter's current value**, so how far a
+pattern actually moves a control depends on where its DEFAULT sits. Measured:
+a pattern driving `time-field.depth` sweeps most of its range, while the same
+pattern on `feedback-zoom.persistence` moves it 1.1% — persistence defaults
+near its ceiling, so the additive contribution clamps almost immediately.
+
+That is a mapping decision, not a defect. Narrow the mapping's `min`/`max` to
+the region you want, or use a negative `amount` to pull downward from a
+high default. The same reasoning applies to the audio band ranges in
+[MODULATION.md](MODULATION.md).
