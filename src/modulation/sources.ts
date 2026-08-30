@@ -31,8 +31,14 @@ export const MOD_SOURCES: ModSourceDef[] = [
   // v0.4A — the image itself. Values are injected per frame (ctx.visual);
   // see docs/SIGNALS.md for the RAW/CALIBRATED split and the N-1 contract.
   { id: 'image.luminance', label: 'Luminance', group: 'image' },
+  { id: 'image.contrast', label: 'Contrast', group: 'image' },
+  { id: 'image.edgeEnergy', label: 'Edge Energy', group: 'image' },
   { id: 'motion.amount', label: 'Motion Amount', group: 'motion' },
+  { id: 'motion.activity', label: 'Motion Activity', group: 'motion' },
   { id: 'motion.x', label: 'Motion X', group: 'motion' },
+  { id: 'motion.y', label: 'Motion Y', group: 'motion' },
+  { id: 'motion.centroidX', label: 'Motion Centre X', group: 'motion' },
+  { id: 'motion.centroidY', label: 'Motion Centre Y', group: 'motion' },
 ];
 
 export interface SourceContext {

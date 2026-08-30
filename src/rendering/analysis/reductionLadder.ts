@@ -1,34 +1,47 @@
 import type { RawVisualStats } from '@/signals/visual/types';
 
 /**
- * v0.4A A2 — the pure half of the GPU reduction.
+ * v0.4A/B — the pure half of the GPU reduction.
  *
  * Turning a frame into scalars must never read the frame back to the CPU. The
- * GPU sums four channels down a ladder; this module owns the arithmetic around
- * that — level sizing, the final decode, and a CPU reference implementation
- * the goldens check the GPU against.
+ * GPU sums a fixed set of accumulators down a ladder; this module owns the
+ * arithmetic around that — level sizing, the final decode, and a CPU reference
+ * implementation the goldens check the GPU against.
  *
- * Channel layout of every level (RGBA32F):
- *   R = luma            Rec.709 over the source
- *   G = |flow|          magnitude, uv per frame
- *   B = flow.x          SIGNED, unweighted
- *   A = 1               coverage
+ * v0.4B widened the payload from one RGBA target to THREE (MRT), because six
+ * more signals needed six more sums. The alternative — a second and third
+ * ladder — would have tripled the readback stalls, which dominate the cost.
  *
- * B is deliberately NOT magnitude-weighted. The weighted mean of the unit
- * direction is Σ(|f|·(f.x/|f|)) / Σ|f| = Σf.x / Σ|f| — the weight cancels, so
- * no fifth accumulator is needed and the result is bounded to ±1 by
- * construction. That is why motion.x needs no per-source calibration.
+ * Plane layout (each an RGBA32F attachment of the same level):
+ *
+ *   plane 0   R = L            G = L*L         B = |grad L|   A = 1
+ *   plane 1   R = |f|          G = f.x         B = f.y        A = moving?1:0
+ *   plane 2   R = u*|f|        G = v*|f|       B = 0          A = 0
+ *
+ * Why these and not others:
+ *  - `L*L` with `L` gives variance in one pass: E[L2] - E[L]^2. Contrast is a
+ *    standard deviation, not an ad-hoc edge measure.
+ *  - `f.x`/`f.y` are SIGNED and UNWEIGHTED. The magnitude weight cancels in
+ *    the ratio Sum(f.x)/Sum(|f|), which is the magnitude-weighted mean of the
+ *    unit direction — bounded to +-1 by construction, so the directional
+ *    signals need no per-source calibration.
+ *  - `u*|f|` and `v*|f|` are first moments of the flow magnitude, so the
+ *    centroid is Sum(u|f|)/Sum(|f|): a position, in the source's own
+ *    normalised coordinates, with no tracking model anywhere.
  */
 
-/** Children summed per reduce pass, per axis. 4×4 = 16 taps per draw. */
+/** Children summed per reduce pass, per axis. 4x4 = 16 taps per draw. */
 export const REDUCE_FACTOR = 4;
 
 /** Stop reducing once the level fits here; sum the remainder on the CPU. */
 export const TILE_MAX = 8;
 
+/** How many RGBA planes the motion configuration carries. */
+export const MOTION_PLANES = 3;
+
 /**
  * Sizes of every reduce level after the extract pass, `ceil` at each step.
- * Chasing the ladder to 1×1 would cost two more full passes to move ~60
+ * Chasing the ladder to 1x1 would cost two more full passes to move ~60
  * floats, so it stops at TILE_MAX and the tile is summed during decode.
  */
 export function levelSizes(width: number, height: number): [number, number][] {
@@ -46,35 +59,33 @@ export function levelSizes(width: number, height: number): [number, number][] {
 /**
  * Flow magnitude below which direction is noise rather than motion, in uv per
  * frame, expressed against the analysis grid. A twentieth of a texel sits under
- * the measured LK noise floor (background magnitude ~0.166‰ uv at the 320 grid).
- * Used as Tikhonov regularisation on the divisor — the same idiom as the
- * diagonal `reg` in LK_FRAG — so a dead-still frame decays smoothly to 0.5
+ * the measured LK noise floor (background magnitude ~0.166 per mille uv at the
+ * 320 grid). Used as Tikhonov regularisation on the divisor — the same idiom as
+ * the diagonal `reg` in LK_FRAG — so a dead-still frame decays smoothly to 0.5
  * instead of exploding on noise, and 0/0 cannot occur.
  */
 export function directionGate(gridWidth: number): number {
   return 0.05 / Math.max(gridWidth, 1);
 }
 
-/** Sum a readback tile (RGBA, row-major, any size) into the four totals. */
-export function sumTile(tile: Float32Array): [number, number, number, number] {
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  let a = 0;
-  for (let i = 0; i < tile.length; i += 4) {
-    r += tile[i] as number;
-    g += tile[i + 1] as number;
-    b += tile[i + 2] as number;
-    a += tile[i + 3] as number;
-  }
-  return [r, g, b, a];
-}
+/**
+ * A texel counts as MOVING above this displacement. Five times the measured LK
+ * noise floor (0.053 texels/frame), so a still frame reads activity 0 rather
+ * than a few percent of shimmer. This threshold is what separates
+ * `motion.activity` (how MUCH of the frame moves) from `motion.amount` (how
+ * FAST it moves on average): without it, activity would just be amount again.
+ */
+export const ACTIVITY_TEXELS = 0.25;
 
 /**
- * Closed-form decode. `gridWidth` converts the mean magnitude from uv/frame to
- * analysis texels/frame, which is what makes motion.amount independent of the
- * analysis resolution.
+ * Below this mean displacement the centroid is meaningless — dividing two
+ * numbers that are both noise gives a position that jitters across the whole
+ * frame. Above it the first moment is dominated by real motion. Chosen at
+ * twice the LK noise floor and verified against the static fixture, which must
+ * report INVALID rather than a plausible-looking 0.5.
  */
+export const CENTROID_MIN_TEXELS = 0.1;
+
 /**
  * Above this mean displacement Lucas-Kanade has stopped measuring: its
  * linearization holds over the 5x5 window it samples, and past it the field
@@ -97,34 +108,115 @@ export const LK_APERTURE_TEXELS = 4;
  * instrument can express would be inventing a number. */
 export const MOTION_SATURATION_TEXELS = 8 * Math.SQRT2;
 
+/** Sum one plane of a packed readback into its four totals.
+ *
+ * The packed buffer holds `planes` tiles stacked vertically, so plane `p`
+ * occupies rows [p*tileHeight, (p+1)*tileHeight). One readback for every
+ * plane is what keeps the number of GPU sync stalls at one. */
+export function sumPlane(
+  packed: Float32Array,
+  tileWidth: number,
+  tileHeight: number,
+  plane: number,
+): [number, number, number, number] {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let a = 0;
+  const start = plane * tileWidth * tileHeight * 4;
+  const end = start + tileWidth * tileHeight * 4;
+  for (let i = start; i < end && i < packed.length; i += 4) {
+    r += packed[i] as number;
+    g += packed[i + 1] as number;
+    b += packed[i + 2] as number;
+    a += packed[i + 3] as number;
+  }
+  return [r, g, b, a];
+}
+
+/** Back-compat helper: sum a single-plane tile. */
+export function sumTile(tile: Float32Array): [number, number, number, number] {
+  return sumPlane(tile, tile.length / 4, 1, 0);
+}
+
+const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
+const clamp01 = (v: number): number => clamp(v, 0, 1);
+
+const EMPTY: RawVisualStats = {
+  n: 0,
+  luminance: 0,
+  contrast: 0,
+  edgeEnergy: 0,
+  motionAmount: 0,
+  motionX: 0.5,
+  motionY: 0.5,
+  motionActivity: 0,
+  centroidX: 0.5,
+  centroidY: 0.5,
+  motionValid: false,
+  centroidValid: false,
+  hasFlow: false,
+};
+
+/**
+ * Closed-form decode of a packed readback.
+ *
+ * `gridWidth` converts mean magnitudes from uv/frame to analysis texels/frame,
+ * which is what makes every motion figure independent of the analysis
+ * resolution — preview and export can disagree about the grid and still agree
+ * about the number.
+ */
 export function decodeStats(
-  tile: Float32Array,
+  packed: Float32Array,
+  tileWidth: number,
+  tileHeight: number,
   gridWidth: number,
   hasFlow: boolean,
 ): RawVisualStats {
-  const [sr, sg, sb, sa] = sumTile(tile);
-  const n = sa;
-  if (n <= 0) {
-    return { n: 0, luminance: 0, motionAmount: 0, motionX: 0.5, motionValid: false, hasFlow: false };
-  }
-  const gate = n * directionGate(gridWidth);
-  const dirX = hasFlow ? sb / Math.max(sg, gate) : 0;
-  const motionAmount = hasFlow
-    ? clamp((sg / n) * gridWidth, 0, MOTION_SATURATION_TEXELS)
-    : 0;
-  return {
+  const [sumL, sumL2, sumEdge, coverage] = sumPlane(packed, tileWidth, tileHeight, 0);
+  const n = coverage;
+  if (n <= 0) return EMPTY;
+
+  const meanL = sumL / n;
+  // max(.,0) because catastrophic cancellation can put a flat frame a few ULP
+  // below zero, and sqrt of that is NaN — which would poison every downstream
+  // envelope silently.
+  const variance = Math.max(sumL2 / n - meanL * meanL, 0);
+
+  const image = {
     n,
-    luminance: clamp01(sr / n),
+    luminance: clamp01(meanL),
+    contrast: Math.sqrt(variance),
+    edgeEnergy: sumEdge / n,
+  };
+
+  if (!hasFlow) return { ...EMPTY, ...image };
+
+  const [sumMag, sumFx, sumFy, active] = sumPlane(packed, tileWidth, tileHeight, 1);
+  const [sumUw, sumVw] = sumPlane(packed, tileWidth, tileHeight, 2);
+
+  const gate = n * directionGate(gridWidth);
+  const divisor = Math.max(sumMag, gate);
+  const motionAmount = clamp((sumMag / n) * gridWidth, 0, MOTION_SATURATION_TEXELS);
+  const centroidValid = motionAmount >= CENTROID_MIN_TEXELS;
+
+  return {
+    ...image,
     motionAmount,
-    motionX: 0.5 + 0.5 * clamp(dirX, -1, 1),
-    motionValid: hasFlow && motionAmount < LK_APERTURE_TEXELS,
-    hasFlow,
+    motionX: 0.5 + 0.5 * clamp(sumFx / divisor, -1, 1),
+    motionY: 0.5 + 0.5 * clamp(sumFy / divisor, -1, 1),
+    motionActivity: clamp01(active / n),
+    centroidX: centroidValid ? clamp01(sumUw / divisor) : 0.5,
+    centroidY: centroidValid ? clamp01(sumVw / divisor) : 0.5,
+    motionValid: motionAmount < LK_APERTURE_TEXELS,
+    centroidValid,
+    hasFlow: true,
   };
 }
 
 /**
- * CPU reference for the whole ladder, used only by tests: the goldens assert
- * the GPU agrees with this, and this agrees with a naive sum.
+ * CPU reference for one plane of the ladder, used only by tests: the goldens
+ * assert the GPU agrees with this, and this agrees with a naive sum.
  */
 export function cpuReduce(
   src: Float32Array,
@@ -144,13 +236,10 @@ export function cpuReduce(
         let a = 0;
         for (let j = 0; j < REDUCE_FACTOR; j++) {
           for (let i = 0; i < REDUCE_FACTOR; i++) {
-            const px = x * REDUCE_FACTOR + i;
-            const py = y * REDUCE_FACTOR + j;
-            // Out-of-range children are SKIPPED, not clamped and not zero-
-            // padded-with-coverage: clamping would duplicate edge texels and
-            // bias the mean on odd dimensions.
-            if (px >= w || py >= h) continue;
-            const o = (py * w + px) * 4;
+            const sx = x * REDUCE_FACTOR + i;
+            const sy = y * REDUCE_FACTOR + j;
+            if (sx >= w || sy >= h) continue;
+            const o = (sy * w + sx) * 4;
             r += cur[o] as number;
             g += cur[o + 1] as number;
             b += cur[o + 2] as number;
@@ -170,6 +259,3 @@ export function cpuReduce(
   }
   return { tile: cur, tileWidth: w, tileHeight: h };
 }
-
-const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
-const clamp01 = (v: number): number => clamp(v, 0, 1);

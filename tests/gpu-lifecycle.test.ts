@@ -25,7 +25,7 @@ const OWNERS: [string, string[]][] = [
   ['src/rendering/feedback/feedbackStep.ts', ['scene']],
   ['src/rendering/temporal/TemporalFrameProvider.ts', ['scene']],
   ['src/sources/generators/GeneratorSource.ts', ['scene', 'simScene']],
-  ['src/rendering/analysis/ImageStatsReducer.ts', ['extractScene', 'reduceScene']],
+  ['src/rendering/analysis/ImageStatsReducer.ts', ['packScene']],
 ];
 
 describe('every offscreen pass disposes its geometry (§63)', () => {
@@ -41,6 +41,20 @@ describe('every offscreen pass disposes its geometry (§63)', () => {
       }
     });
   }
+
+  it('the stats reducer releases every pipeline it compiled, not just the last', () => {
+    // v0.4B gave the reducer one pipeline per plane count, held in a Map. A
+    // per-field check cannot see those, so assert the loop that frees them.
+    const source = readFileSync(
+      join(__dirname, '..', 'src', 'rendering', 'analysis', 'ImageStatsReducer.ts'),
+      'utf8',
+    );
+    const dispose = source.slice(source.indexOf('  dispose(): void {'));
+    expect(dispose).toContain('for (const p of this.pipelines.values())');
+    expect(dispose).toContain('disposeSceneGeometry(p.extractScene)');
+    expect(dispose).toContain('disposeSceneGeometry(p.reduceScene)');
+    expect(dispose).toContain('this.pipelines.clear()');
+  });
 
   it('the feedback technique releases its bloom pass too', () => {
     const source = readFileSync(

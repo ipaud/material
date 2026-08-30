@@ -14,11 +14,24 @@ import { unwatchSignal, watchSignal } from '@/signals/visual/scopeStore';
 
 const HISTORY = 120; // ~4s at the 30Hz analysis rate
 
+const RAW_OF: Record<VisualSignalId, (s: RawVisualStats) => number> = {
+  'image.luminance': (s) => s.luminance,
+  'image.contrast': (s) => s.contrast,
+  'image.edgeEnergy': (s) => s.edgeEnergy,
+  'motion.amount': (s) => s.motionAmount,
+  'motion.activity': (s) => s.motionActivity,
+  'motion.x': (s) => s.motionX,
+  'motion.y': (s) => s.motionY,
+  'motion.centroidX': (s) => s.centroidX,
+  'motion.centroidY': (s) => s.centroidY,
+};
+
 function rawOf(id: VisualSignalId, stats: RawVisualStats | null): number | null {
   if (!stats) return null;
-  if (id === 'image.luminance') return stats.luminance;
-  if (!stats.hasFlow) return null;
-  return id === 'motion.amount' ? stats.motionAmount : stats.motionX;
+  // Motion signals do not exist without a field — and a held centroid is
+  // reported as held, not as a fresh measurement.
+  if (id.startsWith('motion.') && !stats.hasFlow) return null;
+  return RAW_OF[id](stats);
 }
 
 function Sparkline({ values }: { values: number[] }) {
@@ -57,8 +70,12 @@ function SignalRow({ id }: { id: VisualSignalId }) {
     if (history.current.length > HISTORY) history.current.shift();
   }
 
+  // A held centroid must SAY it is held. The value is genuinely useful — a
+  // gesture that stops should leave the effect where it ended — but calling it
+  // LIVE would present a memory as a measurement.
+  const held = id.startsWith('motion.centroid') && stats !== null && !stats.centroidValid;
   const validity =
-    raw === null ? 'INACTIVE' : published === undefined ? 'WARMING' : 'LIVE';
+    raw === null ? 'INACTIVE' : published === undefined ? 'WARMING' : held ? 'HELD' : 'LIVE';
 
   return (
     <div className="scope-row" data-tick={tick}>

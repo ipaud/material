@@ -55,6 +55,31 @@ export const MOTION_AMOUNT_CALIBRATION: CalibratorParams = {
 };
 
 /**
+ * Contrast is a standard deviation, so its useful band is narrow: measured
+ * 0.10-0.28 across generators, video and camera. The floor is half the
+ * luminance floor because the quantity itself is roughly half the scale.
+ */
+export const CONTRAST_CALIBRATION: CalibratorParams = {
+  tauExpandSec: 1.5,
+  tauContractSec: 4,
+  minHalfSpan: 0.025,
+  warmupSec: 0.75,
+};
+
+/**
+ * Edge energy is luma per analysis texel and lives near zero for soft
+ * material — a blurred frame reads an order of magnitude below a graphic one.
+ * A small floor is what stops a soft source from being amplified into
+ * shimmer; it is deliberately tighter than contrast's.
+ */
+export const EDGE_CALIBRATION: CalibratorParams = {
+  tauExpandSec: 1.5,
+  tauContractSec: 4,
+  minHalfSpan: 0.01,
+  warmupSec: 0.75,
+};
+
+/**
  * Preroll needed for a subrange export to agree with a full one.
  * |Δstate| <= exp(-T/tauContract) * range. At tauContract = 4s, 24s is six
  * time constants: state error <= 0.0025, and the calibrated output differs by

@@ -20,9 +20,38 @@ const src = (...p: string[]) => readFileSync(join(__dirname, '..', ...p), 'utf8'
  */
 
 describe('signal contract (§A1)', () => {
-  it('publishes exactly the vertical slice, with dotted family ids', () => {
-    expect(VISUAL_SIGNAL_IDS).toEqual(['image.luminance', 'motion.amount', 'motion.x']);
+  it('publishes exactly the curated vocabulary, with dotted family ids', () => {
+    // v0.4B added six after the three of v0.4A. The list is asserted whole so
+    // that adding a signal is a deliberate act with a fixture behind it.
+    expect(VISUAL_SIGNAL_IDS).toEqual([
+      'image.luminance',
+      'image.contrast',
+      'image.edgeEnergy',
+      'motion.amount',
+      'motion.activity',
+      'motion.x',
+      'motion.y',
+      'motion.centroidX',
+      'motion.centroidY',
+    ]);
     for (const s of VISUAL_SIGNALS) expect(s.id.startsWith(`${s.family}.`)).toBe(true);
+  });
+
+  it('calibration is chosen per signal, never applied by default', () => {
+    const calibrated = VISUAL_SIGNALS.filter((s) => s.calibrated).map((s) => s.id);
+    // Three reasons to opt out, and they are different: intrinsic bounds
+    // (x/y), a physical fraction that means something as it stands
+    // (activity), and a coordinate that must not be moved (the centroids).
+    expect(calibrated).toEqual([
+      'image.luminance',
+      'image.contrast',
+      'image.edgeEnergy',
+      'motion.amount',
+    ]);
+    for (const id of ['motion.centroidX', 'motion.centroidY'] as const) {
+      expect(visualSignalDef(id)?.domain).toBe('position');
+      expect(visualSignalDef(id)?.calibrated).toBe(false);
+    }
   });
 
   it('every signal states its RAW unit — never a bare "amount"', () => {
@@ -108,9 +137,16 @@ describe('publication uses absence as the neutral (§A1)', () => {
   const stats = (over: Partial<RawVisualStats> = {}): RawVisualStats => ({
     n: 100,
     luminance: 0.4,
+    contrast: 0.2,
+    edgeEnergy: 0.05,
     motionAmount: 2,
     motionX: 0.7,
+    motionY: 0.55,
+    motionActivity: 0.3,
+    centroidX: 0.6,
+    centroidY: 0.4,
     motionValid: true,
+    centroidValid: true,
     hasFlow: true,
     ...over,
   });
@@ -237,6 +273,13 @@ describe('measured live defects (§A6)', () => {
   });
 });
 
+/** Pack per-plane RGBA totals into the layout decodeStats reads. */
+function packPlanes(planes: number[][]): Float32Array {
+  const out = new Float32Array(planes.length * 4);
+  planes.forEach((p, i) => out.set(p, i * 4));
+  return out;
+}
+
 describe('saturation is reported, not swallowed (§A9)', () => {
   it('caps the amount at the field ceiling and still publishes it', () => {
     // Suppressing saturated frames deleted motion from 59 of 61 frames of a
@@ -244,7 +287,17 @@ describe('saturation is reported, not swallowed (§A9)', () => {
     // ceiling is the shader's own clamp: 8 per component, so 8*sqrt(2) on the
     // diagonal. Reporting more than the instrument can express is inventing.
     const demand = new Set<VisualSignalId>(['motion.amount', 'motion.x']);
-    const saturated = decodeStats(new Float32Array([0.5 * 64, (40 / 320) * 64, 0, 64]), 320, true);
+    const saturated = decodeStats(
+      packPlanes([
+        [0.5 * 64, 0.3 * 64, 0, 64],
+        [(40 / 320) * 64, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]),
+      1,
+      1,
+      320,
+      true,
+    );
     expect(saturated.motionAmount).toBeCloseTo(MOTION_SATURATION_TEXELS, 6);
     expect(saturated.motionValid).toBe(false);
     expect(publishVisualSignals(saturated, demand, () => 0.9)).toEqual({
@@ -252,7 +305,17 @@ describe('saturation is reported, not swallowed (§A9)', () => {
       'motion.x': 0.5,
     });
 
-    const measured = decodeStats(new Float32Array([0.5 * 64, (1.5 / 320) * 64, 0, 64]), 320, true);
+    const measured = decodeStats(
+      packPlanes([
+        [0.5 * 64, 0.3 * 64, 0, 64],
+        [(1.5 / 320) * 64, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]),
+      1,
+      1,
+      320,
+      true,
+    );
     expect(measured.motionAmount).toBeCloseTo(1.5, 4);
     expect(measured.motionValid).toBe(true);
   });
@@ -260,7 +323,17 @@ describe('saturation is reported, not swallowed (§A9)', () => {
   it('an absent field still omits motion entirely', () => {
     // The companion: the guard above must not become a licence to publish 0.
     const demand = new Set<VisualSignalId>(['motion.amount', 'motion.x']);
-    const none = decodeStats(new Float32Array([0.5 * 64, 0, 0, 64]), 320, false);
+    const none = decodeStats(
+      packPlanes([
+        [0.5 * 64, 0.3 * 64, 0, 64],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]),
+      1,
+      1,
+      320,
+      false,
+    );
     expect(none.hasFlow).toBe(false);
     expect(publishVisualSignals(none, demand, () => 0.5)).toEqual({});
   });

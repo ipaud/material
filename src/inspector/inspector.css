@@ -32,6 +32,7 @@
   color: var(--text-dim);
 }
 .scope-validity.live { color: var(--accent); }
+.scope-validity.held,
 .scope-validity.warming { color: var(--text-dim); }
 .scope-validity.inactive { color: var(--text-dim); opacity: 0.5; }
 .scope-values {

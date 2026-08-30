@@ -104,22 +104,82 @@ energy rather than plateauing. Negative amounts pulse downward.
 MATERIAL can listen to the picture it is making. Three signals, deliberately
 few: each one had to survive every gate before the next was considered.
 
-| Id | Unit | Domain | Calibrated |
-| --- | --- | --- | --- |
-| `image.luminance` | Rec.709 luma, 0..1, display-referred | unipolar | yes |
-| `motion.amount` | analysis texels per frame | unipolar | yes |
-| `motion.x` | unit direction, 0.5 = still | centred | no — intrinsically normalised |
+### The semantic matrix
+
+| Id | RAW meaning | RAW domain | Public domain | Calibration | Validity |
+| --- | --- | --- | --- | --- | --- |
+| `image.luminance` | mean Rec.709 luma | 0..1 | unipolar | per-source envelope | warming 0.75 s |
+| `image.contrast` | standard deviation of luma | 0..0.5 | unipolar | per-source envelope | warming 0.75 s |
+| `image.edgeEnergy` | mean gradient magnitude | 0..~1.4 luma/texel | unipolar | per-source envelope | warming 0.75 s |
+| `motion.amount` | mean flow magnitude | 0..11.3 texels/frame | unipolar | per-source envelope | absent without flow |
+| `motion.activity` | fraction of texels moving | 0..1 | unipolar | **none** — already a fraction | absent without flow |
+| `motion.x` | weighted mean unit direction | ±1 → 0..1 | centred | **none** — intrinsically bounded | absent without flow |
+| `motion.y` | weighted mean unit direction | ±1 → 0..1 | centred | **none** — intrinsically bounded | absent without flow |
+| `motion.centroidX` | first moment of flow magnitude | 0..1, 0 = left | **position** | **none** — it is a coordinate | held when motion < 0.1 texels |
+| `motion.centroidY` | first moment of flow magnitude | 0..1, 0 = top | **position** | **none** — it is a coordinate | held when motion < 0.1 texels |
+
+All nine cost the same: one shared extract, one shared ladder, one readback.
 
 They join `MOD_SOURCES` and flow through the same evaluator as audio and beat.
 Nothing about the modulation engine changed to accommodate them.
 
+### Calibration is chosen, not automatic
+
+Four signals calibrate. Five deliberately do not, for three different reasons:
+
+- **intrinsically bounded** — `motion.x`/`motion.y` are magnitude-weighted
+  means of the *unit* direction, so the weight cancels analytically and the
+  result cannot leave ±1. Calibrating would add lag and buy nothing.
+- **already a physical fraction** — `motion.activity` answers "how much of the
+  frame is moving" in units a performer can reason about. Calibrated, it would
+  answer "more than usual for this source", which is a different and vaguer
+  question.
+- **a coordinate** — `motion.centroidX`/`Y` say WHERE. Stretching a position to
+  fill "usable travel" moves the effect somewhere the motion is not, which is
+  the one thing a positional signal must never do.
+
+### What separates the signals that look alike
+
+Three pairs could plausibly be redundant. Each has a fixture that proves it is
+not, and a measured correlation on real material:
+
+| Pair | Discriminating fixture | Result | Correlation on video |
+| --- | --- | --- | --- |
+| luminance vs contrast | flat frames at 0, 0.5, 1 | contrast 0 at every brightness | 0.57 |
+| contrast vs edgeEnergy | 16 stripes vs one split, both 50/50 black-white | identical contrast (0.5), edge **31×** apart | 0.70 |
+| amount vs activity | 1/16 of the frame at 16× speed vs the whole frame slowly | identical amount, activity **16×** apart | 0.77 |
+| motion.x vs centroidX | a patch moving right, on the left of frame | direction +1, position 0.125 | **0.12** |
+
+Contrast and edge energy correlate most on real video, because a busy frame
+tends to be both. They are kept apart because the fixture shows the quantities
+are independent, and because they answer different questions: contrast is how
+far the tones spread, edge energy is how often the image crosses that spread.
+
+Edge energy is **total variation per texel**, which has one consequence worth
+stating: a smooth full-range ramp and a single hard edge read the SAME, because
+both traverse the range exactly once. Contrast is what separates those two. A
+blur lowers edge energy by removing amplitude, not by being smooth.
+
 ### Where the numbers come from
 
-One GPU chain, four channels, all statistics at once. An extract pass packs
-`R = luma, G = |flow|, B = flow.x signed, A = coverage` at the analysis grid,
-then 4×4 **sum** passes walk the ladder down until the largest side is ≤ 8, and
-only that tile comes back — typically 5×3 RGBA floats, **240 bytes**. The frame
-itself is never read back.
+One GPU chain, three RGBA planes (MRT), all nine statistics at once. An
+extract pass packs, at the analysis grid:
+
+```
+plane 0   R = L          G = L²        B = |∇L|      A = 1
+plane 1   R = |f|        G = f.x       B = f.y       A = moving ? 1 : 0
+plane 2   R = u·|f|      G = v·|f|     B = —         A = —
+```
+
+then 4×4 **sum** passes walk the ladder down until the largest side is ≤ 8, one
+tiny pass stacks the three final tiles into a single target, and only that
+comes back — 5×9 RGBA floats, **720 bytes**. The frame itself is never read
+back. Image-only demand uses one plane and skips the stacking pass: 4 draws and
+**192 bytes**.
+
+`L²` alongside `L` gives variance in one pass — contrast is a real standard
+deviation, not an ad-hoc spread. `u·|f|` and `v·|f|` are first moments, so the
+centroid is `Σ(u|f|)/Σ|f|`: a position, with no tracking model anywhere.
 
 `A` carries the sample count, which is what removes edge bias: texels outside
 an odd-sized parent contribute `(0,0,0,0)` and change neither numerator nor

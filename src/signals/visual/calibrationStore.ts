@@ -1,4 +1,6 @@
 import {
+  CONTRAST_CALIBRATION,
+  EDGE_CALIBRATION,
   LUMINANCE_CALIBRATION,
   MOTION_AMOUNT_CALIBRATION,
   type CalibratorParams,
@@ -23,10 +25,17 @@ import type { RawVisualStats, VisualSignalId } from './types';
  * does not copy that.
  */
 
+/**
+ * Calibration is CHOSEN per signal, not applied by default. Three kinds of
+ * signal opt out, for three different reasons — see VisualSignalDef.calibrated.
+ */
 const PARAMS: Partial<Record<VisualSignalId, CalibratorParams>> = {
   'image.luminance': LUMINANCE_CALIBRATION,
+  'image.contrast': CONTRAST_CALIBRATION,
+  'image.edgeEnergy': EDGE_CALIBRATION,
   'motion.amount': MOTION_AMOUNT_CALIBRATION,
-  // motion.x is intrinsically normalised — never calibrated.
+  // motion.x/y are intrinsically normalised; motion.activity is already a
+  // physical fraction of the frame; the centroids are positions.
 };
 
 export class CalibrationStore {
@@ -44,6 +53,8 @@ export class CalibrationStore {
   advance(origin: string | null, stats: RawVisualStats | null, dtSec: number): void {
     if (!origin || !stats) return;
     this.step(origin, 'image.luminance', stats.luminance, dtSec);
+    this.step(origin, 'image.contrast', stats.contrast, dtSec);
+    this.step(origin, 'image.edgeEnergy', stats.edgeEnergy, dtSec);
     if (stats.hasFlow) this.step(origin, 'motion.amount', stats.motionAmount, dtSec);
   }
 
