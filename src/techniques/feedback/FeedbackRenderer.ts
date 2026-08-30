@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '@/rendering/disposeScene';
 import type { ParamRecord } from '@shared/schemas/project';
 import type { TechniqueContext, TechniqueRenderer } from '../types';
 import { FeedbackClock, FeedbackSurface } from '@/rendering/feedback/FeedbackSurface';
@@ -291,6 +292,7 @@ export class FeedbackRenderer implements TechniqueRenderer {
     this.step.dispose();
     this.viewMaterial.dispose();
     this.mesh.geometry.dispose();
+    if (this.bloomScene) disposeSceneGeometry(this.bloomScene);
     this.bloomA?.dispose();
     this.bloomB?.dispose();
     this.bloomOut?.dispose();

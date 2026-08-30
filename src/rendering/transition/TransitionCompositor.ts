@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '../disposeScene';
 
 /**
  * CE1G — the pixel TRANSITION compositor.
@@ -295,5 +296,6 @@ export class TransitionCompositor {
   dispose(): void {
     this.release();
     this.material.dispose();
+    disposeSceneGeometry(this.scene);
   }
 }

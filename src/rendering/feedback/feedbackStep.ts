@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '../disposeScene';
 import type { FeedbackSurface } from './FeedbackSurface';
 
 /**
@@ -257,5 +258,6 @@ export class FeedbackStep {
 
   dispose(): void {
     this.material.dispose();
+    disposeSceneGeometry(this.scene);
   }
 }

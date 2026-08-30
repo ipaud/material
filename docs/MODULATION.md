@@ -78,3 +78,38 @@ preview evaluator agree to **4.2 × 10⁻¹³** over 90 frames.
 | `master → threshold` | image thins as energy rises (Slow Burn) |
 | `time → rotation` | slow drift across the whole piece |
 | `bass → depth` | parallax that breathes with the mix |
+
+## Band balance on real material (measured, CE1H §17)
+
+The three frequency bands share ONE normalization reference, deliberately, so
+that a pure bass tone cannot light up the `highs` track. The consequence on
+real music is worth knowing before you map anything.
+
+Measured over the full reference track (SHAZUNO-material.mp3, 221s, 20717
+analysis frames), as the fraction of the track each source spends above 0.2:
+
+| Source | min | max | mean | usable time |
+|---|---|---|---|---|
+| master | 0 | 1.000 | 0.433 | 87.8% |
+| rms | 0.003 | 1.000 | 0.417 | 92.4% |
+| peak | 0 | 1.000 | 0.437 | 91.4% |
+| centroid | 0.161 | 1.000 | 0.694 | 99.8% |
+| flux | 0 | 1.000 | 0.250 | 53.6% |
+| transients | 0 | 1.000 | 0.250 | 53.6% |
+| bass | 0 | 1.000 | 0.237 | 45.1% |
+| onset | 0 | 1.000 | 0.044 | 6.3% |
+| **mids** | 0 | **0.181** | 0.055 | **0.0%** |
+| **highs** | 0 | **0.058** | 0.007 | **0.0%** |
+
+On a loud, bass-heavy mix, `mids` never exceeds 0.18 and `highs` never
+exceeds 0.06 across the entire track. They are not broken and they are not
+silent — they are correctly scaled *relative to the bass*, which is what the
+shared reference buys.
+
+**What to do about it.** A mapping owns its own `min`/`max`, so map `mids`
+over 0–0.18 and `highs` over 0–0.06 on material like this and both become
+full-travel controls. Mapping them 0–1 and concluding they do nothing is the
+mistake this table exists to prevent.
+
+`onset` spending only 6% of the track above 0.2 is correct and desirable —
+it drives triggers, and a smeared onset track fires constantly.

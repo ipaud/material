@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '../disposeScene';
 import {
   SimulationClock,
   SimulationSurface,
@@ -173,5 +174,7 @@ export class SimulationRunner {
     this.surface.dispose();
     this.seedMat.dispose();
     this.stepMat.dispose();
+    disposeSceneGeometry(this.seedScene);
+    disposeSceneGeometry(this.stepScene);
   }
 }

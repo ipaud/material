@@ -42,6 +42,18 @@ contact-sheet harness (`window.__dev.presetSheet`).
   so it is a real project, not a kernel.
 - **Particles** — no existing primitive covers it.
 
+### Per-band normalization option
+
+`bass`/`mids`/`highs` share one normalization reference so relative band
+energy survives — a pure bass tone must not light up the highs track. The
+measured cost on a bass-heavy mix is that mids peak at 0.18 and highs at 0.06
+across a whole track (see MODULATION.md). Mapping ranges are the workaround
+today. An opt-in per-band normalization would make them full-travel controls
+at the cost of losing band balance, so it wants to be a choice rather than a
+change. Deliberately not done in CE1H: §17 forbids new analyzer work, and
+changing normalization would silently alter every existing project's
+modulation.
+
 ## Platform
 
 - **ISF host** — would let MATERIAL load external shaders. Changes the

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '@/rendering/disposeScene';
 import type { ParamRecord } from '@shared/schemas/project';
 import type {
   SourceCapabilities,
@@ -277,6 +278,8 @@ void main() {
     this.material?.dispose();
     this.sim?.dispose();
     this.simView?.dispose();
+    disposeSceneGeometry(this.scene);
+    if (this.simScene) disposeSceneGeometry(this.simScene);
     this.target = null;
     this.sim = null;
   }

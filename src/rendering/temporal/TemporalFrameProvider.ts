@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '../disposeScene';
 
 /**
  * Composition-time addressable frame history.
@@ -231,6 +232,7 @@ export class TemporalFrameProvider {
   dispose(): void {
     this.target.dispose();
     this.quadMaterial.dispose();
+    disposeSceneGeometry(this.scene);
   }
 
   /** Blit a texture into one physical slot. */

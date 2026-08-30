@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { disposeSceneGeometry } from '../disposeScene';
 
 /**
  * CE1D — the OPTICAL FLOW primitive. ONE per renderer, shared by every
@@ -284,5 +285,8 @@ export class OpticalFlowField {
     this.lumaMat.dispose();
     this.lkMat.dispose();
     this.blurMat.dispose();
+    disposeSceneGeometry(this.lumaScene);
+    disposeSceneGeometry(this.lkScene);
+    disposeSceneGeometry(this.blurScene);
   }
 }
