@@ -106,8 +106,16 @@ range. *Full vs subrange* = frames of a 1–3s export against a 2–3s export.
 | Morph transition · Radial | 12/12 | 12/12 |
 | Morph transition · Glitch | 12/12 | 12/12 |
 | Morph transition · Luma | 12/12 | 12/12 |
+| Audio-driven (Motion Mosh, smoothed) | 12/12 | 12/12 |
 
 All byte-identical, worst pixel delta 0.
+
+The audio row uses the reference track (SHAZUNO-material.mp3) driving Motion
+Mosh through `bass → flow` at smoothing 0.2 and `transients → blockiness`. It
+is listed separately because modulation carries per-frame state of its own:
+the export evaluator replays from the timeline origin so smoothing and trigger
+scheduling arrive at a subrange boundary with the history a full export has.
+Before that fix this row read 12/12 repeat and 0/12 subrange.
 
 **Temporal schedule correctness is not decoder pixel stability.** Everything
 above uses a procedural source. A compressed FileVideo can still return

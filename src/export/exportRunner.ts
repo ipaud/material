@@ -502,48 +502,51 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       durationSec: request.durationSec,
     });
     sessionId = started.sessionId;
-    const evaluate = createFrameEvaluator(request.startSec, request.fps);
-    let primeTemporal = true;
-
     /**
-     * CE1H §37 — stateful FEEDBACK preroll.
+     * CE1H — the evaluator ALWAYS replays from the timeline origin.
      *
-     * `exportBegin` already ran the right NUMBER of feedback steps for the
-     * skipped time, but every one of those steps saw the same frozen source
-     * frame, while the real progression saw the source evolve. Measured: a
-     * subrange export of Feedback Zoom over an animated generator matched a
-     * full export 0/12, and 12/12 over a time-invariant one — the step count
-     * was never the problem, the source was.
+     * Modulation smoothing and trigger scheduling are per-frame state. An
+     * evaluator created at the subrange start begins with none of it while a
+     * full export arrives carrying it, so the same global frame resolves to
+     * different parameter values. Measured with the reference track driving
+     * Motion Mosh: with smoothing 0.2 a subrange matched a full export 0/12,
+     * and with smoothing 0 it matched 12/12 — the audio was never the
+     * problem, the smoothing history was.
      *
-     * So replay the skipped frames for real: same evaluator (from the
-     * origin, so modulation smoothing and triggers replay identically), same
-     * source advance, same feedback stepping. No frame is rendered or
-     * written — this only walks the state forward.
+     * Replaying from the origin costs one cheap CPU evaluation per skipped
+     * frame and makes every evaluator-side state subrange-stable by
+     * construction.
      */
+    const evaluate = createFrameEvaluator(0, request.fps);
     const startFrame = Math.round(request.startSec * request.fps);
+    let primeTemporal = true;
     let prerolled = false;
+
     if (startFrame > 0) {
+      // A feedback technique additionally needs its SURFACE walked forward:
+      // exportBegin ran the right number of steps but every one of them saw
+      // the same frozen source frame, while the real progression saw the
+      // source evolve.
       const probe = createFrameEvaluator(request.startSec, request.fps)(0);
       rendererSync.sync(probe.techniqueId, probe.params);
-      if (engine.isFeedbackTechnique) {
-        const pre = createFrameEvaluator(0, request.fps);
-        for (let f = 0; f < startFrame; f++) {
-          if (useExportStore.getState().cancelRequested) break;
-          const frame = pre(f);
-          rendererSync.sync(frame.techniqueId, frame.params);
-          engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
-          engine.prepareFlowForExport(
-            frame.timeSec,
-            `export:${f}`,
-            f === 0,
-            request.width,
-            request.height,
-            frame.params,
-          );
-          engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
-        }
-        prerolled = true;
+      const walkGpu = engine.isFeedbackTechnique;
+      for (let f = 0; f < startFrame; f++) {
+        if (useExportStore.getState().cancelRequested) break;
+        const frame = evaluate(f); // advances smoothing + triggers
+        if (!walkGpu) continue;
+        rendererSync.sync(frame.techniqueId, frame.params);
+        engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
+        engine.prepareFlowForExport(
+          frame.timeSec,
+          `export:${f}`,
+          f === 0,
+          request.width,
+          request.height,
+          frame.params,
+        );
+        engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
       }
+      prerolled = walkGpu;
     }
 
     for (let i = 0; i < totalFrames; i++) {
@@ -553,7 +556,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         store.finish('cancelled', 'Export cancelled');
         return;
       }
-      const { timeSec, params, techniqueId, transition } = evaluate(i);
+      const { timeSec, params, techniqueId, transition } = evaluate(startFrame + i);
       // Cross-technique morph: the renderer must match the evaluated frame's
       // technique before drawing it (see createExportRendererSync).
       if (rendererSync.sync(techniqueId, params)) primeTemporal = true;

@@ -106,10 +106,23 @@ exceeds 0.06 across the entire track. They are not broken and they are not
 silent — they are correctly scaled *relative to the bass*, which is what the
 shared reference buys.
 
-**What to do about it.** A mapping owns its own `min`/`max`, so map `mids`
-over 0–0.18 and `highs` over 0–0.06 on material like this and both become
-full-travel controls. Mapping them 0–1 and concluding they do nothing is the
-mistake this table exists to prevent.
+**What to do about it — and what NOT to do.** The intuitive move is to narrow
+the mapping to the band's real span. That is backwards. A mapping's
+`min`/`max` are its OUTPUT range:
+
+```
+shaped = min + (max - min) * source
+final  = clamp(base + amount * shaped * parameterSpan)
+```
+
+so setting `max: 0.18` makes the band contribute *less*, not more. Measured on
+this track driving `time-field.depth`: narrowing to 0–0.18 shrinks the travel
+below the plain 0–1 mapping.
+
+Gain lives in **`amount`**, which multiplies the parameter's span. Raising it
+to 5 gives roughly 2.4× the travel — bounded by the parameter ceiling, so gain
+buys reach, not headroom. `tests/audio-driven.test.ts` asserts both directions
+so this advice cannot rot.
 
 `onset` spending only 6% of the track above 0.2 is correct and desirable —
 it drives triggers, and a smeared onset track fires constantly.

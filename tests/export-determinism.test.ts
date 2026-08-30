@@ -1,4 +1,6 @@
 import { describe, expect, it, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { compositionTimeAt } from '@/export/exportRunner';
 import { applyModulations, SmoothingState } from '@/modulation/evaluator';
 import { evalSources, type SourceContext } from '@/modulation/sources';
@@ -204,5 +206,64 @@ describe('composition time is addressed by global frame (§78)', () => {
     // the frame it belongs to rather than drifting the whole sequence.
     expect(compositionTimeAt(2.04, 12, 0)).toBe(compositionTimeAt(2, 12, 0));
     expect(compositionTimeAt(0, 12, 25)).toBe(compositionTimeAt(2, 12, 1));
+  });
+});
+
+/**
+ * CE1H — the export evaluator replays from the ORIGIN.
+ *
+ * Modulation smoothing and trigger scheduling are per-frame state. An
+ * evaluator created at the subrange start begins with none of it while a full
+ * export arrives carrying it, so the same global frame resolves to different
+ * parameter values.
+ *
+ * Found by driving the reference track (SHAZUNO-material.mp3) into Motion
+ * Mosh with `bass → flow` at smoothing 0.2 and exporting: repeat was 12/12
+ * byte-identical, full-vs-subrange 0/12. With smoothing 0 the same setup was
+ * 12/12 — the audio was never the problem, the smoothing history was.
+ *
+ * After the fix, with smoothing 0.2: repeat 12/12 AND full-vs-subrange 12/12,
+ * and all 16 systems in the release matrix still 12/12 both ways.
+ */
+describe('smoothing state is subrange-stable (§78)', () => {
+  it('a smoothed mapping only matches across exports when replayed from the origin', () => {
+    const mapping: ModulationMapping = {
+      id: 'm1',
+      enabled: true,
+      source: 'rms',
+      target: 'scale',
+      amount: 1,
+      min: 0,
+      max: 1,
+      invert: false,
+      smoothing: 0.5,
+      curve: 'linear',
+      frozenValue: null,
+    };
+    const ctx = makeContext();
+    const fps = 12;
+
+    // A full export reaching global frame 24 has 24 frames of smoothing.
+    const full = renderSequence([mapping], ctx, 0, fps, 36);
+    // A subrange starting at frame 24 with FRESH state does not agree...
+    const coldSub = renderSequence([mapping], ctx, 24 / fps, fps, 12);
+    expect(coldSub[0]!.scale).not.toBe(full[24]!.scale);
+
+    // ...but replaying from the origin and reading the same global frames does.
+    const warmSub = renderSequence([mapping], ctx, 0, fps, 36).slice(24);
+    for (let i = 0; i < 12; i++) {
+      expect(warmSub[i]!.scale, `global frame ${24 + i}`).toBe(full[24 + i]!.scale);
+    }
+  });
+
+  it('the export runner evaluates from frame zero and offsets the render range', () => {
+    const runner = readFileSync(
+      join(__dirname, '..', 'src', 'export', 'exportRunner.ts'),
+      'utf8',
+    );
+    expect(runner).toContain('const evaluate = createFrameEvaluator(0, request.fps)');
+    expect(runner).toContain('evaluate(startFrame + i)');
+    // The skipped frames must actually be walked, not merely skipped.
+    expect(runner).toContain('const frame = evaluate(f);');
   });
 });

@@ -552,7 +552,8 @@ a pattern driving `time-field.depth` sweeps most of its range, while the same
 pattern on `feedback-zoom.persistence` moves it 1.1% — persistence defaults
 near its ceiling, so the additive contribution clamps almost immediately.
 
-That is a mapping decision, not a defect. Narrow the mapping's `min`/`max` to
-the region you want, or use a negative `amount` to pull downward from a
-high default. The same reasoning applies to the audio band ranges in
-[MODULATION.md](MODULATION.md).
+That is a mapping decision, not a defect. Use a negative `amount` (or
+`invert`) to pull downward from a high default, and raise `amount` when a
+source is quiet — note that `min`/`max` are the mapping's OUTPUT range, so
+narrowing them reduces contribution rather than amplifying it. The same
+reasoning applies to the audio bands in [MODULATION.md](MODULATION.md).
