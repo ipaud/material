@@ -141,5 +141,6 @@ project's deterministic state, including recorded morphs.
 
 - [SHORTCUTS.md](SHORTCUTS.md) — the full key map
 - [PERFORMANCE.md](PERFORMANCE.md) — macros, candidates, quantization in depth
-- [MODULATION.md](MODULATION.md) and [TRIGGERS.md](TRIGGERS.md) — the signal systems
+- [CREATIVE_GUIDE.md](CREATIVE_GUIDE.md) — what the seven creative areas do
+- [MODULATION.md](MODULATION.md) and [SIGNALS.md](SIGNALS.md) — the signal systems
 - [PARAMETER_EVALUATION.md](PARAMETER_EVALUATION.md) — exactly how a final value is assembled

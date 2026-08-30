@@ -196,3 +196,48 @@ Export renders committed CURRENT state only. An un-applied candidate is
 live-only and cannot reach a frame: the export evaluator's action target
 implements `applyCandidate` as an explicit no-op, and preview lives in the
 render overlay that export never consults.
+
+## Creative Expansion 01 — measured (CE1H)
+
+Apple Silicon, 1080p composition, clean process, fps as the engine's EMA over
+a settled scene. Frame time is CPU-side only (GPU work is asynchronous), so
+fps is the honest number here.
+
+| Scene | fps | Cost class |
+|---|---|---|
+| Mosaic (baseline) | 119 | LIGHT |
+| Feedback Zoom | 120 | LIGHT |
+| Feedback Bloom | 120 | MEDIUM |
+| Time Field | 120 | LIGHT |
+| Slit Scan | 120 | LIGHT |
+| Echo | 120 | LIGHT |
+| Flow Displace | 121 | MEDIUM |
+| Motion Mosh | 121 | MEDIUM |
+| Directional Smear | 120 | MEDIUM |
+| Reaction Diffusion | 121 | MEDIUM |
+| Cellular | 120 | LIGHT |
+
+No public technique drops the editor below high-refresh at 1080p. Cost classes
+describe relative GPU work, not framerate — MEDIUM techniques run extra passes
+(flow, blur, solver iterations) and that shows at 4K or with Output mirroring.
+
+### VRAM per primitive
+
+| Component | MB | Allocated when |
+|---|---|---|
+| Feedback surface | 15.82 | a feedback technique is active |
+| Temporal atlas | 7.88 | a temporal technique is active |
+| Transition snapshot | 12.78 | only while a morph reveal is open |
+| Optical flow | 1.32 | a technique asks for flow |
+| JS heap | ~22 | always |
+
+Allocation is demand-driven and released when the need ends — the transition
+snapshot returns to zero on completion *and* on cancel, and allocations equal
+disposals across a full soak.
+
+### Worst realistic case
+
+Live source + temporal history + optical flow + a feedback surface + an open
+morph reveal ≈ **37.8 MB** of editor GPU allocations. The Output window
+renders locally with its own targets and never receives GPU state, so its cost
+is separate and additive, not shared.
