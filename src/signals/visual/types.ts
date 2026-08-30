@@ -100,6 +100,11 @@ export interface RawVisualStats {
   motionAmount: number;
   /** 0.5 + 0.5 * (weighted mean unit direction x), so 0.5 is exactly still. */
   motionX: number;
+  /** False when the frame's displacement exceeded what Lucas-Kanade can
+   * resolve (a seek, a source switch, a camera waking up). The field is then
+   * saturated garbage, not a big number, so motion.* is omitted exactly as it
+   * is when there is no field at all. */
+  motionValid: boolean;
   /** False when no flow field was available; motion.* keys are then omitted
    * from publication rather than published as zero. */
   hasFlow: boolean;

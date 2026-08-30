@@ -23,7 +23,9 @@ export function publishVisualSignals(
     if (v !== null) out['image.luminance'] = v;
   }
   // Motion needs a flow field. Without one the signals do not exist — they are
-  // not "zero motion".
+  // not "zero motion". A saturated field IS published (a fast source should peg
+  // the knob); what saturation withholds is the right to teach the calibrator,
+  // which CalibrationStore.advance enforces.
   if (stats.hasFlow) {
     if (demand.has('motion.amount')) {
       const v = calibrate('motion.amount', stats.motionAmount);

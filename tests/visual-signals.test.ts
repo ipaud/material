@@ -10,6 +10,7 @@ import {
   type VisualSignalId,
 } from '@/signals/visual/types';
 import { publishVisualSignals } from '@/signals/visual/publish';
+import { MOTION_SATURATION_TEXELS, decodeStats } from '@/rendering/analysis/reductionLadder';
 import { demandNeedsFlow, visualDemand } from '@/signals/visual/demand';
 
 const src = (...p: string[]) => readFileSync(join(__dirname, '..', ...p), 'utf8');
@@ -109,6 +110,7 @@ describe('publication uses absence as the neutral (§A1)', () => {
     luminance: 0.4,
     motionAmount: 2,
     motionX: 0.7,
+    motionValid: true,
     hasFlow: true,
     ...over,
   });
@@ -232,5 +234,34 @@ describe('measured live defects (§A6)', () => {
     // publish the cleared field as measured motion.
     const reset = flow.slice(flow.indexOf('reset(): void'));
     expect(reset.slice(0, 200)).toContain('this.solves = 0');
+  });
+});
+
+describe('saturation is reported, not swallowed (§A9)', () => {
+  it('caps the amount at the field ceiling and still publishes it', () => {
+    // Suppressing saturated frames deleted motion from 59 of 61 frames of a
+    // 12 fps export, where 5-8 texels/frame is the real displacement. The
+    // ceiling is the shader's own clamp: 8 per component, so 8*sqrt(2) on the
+    // diagonal. Reporting more than the instrument can express is inventing.
+    const demand = new Set<VisualSignalId>(['motion.amount', 'motion.x']);
+    const saturated = decodeStats(new Float32Array([0.5 * 64, (40 / 320) * 64, 0, 64]), 320, true);
+    expect(saturated.motionAmount).toBeCloseTo(MOTION_SATURATION_TEXELS, 6);
+    expect(saturated.motionValid).toBe(false);
+    expect(publishVisualSignals(saturated, demand, () => 0.9)).toEqual({
+      'motion.amount': 0.9,
+      'motion.x': 0.5,
+    });
+
+    const measured = decodeStats(new Float32Array([0.5 * 64, (1.5 / 320) * 64, 0, 64]), 320, true);
+    expect(measured.motionAmount).toBeCloseTo(1.5, 4);
+    expect(measured.motionValid).toBe(true);
+  });
+
+  it('an absent field still omits motion entirely', () => {
+    // The companion: the guard above must not become a licence to publish 0.
+    const demand = new Set<VisualSignalId>(['motion.amount', 'motion.x']);
+    const none = decodeStats(new Float32Array([0.5 * 64, 0, 0, 64]), 320, false);
+    expect(none.hasFlow).toBe(false);
+    expect(publishVisualSignals(none, demand, () => 0.5)).toEqual({});
   });
 });

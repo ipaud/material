@@ -75,6 +75,28 @@ export function sumTile(tile: Float32Array): [number, number, number, number] {
  * analysis texels/frame, which is what makes motion.amount independent of the
  * analysis resolution.
  */
+/**
+ * Above this mean displacement Lucas-Kanade has stopped measuring: its
+ * linearization holds over the 5x5 window it samples, and past it the field
+ * saturates rather than reporting more. `motionValid` reports that state for
+ * diagnostics; the value is still published and still calibrated, because a
+ * genuinely fast source SHOULD peg the knob.
+ *
+ * Suppressing those frames was the first attempt and was wrong: a 12 fps
+ * export of a moving source legitimately displaces 5-8 texels per frame, so it
+ * deleted the motion signal from 59 of 61 exported frames. Transient
+ * saturation (a video seek measured at 9.698 texels/frame, a source switch, a
+ * camera's exposure ramp breaking LK's brightness-constancy assumption) is
+ * damped by tauExpand instead: at 30 Hz one outlier frame moves the envelope
+ * by 2.2% of the gap, so it takes a sustained event to move the range.
+ */
+export const LK_APERTURE_TEXELS = 4;
+
+/** The field's own ceiling: the shader clamps each component to 8 texels, so
+ * a fully saturated diagonal reads 8*sqrt(2). Reporting more than the
+ * instrument can express would be inventing a number. */
+export const MOTION_SATURATION_TEXELS = 8 * Math.SQRT2;
+
 export function decodeStats(
   tile: Float32Array,
   gridWidth: number,
@@ -83,15 +105,19 @@ export function decodeStats(
   const [sr, sg, sb, sa] = sumTile(tile);
   const n = sa;
   if (n <= 0) {
-    return { n: 0, luminance: 0, motionAmount: 0, motionX: 0.5, hasFlow: false };
+    return { n: 0, luminance: 0, motionAmount: 0, motionX: 0.5, motionValid: false, hasFlow: false };
   }
   const gate = n * directionGate(gridWidth);
   const dirX = hasFlow ? sb / Math.max(sg, gate) : 0;
+  const motionAmount = hasFlow
+    ? clamp((sg / n) * gridWidth, 0, MOTION_SATURATION_TEXELS)
+    : 0;
   return {
     n,
     luminance: clamp01(sr / n),
-    motionAmount: hasFlow ? Math.max((sg / n) * gridWidth, 0) : 0,
+    motionAmount,
     motionX: 0.5 + 0.5 * clamp(dirX, -1, 1),
+    motionValid: hasFlow && motionAmount < LK_APERTURE_TEXELS,
     hasFlow,
   };
 }
