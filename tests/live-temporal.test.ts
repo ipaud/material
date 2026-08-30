@@ -249,12 +249,14 @@ describe('release gates (18G)', () => {
     }
   });
 
-  it('app version is 0.3.5 while the project schema stays v3', async () => {
-    // CE1H: Creative Expansion 01 ships as 0.3.5, not 0.4 — ROADMAP reserved
-    // v0.4 for Image / Motion Signals before this work existed. Every CE1x
-    // addition was additive and defaulted, so the format never moved.
+  it('app version is 0.4.0 while the project schema stays v3', async () => {
+    // CE1H shipped as 0.3.5 because the ROADMAP had reserved v0.4 for Image /
+    // Motion Signals. v0.4.0 is that promise kept. The format still has not
+    // moved: nine new source ids live in the existing modulation registry and
+    // the three v0.4C mapping fields are optional, so a project written before
+    // any of this parses unchanged.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    expect(pkg.version).toBe('0.3.5');
+    expect(pkg.version).toBe('0.4.0');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(3);
   });
