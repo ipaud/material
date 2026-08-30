@@ -1,8 +1,10 @@
 import { app, dialog } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { convertIsf, isfShaderEntry } from '../../shared/isf/isf';
 import {
   PACK_LIMITS,
+  SHADER_CONTRACT_VERSION,
   shaderPackManifestSchema,
   type LoadedPack,
   type LoadedShader,
@@ -235,6 +237,73 @@ export async function installShaderPackFrom(sourceDir: string): Promise<ImportRe
     await fs.writeFile(target, shader.fragment, 'utf8');
   }
   return { ok: true, pack: await loadPackFrom(destReal) };
+}
+
+/**
+ * v0.5D — import one ISF file as a managed single-shader pack.
+ *
+ * Converting on import rather than adapting at render time means an ISF shader
+ * IS a MATERIAL pack shader from that moment on: the same lifecycle, the same
+ * Output replication, the same export path, the same removal. Nothing
+ * downstream has to know where it came from, which is the test of whether the
+ * abstraction was the right one.
+ */
+export async function importIsfFile(): Promise<ImportResult> {
+  const picked = await dialog.showOpenDialog({
+    title: 'Import ISF Shader',
+    message: 'Choose an ISF fragment shader (.fs)',
+    properties: ['openFile'],
+    filters: [{ name: 'ISF Shader', extensions: ['fs', 'frag', 'glsl'] }],
+  });
+  if (picked.canceled || picked.filePaths.length === 0) return { ok: false };
+  return installIsfFrom(picked.filePaths[0] as string);
+}
+
+export async function installIsfFrom(filePath: string): Promise<ImportResult> {
+  const stat = await fs.stat(filePath).catch(() => null);
+  if (!stat || !stat.isFile()) return { ok: false, error: 'not a file' };
+  if (stat.size > PACK_LIMITS.maxShaderBytes) {
+    return { ok: false, error: `source exceeds ${PACK_LIMITS.maxShaderBytes} bytes` };
+  }
+  const source = await fs.readFile(filePath, 'utf8');
+  const base = path.basename(filePath).replace(/\.[^.]+$/, '');
+  const conversion = convertIsf(source, base.slice(0, 64) || 'ISF Shader');
+  if (!conversion.ok) return { ok: false, error: conversion.errors.join('; ') };
+
+  const shaderId = base.replace(/[^a-zA-Z0-9_]/g, '') || 'shader';
+  const id = `isf.${shaderId.toLowerCase().slice(0, 40)}`;
+  const entry = isfShaderEntry(conversion, shaderId.slice(0, 48), 'shaders/isf.frag');
+  const manifest = {
+    format: 1,
+    materialShaderVersion: SHADER_CONTRACT_VERSION,
+    id,
+    name: conversion.name,
+    version: '1.0.0',
+    author: conversion.credit,
+    description: conversion.description,
+    shaders: [entry],
+  };
+  const parsed = shaderPackManifestSchema.safeParse(manifest);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return {
+      ok: false,
+      error: `converted pack is invalid: ${first ? `${first.path.join('.')} ${first.message}` : 'unknown'}`,
+    };
+  }
+
+  const rootReal = await fs.mkdir(packsRoot(), { recursive: true }).then(
+    () => fs.realpath(packsRoot()),
+    () => null,
+  );
+  if (rootReal === null) return { ok: false, error: 'could not create the shader packs folder' };
+  const dest = path.resolve(rootReal, id);
+  if (!dest.startsWith(rootReal + path.sep)) return { ok: false, error: 'refused: outside root' };
+  await fs.rm(dest, { recursive: true, force: true });
+  await fs.mkdir(path.join(dest, 'shaders'), { recursive: true });
+  await fs.writeFile(path.join(dest, MANIFEST), JSON.stringify(parsed.data, null, 2), 'utf8');
+  await fs.writeFile(path.join(dest, 'shaders', 'isf.frag'), conversion.fragment, 'utf8');
+  return { ok: true, pack: await loadPackFrom(dest) };
 }
 
 export async function removeShaderPack(rawId: unknown): Promise<{ ok: boolean; error?: string }> {

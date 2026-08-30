@@ -85,11 +85,20 @@ in vec2 vUv;                          // 0..1, (0,0) is the BOTTOM-LEFT
 out vec4 fragColor;
 ${declarations ? `\n// ---- parameters ----------------------------------------------------------\n${declarations}\n` : ''}
 // ---- pack source ---------------------------------------------------------
+// Reset the compiler's line counter so a diagnostic lands on the line the
+// AUTHOR wrote, with no offset arithmetic anywhere. An adapter that prepends
+// a prelude of its own resets it again, for the same reason.
+#line 1
 `;
 }
 
-/** How many lines the prelude occupies, so compiler errors can be reported
- * against the author's own line numbering. */
+/**
+ * Lines the prelude occupies.
+ *
+ * The prelude ends with `#line 1`, so the compiler already reports the
+ * author's own numbering and nothing needs to subtract this. It is kept
+ * because the tests use it to prove the composition is what it claims to be.
+ */
 export function preludeLineCount(params: readonly ShaderParamDef[]): number {
   return fragmentPrelude(params).split('\n').length - 1;
 }
@@ -125,10 +134,16 @@ export function staticShaderIssues(source: string): string[] {
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
     .replace(/\/\/[^\n]*/g, ' ');
 
+  // Line-anchored on purpose. A source-wide search let `[^;]*` run across
+  // newlines, so any later mention of a host name — including a perfectly
+  // legal `#define RENDERSIZE uMaterial_resolution` — read as a redeclaration.
+  const declarationLines = stripped
+    .split('\n')
+    .filter((line) => /^\s*(uniform|in|out|varying)\s/.test(line));
   for (const name of RESERVED_IDENTIFIERS) {
     // A redeclaration would shadow or clash with the host's own declaration
     // and produce a confusing compiler error far from the real cause.
-    if (new RegExp(`\\b(uniform|in|out|varying)\\s[^;]*\\b${name}\\b`).test(stripped)) {
+    if (declarationLines.some((line) => new RegExp(`\\b${name}\\b`).test(line))) {
       issues.push(`redeclares the host identifier '${name}' — the contract already provides it`);
     }
   }

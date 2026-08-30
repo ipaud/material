@@ -26,9 +26,12 @@ export interface ShaderCompileState {
   message: string | null;
 }
 
+/** The integer a chosen enum option sends to the shader: its declared
+ * `glslValue` when it has one, else its index. */
 function enumIndex(def: Extract<ShaderParamDef, { type: 'enum' }>, value: unknown): number {
-  const i = def.options.findIndex((o) => o.value === value);
-  return i >= 0 ? i : Math.max(def.options.findIndex((o) => o.value === def.default), 0);
+  let i = def.options.findIndex((o) => o.value === value);
+  if (i < 0) i = Math.max(def.options.findIndex((o) => o.value === def.default), 0);
+  return def.options[i]?.glslValue ?? i;
 }
 
 export class CustomShaderRenderer implements TechniqueRenderer {

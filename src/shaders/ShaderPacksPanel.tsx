@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { LoadedPack } from '@shared/schemas/shaderPack';
 import { listPacks, subscribePacks } from './packRegistry';
-import { importPack, isBuiltinPack, refreshInstalledPacks, reloadPack, uninstallPack } from './packManager';
+import {
+  importIsf,
+  importPack,
+  isBuiltinPack,
+  refreshInstalledPacks,
+  reloadPack,
+  uninstallPack,
+} from './packManager';
 import './shaderPacks.css';
 
 /**
@@ -33,13 +40,28 @@ export function ShaderPacksPanel(): React.ReactElement {
     setBusy(false);
   };
 
+  const onImportIsf = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    const result = await importIsf();
+    // An unsupported ISF feature is named, not hinted at: the user needs to
+    // know it was MULTIPASS rather than "it did not work".
+    if (!result.ok && result.error) setError(result.error);
+    setBusy(false);
+  };
+
   return (
     <div className="shader-packs">
       <div className="shader-packs-head">
         <span className="label">Shader Packs</span>
-        <button className="vp-btn" disabled={busy} onClick={() => void onImport()}>
-          IMPORT
-        </button>
+        <span className="shader-pack-actions">
+          <button className="vp-btn" disabled={busy} onClick={() => void onImport()}>
+            IMPORT PACK
+          </button>
+          <button className="vp-btn" disabled={busy} onClick={() => void onImportIsf()}>
+            IMPORT ISF
+          </button>
+        </span>
       </div>
 
       {error && <div className="shader-packs-error">{error}</div>}

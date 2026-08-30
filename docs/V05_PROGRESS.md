@@ -314,3 +314,96 @@ Tests 1236 / 73 files · typecheck · lint · build · flagship workflow · cost
 in parameter count.
 
 **Safe to proceed to D.**
+
+## D — ISF single-pass subset
+
+### Decisions
+
+**Convert at import, not at render.** An accepted ISF file becomes an ordinary
+MATERIAL pack — manifest, GLSL, managed storage — and from that point nothing
+downstream knows where it came from. That reuses B's security, lifecycle,
+Output replication and export path wholesale, and it is the test of whether A's
+abstraction was the right one. It was: the renderer contains no ISF code path,
+asserted structurally.
+
+**A compatibility prelude, not a compiler.** ISF's automatic variables and
+`IMG_*` helpers become `#define`s and small functions over uniforms the host
+already provides; the ISF source is passed through untouched. Fewer edits to a
+shader nobody here wrote means fewer ways to break it.
+
+**Refusals are by NAME.** MULTIPASS, PERSISTENT_BUFFER, MULTIPLE_IMAGE_INPUTS,
+GENERATOR, and each unsupported input type. "It did not load" is not something
+a user can act on.
+
+**No partial multipass.** A file declaring `PASSES` is refused rather than
+rendered as its first pass — which would look like it worked. `PASSINDEX`
+exists as a constant 0 only so shaders that branch on it compile.
+
+**Deferred deliberately:** `color` and `point2D` inputs. MATERIAL has no colour
+or vec2 control, and inventing one to satisfy a file format is the wrong order
+of operations. Refused by name until a host control exists.
+
+Full matrix in [ISF.md](ISF.md).
+
+### Two defects the live run found
+
+Both were adapter bugs, fixed in the adapter, with the host untouched.
+
+**A duplicate fragment output.** The host prelude already declares the single
+`out vec4 fragColor`; the ISF prelude declared its own, and every import failed
+with *"must explicitly specify all locations when using multiple fragment
+outputs"*. ISF's `gl_FragColor` is the host's own output under another name.
+
+**ISF input names were never bound to their uniforms.** A shader references
+`level`; the host generates `uParam_level`. Every input read as an undeclared
+identifier. The adapter now emits one `#define` per input.
+
+### One host improvement they prompted
+
+Compile errors were being mapped by arithmetic — subtract the prelude length —
+which the ISF adapter's own prelude then broke. The host prelude now ends with
+`#line 1`, so the compiler numbers the author's file from 1 with no arithmetic
+anywhere, and an adapter that prepends its own prelude resets it again.
+
+That also exposed a real bug in the static checks: the reserved-identifier
+search was source-wide, so `[^;]*` ran across newlines and a prelude full of
+perfectly legal `#define RENDERSIZE uMaterial_resolution` lines read as four
+redeclarations at once. The check is now line-anchored, with a test for both
+directions.
+
+### Measured
+
+Three fixtures imported and rendered:
+
+| fixture | exercises | result |
+|---|---|---|
+| `identity.fs` | `IMG_THIS_PIXEL`, `gl_FragColor` | compiles, 119 fps |
+| `controls.fs` | float, bool, `long` with VALUES `[0, 3, 7]` | compiles, 120 fps, all three params |
+| `time-pulse.fs` | `TIME`, `RENDERSIZE` | compiles, 119 fps |
+
+Export, on `time-pulse.fs`:
+
+| gate | result |
+|---|---|
+| repeat | **12/12** |
+| full vs subrange | **12/12** |
+| distinct frames | **24/24** |
+| anti-noop (`rate` 0) | **12/12** |
+| anti-noop (different shader) | **12/12** |
+
+Unsupported fixtures — multipass, persistent, generator, two images, audioFFT —
+all refused, each naming its own feature.
+
+### Known debt
+
+- `color` and `point2D` inputs are refused; a colour control is a host feature
+  v0.5 does not have.
+- No real-world third-party ISF files are bundled: the fixtures are original,
+  so licensing is unambiguous.
+
+### Gate
+
+Tests 1258 / 75 files · typecheck · lint · build · ISF export matrix · every
+unsupported feature refused by name.
+
+**Safe to proceed to E.**

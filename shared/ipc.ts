@@ -33,6 +33,7 @@ export const IPC = {
   shaderPackImport: 'shaderPacks:import',
   shaderPackRemove: 'shaderPacks:remove',
   shaderPacksRoot: 'shaderPacks:root',
+  shaderIsfImport: 'shaderPacks:importIsf',
   listPresets: 'presets:list',
   savePreset: 'presets:save',
   deletePreset: 'presets:delete',
@@ -138,6 +139,7 @@ export interface MaterialApi {
   importShaderPack(): Promise<{ ok: boolean; pack?: LoadedPack; error?: string }>;
   removeShaderPack(id: string): Promise<{ ok: boolean; error?: string }>;
   shaderPacksRoot(): Promise<string>;
+  importIsfShader(): Promise<{ ok: boolean; pack?: LoadedPack; error?: string }>;
   listPresets(): Promise<Preset[]>;
   savePreset(preset: Preset): Promise<void>;
   deletePreset(id: string): Promise<void>;

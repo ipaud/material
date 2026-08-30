@@ -72,7 +72,20 @@ const shaderParamUnion = z.discriminatedUnion('type', [
     /** Stored as the option VALUE, never the label — a pack may rename a label
      * without silently changing what every saved project means. */
     options: z
-      .array(z.object({ value: identifier, label: z.string().min(1).max(48) }))
+      .array(
+        z.object({
+          value: identifier,
+          label: z.string().min(1).max(48),
+          /**
+           * The integer the shader actually receives. Defaults to the option's
+           * index, which is what a hand-written pack wants. ISF's `long` type
+           * declares its own numbers, and they are not always 0..n — so the
+           * stored project value stays a stable identifier while the uniform
+           * carries whatever the shader was written against.
+           */
+          glslValue: z.number().int().optional(),
+        }),
+      )
       .min(2)
       .max(16),
     default: identifier,

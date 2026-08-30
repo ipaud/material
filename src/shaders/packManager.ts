@@ -53,6 +53,14 @@ export async function importPack(): Promise<{ ok: boolean; error?: string }> {
   return { ok: true };
 }
 
+/** v0.5D — one ISF file becomes a managed single-shader pack on import. */
+export async function importIsf(): Promise<{ ok: boolean; error?: string }> {
+  const result = await window.material.importIsfShader();
+  if (!result.ok) return { ok: false, ...(result.error ? { error: result.error } : {}) };
+  if (result.pack) registerPack(result.pack);
+  return { ok: true };
+}
+
 export async function uninstallPack(packId: string): Promise<void> {
   if (isBuiltinPack(packId)) return;
   const result = await window.material.removeShaderPack(packId);

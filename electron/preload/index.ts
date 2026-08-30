@@ -34,6 +34,7 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
   importShaderPack: () => ipcRenderer.invoke(IPC.shaderPackImport),
   removeShaderPack: (id) => ipcRenderer.invoke(IPC.shaderPackRemove, id),
   shaderPacksRoot: () => ipcRenderer.invoke(IPC.shaderPacksRoot),
+  importIsfShader: () => ipcRenderer.invoke(IPC.shaderIsfImport),
   listPresets: () => ipcRenderer.invoke(IPC.listPresets),
   savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
   deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),

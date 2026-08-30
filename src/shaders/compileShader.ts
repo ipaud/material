@@ -66,8 +66,10 @@ export function validateFragment(
   }
 
   const withVersion = `#version 300 es\n${composed}`;
-  // +1 for the #version line the host adds here.
-  const offset = preludeLineCount(params) + 1;
+  // The prelude ends with `#line 1`, so the compiler numbers the author's file
+  // from 1 and there is no offset to apply. Anything the driver reports below
+  // that came from the host's own prelude, which the author cannot fix.
+  const offset = 0;
 
   const shader = gl.createShader(gl.FRAGMENT_SHADER);
   if (!shader) {

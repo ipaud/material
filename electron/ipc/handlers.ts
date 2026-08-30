@@ -392,6 +392,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     shaderPacks.removeShaderPack(id),
   );
   ipcMain.handle(IPC.shaderPacksRoot, async () => shaderPacks.packsRoot());
+  ipcMain.handle(IPC.shaderIsfImport, async () => shaderPacks.importIsfFile());
 
   ipcMain.handle(
     IPC.saveProjectDialog,

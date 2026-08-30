@@ -374,3 +374,24 @@ describe('parameter definitions are checked as a WHOLE, not field by field (§11
     expect(shaderParamSchema.safeParse({ id: 'b', label: 'B', type: 'bool', default: true }).success).toBe(true);
   });
 });
+
+describe('the static check is line-anchored (§D regression)', () => {
+  it('a #define that MENTIONS a host name is not a redeclaration', () => {
+    // A source-wide search let `[^;]*` run across newlines, so an adapter
+    // prelude full of legal #defines read as four redeclarations at once.
+    const source = `#define TIME uMaterial_time
+#define RENDERSIZE uMaterial_resolution
+#define isf_FragNormCoord vUv
+#define gl_FragColor fragColor
+void main() { fragColor = vec4(vUv, 0.0, 1.0); }`;
+    expect(staticShaderIssues(source)).toEqual([]);
+  });
+
+  it('an actual redeclaration is still caught', () => {
+    expect(staticShaderIssues('uniform float uMaterial_time;\nvoid main() {}').join(' ')).toContain(
+      'uMaterial_time',
+    );
+    expect(staticShaderIssues('  out vec4 fragColor;\nvoid main() {}').join(' ')).toContain('fragColor');
+    expect(staticShaderIssues('in vec2 vUv;\nvoid main() {}').join(' ')).toContain('vUv');
+  });
+});
