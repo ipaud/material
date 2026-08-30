@@ -836,3 +836,83 @@ that — never raw CPU float readbacks of live class targets).
   the mapping alive and recoverable.
 - **Schema stays v3** for the whole of v0.4. Nine new source ids live in the
   existing modulation registry, and three optional mapping fields are additive.
+
+## v0.5 — shader extensibility
+
+### The host
+
+- **ADR — a pack is data + GLSL + metadata, never JavaScript.** Executable
+  plugins would hand a pack the application: the filesystem, IPC, app state and
+  the DOM are all one `require` away from any code that runs in the renderer.
+  Declarative packs keep the extension surface to what MATERIAL chooses to
+  render, and a test asserts the manifest schema has nowhere to put code.
+- **ADR — MATERIAL owns the vertex shader; packs are fragment-only.** It keeps
+  the surface small enough to keep compatible across versions, and it means a
+  pack cannot change where the quad is or what `vUv` means.
+- **ADR — MATERIAL owns a prelude too.** The host declares the uniforms, `vUv`
+  and `fragColor` rather than asking each pack to repeat them. A pack cannot get
+  them subtly wrong, and because the host controls the composition it can end it
+  with `#line 1` and report every compiler error at the line the author wrote.
+- **ADR — one source texture.** A texture graph is a product decision about what
+  MATERIAL is, not a compatibility requirement. One input covers image filters,
+  which is the whole v0.5 target.
+- **ADR — composition time and a project seed, never a wall clock or
+  `Math.random`.** Same time, same params, same source, same pixels. Without
+  that, none of the export determinism the rest of the app guarantees would
+  survive contact with a hosted shader.
+- **ADR — custom shaders are ordinary `TechniqueDefinition`s.** No second
+  rendering universe. The inspector, modulation, signals, Explore, Looks, Morph
+  and the Output accepted them with no shader-specific code, which is the only
+  evidence that the abstraction was the right one.
+- **ADR — last-known-good over correctness theatre.** A revision that does not
+  compile leaves the previous one rendering and reports the error. Blacking out
+  a live performance to signal a missing semicolon is the wrong trade.
+- **ADR — a missing pack passes the frame through and says so.** Substituting a
+  different shader would look like it worked while quietly reinterpreting the
+  project's stored parameter values against a contract that is not theirs.
+- **ADR — no sandbox is claimed.** GLSL that compiles can still be expensive and
+  no host-side text check changes that. MATERIAL refuses the obvious accidents
+  and documents the limit plainly instead of implying a guarantee it cannot
+  keep.
+
+### Packs
+
+- **ADR — managed storage, and install copies only declared files.** Running
+  from the folder the user picked would make behaviour depend on a directory the
+  app does not control. Copying an allow-list rather than mirroring means
+  nothing incidental travels, and reinstalling replaces wholesale so a deleted
+  shader cannot linger.
+- **ADR — all filesystem work in the main process.** The renderer receives
+  validated data and has no path API. The only paths ever opened are ones a
+  manifest declared, resolved and re-checked.
+- **ADR — two independent path checks.** Lexical for `..` and absolute paths;
+  `realpath` for symlinks that point outside, which pass every lexical check.
+- **ADR — parameter definitions are validated as a whole.** `min > max` was
+  accepted while every field was individually valid. Found by an adversarial
+  fixture in B, fixed in A's contract rather than in the loader that noticed.
+- **ADR — pack presets are params only.** A preset carrying modulation mappings
+  would name signals and targets belonging to the host, break whenever either
+  changed, and let a pack write into parts of a document it has no business
+  touching.
+
+### ISF
+
+- **ADR — a documented subset, not "ISF support".** MATERIAL hosts single-pass
+  image filters with one image input. The phrase used in the docs is exactly
+  that, because claiming compatibility one cannot keep is worse than claiming
+  less.
+- **ADR — no multipass and no persistent buffers.** They are not missing
+  features; they are a second copy of a system MATERIAL already has (FEEDBACK,
+  HISTORY, SIMULATION), each with its own export preroll, VRAM accounting and
+  determinism story. Two systems disagreeing about persistent state is how
+  export determinism dies.
+- **ADR — convert at import, not at render.** An accepted ISF file becomes an
+  ordinary pack, so it inherits the entire lifecycle rather than needing a
+  parallel one. The renderer contains no ISF code path, asserted structurally.
+- **ADR — a compatibility prelude, not a transpiler.** ISF's automatic
+  variables and `IMG_*` helpers become `#define`s and small functions over the
+  host contract, and the ISF source is passed through untouched. Writing a GLSL
+  compiler to host a file format is the wrong amount of machinery.
+- **ADR — every refusal names its feature.** MULTIPASS, PERSISTENT_BUFFER,
+  MULTIPLE_IMAGE_INPUTS, GENERATOR, and each unsupported input type. "It did not
+  load" is not actionable.

@@ -80,9 +80,39 @@ mapping an angle onto a linear parameter has a discontinuity at the wrap.
 Each of these needs what the nine got: a unit, a calibration decision,
 discriminating fixtures, an anti-dead companion, and export proof.
 
-## Next — v0.5: SHADER EXTENSIBILITY
+## v0.5 — SHADER EXTENSIBILITY — shipped
 
-Reserved. Not started.
+MATERIAL stops being an instrument with a closed vocabulary. A shader pack —
+**data + GLSL + metadata, never JavaScript** — adds techniques that behave like
+native ones: their parameters appear in the inspector, accept audio, pattern,
+MIDI and image/motion signals, are captured by Looks, interpolated by Morph,
+mutated by Explore, replicated to the Output and exported deterministically.
+
+| phase | what shipped |
+|---|---|
+| **v0.5A** | Shader Contract v1, the fragment host, compile safety, last-known-good, missing-pack behaviour, Output replication |
+| **v0.5B** | local packs: managed storage, import/reload/remove, path validation, adversarial fixtures |
+| **v0.5C** | parameter metadata into inspector, modulation, signals, Explore, Looks, Morph; pack presets |
+| **v0.5D** | ISF single-pass image-filter subset |
+| **v0.5E** | curation, QA, docs, release |
+
+A custom shader costs what a native one-pass technique costs: 120 fps, one
+program, and ~0.5 ms to compile once when first selected. Registration compiles
+nothing — ten installed shaders cost ten strings.
+
+Documented in [SHADERS.md](SHADERS.md), [SHADER_PACKS.md](SHADER_PACKS.md) and
+[ISF.md](ISF.md).
+
+### Deliberately not built
+
+Custom vertex shaders · multiple texture inputs · multipass · persistent
+buffers · colour and vec2 parameters · shader-supplied UI · pack signing ·
+a marketplace · project dependency bundling.
+
+Multipass and persistent buffers are the interesting refusal: they are not
+missing features but a second copy of a system MATERIAL already has, and the
+thing that would break is export determinism.
+
 
 ## Next (pre-v0.3 list)
 

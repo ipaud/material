@@ -407,3 +407,155 @@ Tests 1258 / 75 files · typecheck · lint · build · ISF export matrix · ever
 unsupported feature refused by name.
 
 **Safe to proceed to E.**
+
+## E — curation, QA, release
+
+### Starter pack curation
+
+All six kept. Rendered against one generator source and measured against a
+native control:
+
+| shader | mean abs. difference vs the control | distinct |
+|---|---|---|
+| Chromatic Shift | 31.9 | ✓ |
+| Soft Warp | 33.1 | ✓ |
+| Grain Field | 36.0 | ✓ |
+| Posterise | 37.4 (6 luma levels) | ✓ |
+| Ripple | 37.6 | ✓ |
+| Scan Bands | 41.3 | ✓ |
+
+Every one changes the frame substantially, and all seven renders (six plus the
+control) hash differently. Soft Warp and Scan Bands share nearly identical
+*global* statistics — mean 166.8/166.9, sd 73.6/73.6 — which is why the check
+that mattered was the pairwise pixel difference: **25.8**, larger than Soft Warp
+against Ripple (17.9). Same histogram, different image. No filler dropped
+because none was found.
+
+### Performance matrix
+
+| configuration | fps | render ms | programs | textures | geometries |
+|---|---|---|---|---|---|
+| native mosaic | 120.3 | 8.31 | 2 | 1 | 2 |
+| native feedback-zoom | 120.0 | 8.34 | 3 | 3 | 3 |
+| custom Posterise | 120.0 | 8.34 | 2 | 1 | 2 |
+| custom Soft Warp | 119.9 | 8.34 | 2 | 1 | 2 |
+| custom Grain Field | 120.0 | 8.34 | 2 | 1 | 2 |
+| ISF identity | 120.0 | 8.34 | 2 | 1 | 2 |
+| ISF time-pulse | 120.3 | 8.31 | 2 | 1 | 2 |
+
+A hosted shader costs what a native one-pass technique costs.
+
+**Compile cost**, measured per shader against the real context:
+
+| | |
+|---|---|
+| slowest shader | 1.1 ms |
+| all ten installed shaders | **6.0 ms** total |
+| registering 5 packs / 10 shaders | **0.2 ms** |
+| programs after registering everything | **2** |
+
+Registration compiles nothing — that is the lazy-compile policy, measured
+rather than asserted. A fifty-shader pack costs fifty strings at startup.
+
+### Morph
+
+| direction | started | min fps | compile errors |
+|---|---|---|---|
+| native → custom | ✓ | 115 | 0 |
+| custom → ISF | ✓ | 118 | 0 |
+| ISF → native | ✓ | 118 | 0 |
+
+No black frames in any direction.
+
+### Output
+
+The replica compiles locally and renders. Screenshots of the Output window,
+sampled for luma distribution:
+
+| showing | distinct luma levels | non-black |
+|---|---|---|
+| custom Posterise (mono, 3 steps) | 73 | 0.50 |
+| native mosaic | 256 | 0.66 |
+| ISF time-pulse | 108 | 0.73 |
+
+Three different images, three different hashes — the replica is running the
+shaders, not a stale frame. Zero GL errors throughout.
+
+One method note worth keeping: the first attempt read the Output's canvas with
+`readPixels` after re-requesting the context with `preserveDrawingBuffer`. It
+returned all black — **including for the native control**, which is the only
+reason the result was not believed. A native control in an unfamiliar
+measurement is worth its cost.
+
+### Soak — 10 minutes, 847 iterations
+
+Cycling native → custom → ISF → a pack whose shader alternates between
+compiling and not, with a signal mapping, a pattern and morphs running:
+
+| metric | 1st half | 2nd half | max |
+|---|---|---|---|
+| textures | 4.95 | 5.29 | 7 |
+| geometries | 3.90 | 4.14 | 5 |
+| programs | 3.90 | 4.14 | 5 |
+| packs | 6.00 | 6.00 | 6 |
+| GL errors | **0** | **0** | 0 |
+| fps | 109 | 114 | 118 |
+| compile errors present | 0.14 | 0.14 | 1 |
+
+Bounded, not growing — the half-to-half difference is which technique a sample
+landed on. The broken revision was live for a seventh of the run and the app
+stayed at ~114 fps throughout.
+
+### Packaged
+
+`release/mac-arm64/MATERIAL.app`, **0.5.0**, ad-hoc signed, not notarised.
+
+- the shipping asar carries the host contract, the starter pack's GLSL, the ISF
+  adapter and the pack IPC channels;
+- the renderer bundle contains no `child_process`, no `new Function`, no `eval`;
+- launches with four installed packs present, stays alive past 24 s, quits
+  cleanly with empty stderr, and relaunches cleanly;
+- **zero** listening sockets, no CDP endpoint.
+
+As recorded since CE1H §66, that last point also means CDP-driven QA cannot
+drive the shipping artifact, so interactive packaged verification — importing a
+pack through the dialog, editing parameters in the packaged UI — stays out of
+scope rather than being simulated. Dev-build verification of all of it is
+recorded above.
+
+### The defect E found
+
+**`ctx.timeSec` was frozen during export.** A v0.5 ISF fixture whose brightness
+is driven entirely by `TIME` exported identically at `rate: 3` and `rate: 0`.
+The uniform was updating correctly in preview, so the trace went to the export
+loop: `ctx.timeSec` read **2.699 for all 13 exported frames**. `renderStill`
+never received a time, so every technique reading `ctx.timeSec` got whatever the
+preview had last left.
+
+It is a pre-existing defect, older than v0.5 and wider than shaders: **Time
+Field**'s phase and **Step Print**'s anchor read the same value. Every
+determinism gate passed the whole time, because a frozen clock is perfectly
+reproducible — the same trap as optical flow never being computed during export
+in CE1H, and the same lesson: *determinism is not correctness*.
+
+What hid it in v0.5's own gates was the source: 24/24 distinct frames came from
+the generator animating, not from the shader's clock.
+
+Fixed by setting the engine clock in the export loop, with a structural test
+asserting it happens before the render. Every export matrix re-run afterwards:
+
+| subject | repeat | subrange | anti-noop |
+|---|---|---|---|
+| custom Soft Warp | 12/12 | 12/12 | 12/12 (native), 12/12 (param) |
+| ISF time-pulse | 12/12 | 12/12 | 12/12 (shader), **12/12 (param)** |
+| v0.4 `image.luminance` | 12/12 | 12/12 | 12/12 |
+| v0.4 `motion.amount` | 12/12 | 12/12 | 12/12 |
+| v0.4 `motion.x` | 12/12 | 12/12 | 12/12 |
+| 5 v0.4 signal Looks | 12/12 | 12/12 | — |
+
+### Gate
+
+Tests **1262** / 76 files · typecheck · lint · build · package · soak · every
+export matrix.
+
+**v0.5 COMPLETE.**

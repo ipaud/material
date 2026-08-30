@@ -136,6 +136,24 @@ They are meant to be readable and diffable.
   hint — OS capture ids are ephemeral and never written to disk.
 - Locked exploration parameters use bare param ids, and `mod:<id>` for
   modulation mappings.
+- **Custom shader techniques (v0.5) are additive INSIDE v3.** A technique from
+  a shader pack stores the same three things a native one does — a
+  `techniqueId`, `enabled`, and its `params` — with the id shaped
+  `custom:<packId>:<shaderId>`. No field changed and no field was added, so a
+  project that uses one is an ordinary v3 project.
+
+  The project stores a **reference, never the shader source**. Embedding GLSL
+  would make a document carry code from elsewhere, would fork silently from the
+  pack it came from, and would give a project file a job that belongs to a
+  pack. The cost is a dependency: opening a project whose pack is not installed
+  shows a clearly-labelled placeholder that passes the frame through, keeps
+  every stored parameter value, and restores itself the moment the pack is
+  installed. MATERIAL never substitutes a different shader.
+
+  Pack version and content hash are deliberately NOT written into the project.
+  A hash in a document is a promise about someone else's file that the document
+  cannot keep; the honest statement is which pack and shader were used, which
+  is exactly what the id says.
 
 ## Pattern sources
 

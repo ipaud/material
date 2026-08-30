@@ -122,6 +122,30 @@ const maxDiff = (a: Uint8Array, b: Uint8Array): number => {
   return m;
 };
 
+/**
+ * v0.5E — what compiling actually costs, per shader.
+ *
+ * Used to justify the lazy-compile policy: registration reads manifests and
+ * holds strings, and only a SELECTED shader reaches the driver. If a pack of
+ * fifty were compiled at startup, this is the number that would be multiplied
+ * by fifty.
+ */
+export function benchShaderCompile(
+  renderer: THREE.WebGLRenderer,
+  shaders: readonly LoadedShader[],
+): { shader: string; ms: number; ok: boolean }[] {
+  const gl = renderer.getContext() as WebGL2RenderingContext;
+  return shaders.map((s) => {
+    const t0 = performance.now();
+    const result = validateFragment(gl, s.entry.params, s.fragment);
+    return {
+      shader: `${s.packId}/${s.entry.id}`,
+      ms: +(performance.now() - t0).toFixed(2),
+      ok: result.ok,
+    };
+  });
+}
+
 export function runShaderGoldens(renderer: THREE.WebGLRenderer): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const size = 64;

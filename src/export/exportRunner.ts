@@ -674,6 +674,14 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // CE1B feedback: deterministic stepping — frame 0 prerolls from the
       // timeline origin to the export start, later frames advance by exact
       // whole steps. Repeated exports of the same range hash identically.
+      // The engine's own clock drives every technique that reads `ctx.timeSec`
+      // — Time Field's phase, Step Print's anchor, and a custom shader's
+      // uMaterial_time. Export never set it, so those read whatever the
+      // PREVIEW happened to leave behind: constant across the render, and
+      // perfectly deterministic about it, which is why every determinism gate
+      // passed while the value was wrong. Measured with a v0.5 ISF fixture:
+      // ctx.timeSec sat at 2.699 for all 13 exported frames.
+      engine.setTime(timeSec);
       engine.prepareFeedbackForExport(timeSec, i === 0 && !prerolled, params);
       if (video) await seekVideoExact(video, timeSec, i === 0);
       const rgba = engine.renderStill(

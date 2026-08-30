@@ -256,3 +256,64 @@ The shared shape: **correct in isolation, wrong in composition**. A unit test
 proves a function; only a live run proves it is called, called with a moving
 clock, called with data rather than with a neighbour's startup, and able to
 recover from one bad value.
+
+## v0.5 — the shader host
+
+External GLSL is the first content in MATERIAL that the app did not write, so
+the harness has to prove more than usual: not only that the numbers are right,
+but that a shader which is wrong cannot take anything down with it.
+
+### `shaderGoldens()`
+
+| gate | asserts | measured |
+|---|---|---|
+| **identity** | the host reproduces its own input exactly | **maxDiff 0** |
+| invert | the source is real, not a blank texture | exact complement |
+| **uv** | `vUv` is 0..1 with (0,0) bottom-left | corners (2,2) and (253,253) |
+| time | deterministic AND advancing | repeat bit-identical, differs across t |
+| seed | deterministic | bit-identical |
+| param | a declared parameter reaches its uniform | 0 → 0, 1 → 255 |
+| resolution | the real size, not a hardcoded one | 32 → 16, 64 → 32 |
+| **compile error** | caught, readable, author's line | `line 2: 'nope' : undeclared identifier` |
+| **last-known-good** | a broken edit keeps the previous frame | ok → error, material retained |
+| **no recompile** | a slider move is a uniform write | 20 moves, programs 1 → 1 |
+
+Identity first, as always: nothing measured through the host means anything
+until the host can reproduce what it was given.
+
+### Anti-noop policy for hosted content
+
+A shader that ignores its inputs is perfectly deterministic, so the export gates
+alone would pass for a black rectangle. Every one has a companion:
+
+- **identity ignoring the source** fails the identity/invert pair;
+- **time ignored** fails "24/24 distinct frames" on a time-driven shader;
+- **a parameter ignored** fails the export run with that parameter at the other
+  end of its range (12/12 frames must differ);
+- **the shader bypassed entirely** fails against the same scene under a native
+  technique (12/12);
+- **the ISF adapter dropping TIME or the input image** fails the ISF export
+  matrix identically.
+
+### Line numbers, and the trap in mapping them
+
+The first implementation subtracted the prelude length from every reported line.
+That worked until the ISF adapter added a prelude of its own, at which point
+every error pointed into the wrong file.
+
+The fix is to stop doing arithmetic: the host prelude ends with `#line 1`, so
+the driver numbers the author's file from 1, and any adapter that prepends its
+own prelude resets it again. Offsets that have to be maintained by hand are a
+class of bug, not a technique.
+
+### A static check that matched across newlines
+
+The reserved-identifier check searched the whole source with `\b(uniform|in|out|
+varying)\s[^;]*\bNAME\b`. `[^;]*` happily spans newlines, so any later mention
+of a host name matched — and the ISF prelude, which is nothing but legal
+`#define RENDERSIZE uMaterial_resolution` lines, reported four redeclarations at
+once.
+
+Line-anchor checks that are conceptually per-line. The regression test asserts
+both directions: a `#define` mentioning a host name is fine, an actual
+redeclaration is still caught.

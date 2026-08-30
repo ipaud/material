@@ -136,3 +136,38 @@ Extracted deliberately, not forgotten. None of these is started.
 - Signal-to-signal modulation (a signal shaping another signal's response).
 - Anything model-based: ML vision, depth, pose or object tracking. Out of scope
   by design — Motion Centre gives positional control with no model at all.
+
+
+## Deferred from v0.5 — Shader Extensibility
+
+Extracted deliberately. None of these is started.
+
+**Host contract**
+
+- Multi-input shaders (a texture graph rather than one source).
+- Custom vertex shaders.
+- Multipass custom shaders and persistent buffers. Deliberately refused in
+  v0.5: they duplicate FEEDBACK / HISTORY / SIMULATION, each of which already
+  has an export-determinism story that a second system would contradict.
+- Colour and vec2 parameters — both need a host control that does not exist yet.
+- Shader generators as SOURCES (rather than techniques).
+
+**Packs**
+
+- Pack signing and provenance.
+- Project dependency bundling: today a project that uses a pack needs the pack
+  installed, and says so clearly when it is not.
+- Hot reload on file change (RELOAD is explicit, which is the safer default).
+- An online gallery or marketplace.
+
+**ISF**
+
+- Full ISF: multipass, persistent buffers, multiple image inputs, audio and
+  event inputs, generators, `IMPORTED` media, `TIMEDELTA` / `DATE` /
+  `FRAMEINDEX`.
+
+**Tooling**
+
+- An in-app shader editor or live GLSL coding.
+- Compute shaders / WebGPU.
+- Collaborative or shared packs.

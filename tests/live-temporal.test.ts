@@ -249,14 +249,14 @@ describe('release gates (18G)', () => {
     }
   });
 
-  it('app version is 0.4.0 while the project schema stays v3', async () => {
-    // CE1H shipped as 0.3.5 because the ROADMAP had reserved v0.4 for Image /
-    // Motion Signals. v0.4.0 is that promise kept. The format still has not
-    // moved: nine new source ids live in the existing modulation registry and
-    // the three v0.4C mapping fields are optional, so a project written before
-    // any of this parses unchanged.
+  it('app version is 0.5.0 while the project schema stays v3', async () => {
+    // The ROADMAP reserved v0.4 for Image / Motion Signals and v0.5 for Shader
+    // Extensibility; both promises were kept in order. The format still has not
+    // moved: a pack shader stores the same techniqueId / enabled / params a
+    // native one does, and every v0.5 addition is a new id or an optional
+    // field, so a project written before any of it parses unchanged.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    expect(pkg.version).toBe('0.4.0');
+    expect(pkg.version).toBe('0.5.0');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(3);
   });

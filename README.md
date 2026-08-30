@@ -66,6 +66,7 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | ---------- | ------------------------------------------------------------------------------------------------------------- |
 | Sources    | PNG/JPEG/WebP, MP4/MOV (H.264, HEVC), WAV/MP3/AAC/M4A, SVG — plus LIVE: Camera, Screen, Window                |
 | Techniques | Mosaic, Temporal Mosaic, Echo, Step Print, Slit Scan, Feedback, Motion, Simulation                            |
+| Shaders    | Local shader packs — data + GLSL, no plugin code; parameters become real controls; ISF single-pass subset     |
 | Materials  | Square, Circle, Line, Dot, Rectangle, Triangle, custom SVG, raster image                                      |
 | Audio      | Offline analysis — master, RMS, peak, bass, mids, highs, centroid, flux, onset; tempo detection and tap tempo |
 | Beat grid  | Bars, beats, divisions and markers from BPM + offset + time signature                                         |
@@ -129,6 +130,10 @@ title bar.
   off the grid.
 - Physical MIDI hardware is untested: all MIDI validation used a virtual
   CoreMIDI device.
+- A shader pack is not sandboxed. MATERIAL refuses obvious accidents and bounds
+  what a pack may declare, but well-formed GLSL can still overload the GPU —
+  install packs from people you trust.
+- Custom shaders are fragment-only and single-pass, with one source texture.
 - Image and motion signals over LIVE sources are live-class: real in the room,
   absent from exports, like every other live signal.
 - Motion is measured by optical flow over a 320×180 analysis grid, so it sees
@@ -144,7 +149,7 @@ title bar.
 [SHORTCUTS](docs/SHORTCUTS.md) ·
 [RELEASE_NOTES](docs/RELEASE_NOTES.md)
 
-**Systems** — [SIGNALS](docs/SIGNALS.md) ·
+**Systems** — [SHADERS](docs/SHADERS.md) · [SHADER PACKS](docs/SHADER_PACKS.md) · [ISF](docs/ISF.md) · [SIGNALS](docs/SIGNALS.md) ·
 [MODULATION](docs/MODULATION.md) ·
 [PARAMETER_EVALUATION](docs/PARAMETER_EVALUATION.md) ·
 [PERFORMANCE](docs/PERFORMANCE.md) ·

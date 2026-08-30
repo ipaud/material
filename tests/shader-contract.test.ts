@@ -395,3 +395,17 @@ void main() { fragColor = vec4(vUv, 0.0, 1.0); }`;
     expect(staticShaderIssues('in vec2 vUv;\nvoid main() {}').join(' ')).toContain('vUv');
   });
 });
+
+describe('export drives the engine clock (§8 regression)', () => {
+  it('the export loop sets composition time before rendering each frame', () => {
+    // Every technique that reads ctx.timeSec depends on this: Time Field's
+    // phase, Step Print's anchor, and a custom shader's uMaterial_time. Export
+    // used to leave the clock wherever the preview left it — constant, and
+    // deterministic about it, so no determinism gate could notice.
+    const runner = readFileSync(join(__dirname, '..', 'src', 'export', 'exportRunner.ts'), 'utf8');
+    const loop = runner.slice(runner.indexOf('engine.setTime(timeSec)'));
+    expect(loop).toContain('engine.setTime(timeSec)');
+    // It must happen BEFORE the frame is rendered, not after.
+    expect(loop.indexOf('engine.setTime(timeSec)')).toBeLessThan(loop.indexOf('engine.renderStill('));
+  });
+});

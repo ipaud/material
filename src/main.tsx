@@ -97,6 +97,11 @@ if (import.meta.env.DEV) {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         return e.renderer ? shaderDiag.runShaderGoldens(e.renderer) : null;
       },
+      /** v0.5E: per-shader compile cost, for the lazy-compile policy. */
+      shaderCompileBench() {
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
+        return e.renderer ? shaderDiag.benchShaderCompile(e.renderer, packRegistry.allShaders()) : null;
+      },
       /** CE1G: transition goldens (endpoints, coverage, determinism). */
       transitionGoldens() {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };

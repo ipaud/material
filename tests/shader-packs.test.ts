@@ -259,3 +259,41 @@ describe('structural — the renderer never gets a filesystem (§138, §143)', (
     }
   });
 });
+
+describe('a project that references a pack (§135, §136)', () => {
+  const read = (...p: string[]) => readFileSync(join(__dirname, '..', ...p), 'utf8');
+
+  it('stores a reference, never the shader source', () => {
+    // Embedding GLSL would make a document carry code from elsewhere and fork
+    // silently from the pack it came from.
+    const schema = read('shared', 'schemas', 'project.ts');
+    expect(schema.includes('fragment')).toBe(false);
+    expect(schema.includes('LoadedShader')).toBe(false);
+    // The technique instance is unchanged: id, enabled, params.
+    expect(schema).toContain('techniqueId: z.string()');
+  });
+
+  it('a custom technique id is an ordinary v3 project field', async () => {
+    const { parseProject } = await import('@shared/schemas/project');
+    const base = JSON.parse(
+      readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    const parsed = parseProject({
+      ...base,
+      techniques: [
+        { id: 't1', techniqueId: 'custom:com.example.pack:demo', enabled: true, params: { amount: 0.42 } },
+      ],
+    });
+    expect(parsed).not.toBeNull();
+    expect(parsed!.version).toBe(3);
+    expect(parsed!.techniques[0]!.techniqueId).toBe('custom:com.example.pack:demo');
+    // The values survive whether or not the pack is installed.
+    expect(parsed!.techniques[0]!.params.amount).toBe(0.42);
+  });
+
+  it('no absolute path from the authoring machine is written into a project', () => {
+    const projectShaders = read('src', 'shaders', 'projectShaders.ts');
+    expect(projectShaders.includes('dir')).toBe(false);
+    expect(projectShaders.includes('path')).toBe(false);
+  });
+});
