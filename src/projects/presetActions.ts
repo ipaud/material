@@ -916,13 +916,13 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Memory Leak',
     techniqueId: 'echo',
     params: {
-      copies: 36,
+      copies: 22,
       delaySec: 0.05,
-      decay: 0.985,
+      decay: 0.86,
       copyScale: 1.045,
       copyRotation: 0.6,
       blend: 'add',
-      opacity: 0.5
+      opacity: 0.2
     },
     material: {
       materialId: 'square',
@@ -1932,33 +1932,6 @@ export const BUILTIN_PRESETS: Preset[] = [
     ]
   },
   {
-    id: 'builtin-single-line',
-    name: 'Single Line',
-    techniqueId: 'slit-scan',
-    params: {
-      strips: 2,
-      spanSec: 2.29,
-      axis: 'vertical',
-      interpolate: 1
-    },
-    material: {
-      materialId: 'square',
-      colorMode: 'source',
-      params: {
-        aspect: 1
-      },
-      assetPath: null
-    },
-    modulations: [],
-    triggers: [],
-    builtin: true,
-    category: 'Minimal',
-    description: 'Two smooth bands spanning the whole buffer. Almost nothing, moving.',
-    tags: [
-      'reduction'
-    ]
-  },
-  {
     id: 'builtin-two-tones',
     name: 'Two Tones',
     techniqueId: 'mosaic',
@@ -2039,8 +2012,8 @@ export const BUILTIN_PRESETS: Preset[] = [
     params: {
       columns: 48,
       rows: 27,
-      scale: 0.55,
-      spacing: 0.4,
+      scale: 1.25,
+      spacing: 0.2,
       lumToScale: 0.35
     },
     material: {
@@ -3312,10 +3285,10 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Chemical Bloom',
     techniqueId: 'reaction-diffusion',
     params: {
-      feed: 0.062,
-      kill: 0.0625,
+      feed: 0.022,
+      kill: 0.0515,
       speed: 6,
-      contrast: 2,
+      contrast: 3.4,
       grid: 320
     },
     material: {

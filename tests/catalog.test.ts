@@ -278,3 +278,61 @@ describe('preset catalog (§3, §6)', () => {
     expect(orphans, `techniques with no preset: ${orphans.join(', ')}`).toEqual([]);
   });
 });
+
+/**
+ * CE1H §4-7 — the CURATION pass, recorded.
+ *
+ * Every preset was rendered against four reference sources (graphic grid,
+ * landscape waves, synthetic motion noise, and real dance footage) through
+ * the EXPORT preparation path, then measured for flatness and for
+ * near-duplication at full tile resolution.
+ *
+ * Two harness lessons are worth keeping, because both produced confident
+ * wrong answers first:
+ *  - A bare `renderStill` primes no history, feedback or flow, so every
+ *    temporal preset rendered the same bare frame and the sheet reported
+ *    292 "duplicates". The tiles have to go through the export path.
+ *  - Comparing downscaled thumbnails averages out high-frequency texture:
+ *    Coral and Worm Field looked identical at 32×18 and differ by 204 at
+ *    full resolution. Duplicate checks are made on full tiles.
+ *
+ * Outcome — 108 presets in, 107 out:
+ *   REMOVED  Single Line (slit-scan) — at strips 2 with interpolation it is
+ *            mathematically Time Field horizontal, and rendered
+ *            byte-identical to Deep Curtain on every source. Signal Tear
+ *            already covers the low-strip territory, and the name described
+ *            something the preset never did.
+ *   RETUNED  Memory Leak — 36 additive copies at decay 0.985 saturated to
+ *            pure white (mean 255, zero spatial variance) on every source.
+ *   RETUNED  Field of Dots — dots too small against too much gap, mean 3-10.
+ *   RETUNED  Chemical Bloom — feed/kill sat in the dying region: dark, and
+ *            crowding Coral. Moved to unused low-feed/low-kill territory.
+ *
+ * After: zero flat-or-blown presets, zero full-resolution near-duplicate
+ * pairs across all four sources.
+ */
+describe('curation outcome (§4-7)', () => {
+  it('the removed preset stays removed', () => {
+    expect(BUILTIN_PRESETS.find((p) => p.id === 'builtin-single-line')).toBeUndefined();
+  });
+
+  it('the retuned presets keep the values curation landed on', () => {
+    const by = (id: string) => BUILTIN_PRESETS.find((p) => p.id === id)?.params ?? {};
+    // Regressing any of these puts a blown, black or duplicate tile back in
+    // the library, which the contact sheet would have to catch again.
+    expect(by('builtin-memory-leak')).toMatchObject({ copies: 22, decay: 0.86, opacity: 0.2 });
+    expect(by('builtin-field-of-dots')).toMatchObject({ scale: 1.25, spacing: 0.2 });
+    expect(by('builtin-chemical-bloom')).toMatchObject({ feed: 0.022, kill: 0.0515 });
+  });
+
+  it('Reaction Diffusion presets occupy distinct feed/kill territory', () => {
+    const rd = BUILTIN_PRESETS.filter((p) => p.techniqueId === 'reaction-diffusion');
+    const seen = new Set<string>();
+    for (const p of rd) {
+      const key = `${p.params.feed}/${p.params.kill}`;
+      expect(seen.has(key), `duplicate Gray-Scott regime ${key}`).toBe(false);
+      seen.add(key);
+    }
+    expect(rd.length).toBeGreaterThan(3);
+  });
+});

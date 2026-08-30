@@ -3537,20 +3537,6 @@
       "triggerCount": 0
     },
     {
-      "id": "builtin-single-line",
-      "name": "Single Line",
-      "category": "Minimal",
-      "techniqueId": "slit-scan",
-      "paramKeys": [
-        "axis",
-        "interpolate",
-        "spanSec",
-        "strips"
-      ],
-      "modulationCount": 0,
-      "triggerCount": 0
-    },
-    {
       "id": "builtin-slow-burn",
       "name": "Slow Burn",
       "category": "Performance",

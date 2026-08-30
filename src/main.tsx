@@ -204,6 +204,60 @@ if (import.meta.env.DEV) {
           sampleB: b.hashes.slice(0, 6),
         };
       },
+      /**
+       * CE1H §6-7 — PRESET contact sheet.
+       *
+       * Renders every preset against the CURRENT source and tiles the
+       * results, so curation happens by looking at the catalog instead of
+       * reading parameter tables.
+       *
+       * Each tile goes through the EXPORT preparation path, not a bare
+       * renderStill: history, feedback and flow all have to be primed from
+       * composition time or every temporal preset renders the same bare
+       * frame and the sheet reports them as identical. (It did, the first
+       * time — the "duplicates" were the harness, not the catalog.)
+       */
+      async presetSheet(atSec = 2, cell = 160, filter?: string) {
+        const list = BUILTIN_PRESETS.filter((p) => !filter || p.category === filter);
+        const cols = 12;
+        const rows = Math.ceil(list.length / cols);
+        const cw = cell;
+        const ch = Math.round((cell * 9) / 16);
+        const cv = document.createElement('canvas');
+        cv.width = cols * cw;
+        cv.height = rows * ch;
+        const ctx = cv.getContext('2d')!;
+        ctx.fillStyle = '#101010';
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        const meta: { name: string; category: string; technique: string; mean: number }[] = [];
+        for (let i = 0; i < list.length; i++) {
+          const preset = list[i]!;
+          applyPreset(preset);
+          // Let the bridge install the preset's technique renderer.
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const params = useProjectStore.getState().project.techniques[0]?.params ?? {};
+          engine.beginExportMode();
+          engine.setExportPreviousTime(Math.max(atSec - 1 / 12, 0));
+          engine.prepareGeneratorForExport(atSec, cw, ch);
+          engine.prepareFlowForExport(atSec, 'sheet:' + i, true, cw, ch, params);
+          if (engine.isTemporalActive) await engine.prepareTemporalForExport(atSec, true);
+          engine.prepareFeedbackForExport(atSec, true, params);
+          const px = engine.renderStill(cw, ch, params);
+          engine.endExportMode();
+          const img = ctx.createImageData(cw, ch);
+          img.data.set(px);
+          ctx.putImageData(img, (i % cols) * cw, Math.floor(i / cols) * ch);
+          let sum = 0;
+          for (let k = 0; k < px.length; k += 4) sum += (px[k]! + px[k + 1]! + px[k + 2]!) / 3;
+          meta.push({
+            name: preset.name,
+            category: preset.category,
+            technique: preset.techniqueId,
+            mean: +(sum / (px.length / 4)).toFixed(1),
+          });
+        }
+        return { url: cv.toDataURL('image/png'), cols, cell: [cw, ch], meta };
+      },
       /** CE1G: visual contact sheet — every style at .25/.5/.75, as a PNG
        * data URL, for curation by eye. */
       transitionSheet() {

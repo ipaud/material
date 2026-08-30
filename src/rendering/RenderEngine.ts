@@ -377,9 +377,26 @@ export class RenderEngine {
     this.flow?.reset();
   }
 
-  /** Export: advance flow deterministically for this frame (after the
-   * runner seeked the source). First frame resets so the pair primes. */
-  prepareFlowForExport(frameKey: string, isFirstFrame: boolean, params?: ParamRecord): void {
+  /**
+   * Export: advance flow deterministically for this frame (after the runner
+   * seeked the source). First frame resets so the pair primes.
+   *
+   * CE1H: this is called from the export loop. It previously was not called
+   * at all, and `renderFrame` skips flow in export mode — so every Motion
+   * technique exported against a stale preview flow field, or none. That is
+   * perfectly deterministic, which is why repeat and subrange comparisons
+   * passed while the motion itself was missing; the preset contact sheet
+   * caught it by rendering four different Flow Displace presets to
+   * byte-identical tiles.
+   */
+  prepareFlowForExport(
+    compositionTime: number,
+    frameKey: string,
+    isFirstFrame: boolean,
+    width: number,
+    height: number,
+    params?: ParamRecord,
+  ): void {
     const renderer = this.renderer;
     if (!renderer) return;
     if (params) this.syncScene(params);
@@ -390,9 +407,11 @@ export class RenderEngine {
       // exported frame of a subrange carries the same motion as the same
       // global frame of a full export (flow needs two frames, always).
       if (this.generator && this.exportPrevSourceSec !== null) {
-        const back = this.exportPrevSourceSec;
-        this.renderGenerator(renderer, back, true);
+        this.prepareGeneratorForExport(this.exportPrevSourceSec, width, height);
         this.updateFlowService(renderer, `${frameKey}:pre`);
+        // Put the source back on THIS frame before the second tap, or the
+        // pair holds the previous frame twice and the flow is zero.
+        this.prepareGeneratorForExport(compositionTime, width, height);
       }
     }
     this.updateFlowService(renderer, frameKey);

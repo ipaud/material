@@ -532,6 +532,14 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
           const frame = pre(f);
           rendererSync.sync(frame.techniqueId, frame.params);
           engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
+          engine.prepareFlowForExport(
+            frame.timeSec,
+            `export:${f}`,
+            f === 0,
+            request.width,
+            request.height,
+            frame.params,
+          );
           engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
         }
         prerolled = true;
@@ -558,6 +566,17 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // differently-sized source than the full export's same global frame.
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
+      // CE1H: optical flow is a source-derived pair and must advance per
+      // exported frame. Keyed by GLOBAL frame so a subrange and a full
+      // export drive the service identically.
+      engine.prepareFlowForExport(
+        timeSec,
+        `export:${startFrame + i}`,
+        i === 0 && !prerolled,
+        request.width,
+        request.height,
+        params,
+      );
       // CE1G: render the A side into the snapshot with A's own renderer,
       // then hand the renderer back to B for the frame proper.
       if (transition) {
