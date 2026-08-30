@@ -89,3 +89,59 @@ before building on them.
 lint 0 · typecheck 0 · **1021 tests** · `tests/a0-prework.test.ts` locks all four.
 
 **Proceeding to A1.**
+
+---
+
+## A1 — signal contract — COMPLETE
+
+Three signals, dotted family ids: `image.luminance`, `motion.amount`, `motion.x`.
+
+The design pass surfaced a property worth stating loudly: **`motion.x` needs no
+per-source calibration at all.** It is the magnitude-weighted mean of the *unit*
+direction, `Σ(|f|·f.x/|f|) / Σ|f| = Σf.x / Σ|f|` — the weight cancels
+analytically, so it is bounded to ±1 by construction. Only `image.luminance`
+and `motion.amount` go through A5.
+
+`inactive` is expressed as **absence from the source-value record**, never 0 —
+absence is the evaluator's neutral, whereas 0 with `invert` or a non-zero `min`
+manufactures a contribution out of silence.
+
+## A2 — GPU reduction — COMPLETE
+
+One extract pass (R=luma, G=|flow|, B=signed flow.x, A=coverage) then 4×4 sum
+passes down to a tile of at most 8×8. At 320×180 that is 4 draws and a **240-byte
+readback**. `B` is unweighted on purpose — the weight cancels in the ratio, so
+no fifth accumulator.
+
+Out-of-range children are skipped rather than clamped; clamp-to-edge would
+duplicate edge texels and bias the mean. Coverage in `A` is what makes the skip
+exact.
+
+### Goldens — clean process, measured
+
+| case | n | exact | luma | amount | motion.x |
+|---|---|---|---|---|---|
+| constant 0.25 | 57600 | ✓ | 0.25098 | — | 0.5 |
+| ramp `vUv.x` | 57600 | ✓ | **0.500000** | — | 0.5 |
+| odd half/half 317×179 | **56743** | ✓ | **0.501577** = 159/317 | — | 0.5 |
+| flow right | 57600 | ✓ | — | 3.2 | **1.000000** |
+| flow left | 57600 | ✓ | — | 3.2 | **0.000000** |
+| flow vertical | 57600 | ✓ | — | 3.2 | **0.500000** |
+| flow still | 57600 | ✓ | — | 0 | 0.500000 |
+
+`n === gridWidth·gridHeight` exactly in every case, including 317×179 — one
+integer that proves no padded texel contributed and none was dropped.
+`amount = 3.2` is exactly `0.01 uv × 320` texels. Vertical motion reads dead
+centre because it has no horizontal dominance, which is correct and worth
+having as a fixture. Same-key re-analysis does not re-reduce; repeated analysis
+is bit-identical.
+
+`constant` reads 0.25098 = 64/255 because the fixture texture is RGBA8, like a
+real source. Tolerance is half an 8-bit LSB; tightening it would only test the
+fixture's precision.
+
+**Doctrine deviation recorded**: the product path reads `FloatType` straight
+into a `Float32Array`. The encode-to-RGBA8 rule exists for signed, unknown-scale
+diagnostics; sums reaching 57 600 cannot survive 8 bits.
+
+**Proceeding to A3/A4.**

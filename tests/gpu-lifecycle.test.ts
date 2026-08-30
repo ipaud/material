@@ -25,6 +25,7 @@ const OWNERS: [string, string[]][] = [
   ['src/rendering/feedback/feedbackStep.ts', ['scene']],
   ['src/rendering/temporal/TemporalFrameProvider.ts', ['scene']],
   ['src/sources/generators/GeneratorSource.ts', ['scene', 'simScene']],
+  ['src/rendering/analysis/ImageStatsReducer.ts', ['extractScene', 'reduceScene']],
 ];
 
 describe('every offscreen pass disposes its geometry (§63)', () => {

@@ -40,6 +40,7 @@ import { BUILTIN_PRESETS, applyPreset } from './projects/presetActions';
 import * as flowDiag from './rendering/flow/flowDiagnostics';
 import * as simDiag from './rendering/simulation/simDiagnostics';
 import * as transDiag from './rendering/transition/transitionDiagnostics';
+import * as statsDiag from './rendering/analysis/statsDiagnostics';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -80,6 +81,11 @@ if (import.meta.env.DEV) {
       presets: { BUILTIN_PRESETS, applyPreset },
       importMediaPaths,
       runAnimationExport,
+      /** v0.4A: reduction-ladder goldens. Self-test before any signal claim. */
+      statsGoldens() {
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
+        return e.renderer ? statsDiag.runStatsGoldens(e.renderer) : null;
+      },
       /** CE1G: transition goldens (endpoints, coverage, determinism). */
       transitionGoldens() {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
