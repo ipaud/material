@@ -6,6 +6,7 @@ import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
 import type { Preset } from '@shared/schemas/preset';
 import { SIGNAL_PRESETS } from './signalPresets';
+import { packPresets } from '@/shaders/packPresets';
 
 /** Built-in starting points. Source media is never part of a preset. */
 export const BUILTIN_PRESETS: Preset[] = [
@@ -3523,12 +3524,16 @@ export function unmetRequirementNote(
 }
 
 export async function listAllPresets(): Promise<Preset[]> {
+  // v0.5C: a pack's own presets are ordinary presets, validated against the
+  // shader that declares them and listed with everything else. They are params
+  // only — a pack does not get to write mappings into the document.
+  const fromPacks = packPresets();
   try {
     const user = await window.material.listPresets();
-    return [...BUILTIN_PRESETS, ...user];
+    return [...BUILTIN_PRESETS, ...fromPacks, ...user];
   } catch (err) {
     reportError('List presets', err);
-    return BUILTIN_PRESETS;
+    return [...BUILTIN_PRESETS, ...fromPacks];
   }
 }
 
