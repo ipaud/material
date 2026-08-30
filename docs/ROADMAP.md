@@ -46,11 +46,64 @@ projects written before Creative Expansion open unchanged.
 Version note: this is 0.3.5, not 0.4. v0.4 is reserved below for Image /
 Motion Signals and that promise predates this work.
 
-## Next — v0.4 candidate: IMAGE / MOTION SIGNALS
+## Next — v0.4A: IMAGE / MOTION SIGNALS — architecture & GPU reduction
 
-Image-derived modulation sources: motion analysis, optical flow / movement
-metrics, luminance/region signals driving parameters the way audio does
-today. Not planned in detail yet.
+Turn the image itself into control, without destroying performance and
+without breaking the authority and determinism v0.3.5 just consolidated.
+
+### Candidate signals
+
+| IMAGE | MOTION |
+|---|---|
+| Luminance | Activity |
+| Contrast | Amount |
+| Edge Energy | X / Y |
+| Color Energy | Direction |
+| Red / Green / Blue | Centroid X / Centroid Y |
+| | Spread |
+
+### The shape it should take
+
+```
+SOURCE FRAME → GPU ANALYSIS → small reduction textures
+             → 1x1 / tiny GPU result → tiny CPU readback → SIGNALS
+             → existing modulation engine
+```
+
+Explicitly NOT:
+
+```
+SOURCE FRAME → readPixels 1920x1080 → CPU vision
+```
+
+The readback must be a handful of pixels, not a frame. Everything downstream
+of SIGNALS is the modulation engine that already exists — signals join the
+same vocabulary as audio, patterns and beat, so they inherit the authority
+rule (editor resolves, Output receives values) and the determinism contract
+for free.
+
+### Design question to settle FIRST
+
+A signal is not useful just because the number is correct — it needs a
+**performative range**. Measured in CE1H on the reference track: `mids` never
+exceeds 0.181 and `highs` never exceeds 0.058 across the whole song, because
+the three audio bands deliberately share one normalization reference. The
+number is right; the knob is dead.
+
+Image and motion signals will have the same problem, harder: a dark clip, a
+low-contrast camera and a high-contrast generator produce wildly different
+raw ranges. So v0.4 is not only "add more signals" — it needs
+**normalization / calibration per source**, decided before the signals are
+built rather than bolted on after.
+
+### Already in place
+
+`OpticalFlowField` (shared GPU service, source-frame gated), the FIELD
+contract (inline GLSL, zero passes), generators as deterministic sources, and
+the CE1D-2 GPU numeric verification harness — which is what makes it possible
+to assert a reduction is CORRECT rather than merely plausible.
+
+Not built: GPU reductions.
 
 ## Next (pre-v0.3 list)
 
