@@ -54,6 +54,29 @@ change. Deliberately not done in CE1H: §17 forbids new analyzer work, and
 changing normalization would silently alter every existing project's
 modulation.
 
+### Export transition snapshot is black when the A side is a feedback technique
+
+Found while producing a music video, not by a gate. In a cross-technique morph
+with a non-Smooth transition, export re-renders the A side (it cannot snapshot
+one — a subrange has no earlier frame). That render runs against a technique
+renderer the export just installed, so if A is a FEEDBACK technique its
+ping-pong surface is empty and A renders black. When B is also a feedback
+technique it starts cold too, and the reveal is black at both ends.
+
+Measured: a `feedback-rgb → feedback-kaleido` morph at 109.4–115.0s produced
+0.67s of total black (frames 111.33–112.00 at mean 0.0) in a 1080p30 export.
+Raising `injection` on either side does not help — it is not warm-up, it is
+that the A render has no surface at all.
+
+Workarounds today: use `smooth` for cross-technique morphs between feedback
+techniques (it takes no snapshot), or keep morphs same-technique.
+
+Fix direction: the export A-side render needs the feedback surface walked
+forward the way the main export path already does for the B side — the preroll
+machinery exists (`prepareFeedbackForExport`), it just is not applied to the
+A-side pass in `captureExportSnapshot`. Cheap to try; needs its own goldens
+because it changes exported pixels.
+
 ## Platform
 
 - **ISF host** — would let MATERIAL load external shaders. Changes the
