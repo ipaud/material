@@ -45,17 +45,82 @@ automatic detection is not implemented.
 
 ```
 v = source(t)
+v = clamp((v − inMin) / (inMax − inMin), 0, 1)   // input window, default identity
 v = invert ? 1 − v : v
 v = curve(v)                       // linear | exponential (v²) | logarithmic (√v)
 v = smooth(v, dt)                  // EMA, time constant up to ~0.8 s
-v = min + (max − min) · v          // range window
-final = clamp(base + amount · v · paramSpan, paramMin, paramMax)
+shaped = min + (max − min) · v     // output window
 ```
 
 `amount` is signed and scaled by the target parameter's own range, so
 `+1.0` means "the full range of this parameter" regardless of its units.
-Mappings are **additive on top of the parameter's own value**, so the slider
-still sets the resting point.
+
+## Add and Set
+
+Every mapping is one of two modes. **Add** is the historical behaviour and the
+default; a mapping stored before v0.4C has no `mode` field at all and means
+exactly what it always meant.
+
+```
+ADD      final = clamp(base + amount · shaped · paramSpan)
+SET      position = paramMin + shaped · paramSpan
+         final    = clamp(base + (position − base) · |amount|)
+```
+
+**Add** nudges the parameter from wherever the slider left it, so the slider
+still sets the resting point. **Set** positions it inside its own range and
+ignores where it sat.
+
+Two things need Set:
+
+- **positions.** `motion.centroidX → Feedback Center X` has to map position to
+  position. "Add ±amount to the current centre" throws the meaning away, so
+  positional signals arrive in Set mode by default.
+- **parameters near a rail.** Measured on Feedback persistence parked at 0.98:
+  a full-strength Add mapping moves it between 0.980 and 0.995 — 1.5% of
+  travel, the rest eaten by the clamp. The same signal in Set mode with a
+  0.50–0.99 window moves it between 0.748 and 0.990. Sixteen times the travel,
+  from the same signal.
+
+In Set mode `amount` blends between where the parameter was and where the
+signal puts it, so the slider still reads as "how much does this mapping
+matter": 1 is full authority, 0 is none.
+
+### How several mappings on one parameter compose
+
+```
+base parameter value
+  → at most one SET mapping positions it
+  → every ADD mapping sums on top
+  → clamp once
+```
+
+At most one Set, deliberately. Two mappings each claiming to *be* the parameter
+have no meaningful sum, and choosing by evaluation order would make the result
+depend on the order rows happen to sit in. The first enabled Set in document
+order wins; the rest are inert and the UI marks them `INERT` rather than
+leaving a dead row looking live.
+
+## Input window vs calibration
+
+They are different things and the distinction matters:
+
+| | what it does | who decides |
+|---|---|---|
+| **Calibration** | adapts a signal's range to the current SOURCE | automatic, per pixel origin |
+| **Input window** | narrows attention to the part of the signal you care about | you, per mapping |
+
+Calibration is why `Luminance → Depth` survives changing from a dark clip to a
+bright generator. The input window is how you say "only react above half
+brightness". Doing the second by hand instead of the first is the mistake that
+makes a Look source-specific.
+
+## Invert
+
+`1 − v`, for every signal. That is already correct for centred signals: they
+publish `0.5 + 0.5 · direction`, so `1 − v` maps `+d` to `−d` exactly. A
+separate bipolar inversion would break the unipolar sources that share the
+evaluator.
 
 ## Freeze
 

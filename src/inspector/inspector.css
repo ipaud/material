@@ -54,3 +54,11 @@
   color: var(--text-dim);
   opacity: 0.7;
 }
+
+/* v0.4C — calibration lock/reset live with the scope, because the scope is
+   where a performer can see what the range is doing. */
+.scope-actions {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}

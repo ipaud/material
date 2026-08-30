@@ -40,6 +40,17 @@ const PARAMS: Partial<Record<VisualSignalId, CalibratorParams>> = {
 
 export class CalibrationStore {
   private states = new Map<string, CalibratorState>();
+  /**
+   * v0.4C — LOCK freezes the envelopes where they are. RAW keeps moving and
+   * CALIBRATED keeps responding; what stops is the range adapting underneath
+   * the performer. Useful once a scene is lit and the ranges are right: an
+   * envelope that keeps learning will keep drifting.
+   *
+   * Runtime only, and deliberately not persisted. Storing a moving statistic
+   * in the project would make an export irreproducible from a fresh open, so
+   * loading a project always starts adapting again.
+   */
+  locked = false;
 
   private key(origin: string, id: VisualSignalId): string {
     return `${origin}|${id}`;
@@ -51,7 +62,7 @@ export class CalibrationStore {
 
   /** Advance every calibrated signal for one analysed frame. */
   advance(origin: string | null, stats: RawVisualStats | null, dtSec: number): void {
-    if (!origin || !stats) return;
+    if (!origin || !stats || this.locked) return;
     this.step(origin, 'image.luminance', stats.luminance, dtSec);
     this.step(origin, 'image.contrast', stats.contrast, dtSec);
     this.step(origin, 'image.edgeEnergy', stats.edgeEnergy, dtSec);
@@ -91,9 +102,20 @@ export class CalibrationStore {
     return this.states.size;
   }
 
-  /** Document replaced — drop everything. */
+  /** Forget one pixel origin's ranges so they rebuild from what is on screen
+   * now — the escape hatch when a scene changed more than the envelope's time
+   * constants can follow. */
+  resetOrigin(origin: string | null): void {
+    if (!origin) return;
+    for (const key of [...this.states.keys()]) {
+      if (key.startsWith(`${origin}|`)) this.states.delete(key);
+    }
+  }
+
+  /** Document replaced — drop everything, including the lock. */
   reset(): void {
     this.states.clear();
+    this.locked = false;
   }
 }
 

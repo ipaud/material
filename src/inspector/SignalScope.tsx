@@ -101,8 +101,36 @@ function SignalRow({ id }: { id: VisualSignalId }) {
 }
 
 export function SignalScope() {
+  const [, setTick] = useState(0);
+  const locked = calibrationStore.locked;
   return (
     <div className="signal-scope">
+      <div className="scope-actions">
+        <button
+          className={`vp-btn${locked ? ' active' : ''}`}
+          title={
+            locked
+              ? 'Ranges are frozen. Signals still respond; the range stops adapting.'
+              : 'Freeze the calibrated ranges where they are now'
+          }
+          onClick={() => {
+            calibrationStore.locked = !calibrationStore.locked;
+            setTick((t) => t + 1);
+          }}
+        >
+          {locked ? 'LOCKED' : 'LOCK'}
+        </button>
+        <button
+          className="vp-btn"
+          title="Forget this source's ranges and learn them again from what is on screen"
+          onClick={() => {
+            calibrationStore.resetOrigin(modulationRuntime.visualOriginKey);
+            setTick((t) => t + 1);
+          }}
+        >
+          RESET
+        </button>
+      </div>
       {VISUAL_SIGNALS.map((s) => (
         <SignalRow key={s.id} id={s.id} />
       ))}

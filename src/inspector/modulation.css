@@ -118,3 +118,35 @@
 .macro-name-input:focus {
   border-color: var(--accent);
 }
+
+/* v0.4C — live source level beside each mapping row. Scalar only: this reads
+   the evaluator's last resolved values, it never triggers analysis. */
+.mod-meter {
+  display: inline-block;
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+  flex: none;
+}
+.mod-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 90ms linear;
+}
+.mod-mode {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  color: var(--bg);
+  flex: none;
+}
+.mod-mode.inert {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid currentColor;
+}

@@ -30,10 +30,40 @@ import { getTriggerState } from '@/signals/triggerRuntime';
 import { pulseContribution } from '@/signals/pulseEngine';
 import { playback } from '@/playback/PlaybackController';
 import { allParams } from '@/techniques/types';
+import { replaceConflicts } from '@/modulation/evaluator';
 import type { ModulationMapping } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { ParameterSlider } from '@/components/ParameterSlider';
 import './modulation.css';
+
+/**
+ * v0.4C — the live value behind a mapping row.
+ *
+ * A performer needs to see whether a signal is moving before deciding the
+ * mapping is wrong. The number comes from the evaluator's last resolved source
+ * values, so this costs one lookup and no analysis of its own.
+ */
+function SourceMeter({ source }: { source: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const h = setInterval(() => setTick((t) => t + 1), 100);
+    return () => clearInterval(h);
+  }, []);
+  const v = modulationRuntime.lastSourceValues?.[source];
+  if (v === undefined) {
+    return (
+      <span className="mod-meter" title="This source is not producing a value right now">
+        <span className="mod-meter-fill" style={{ width: 0 }} />
+      </span>
+    );
+  }
+  const pct = Math.min(Math.max(v, 0), 1) * 100;
+  return (
+    <span className="mod-meter" title={`${source} = ${v.toFixed(3)}`}>
+      <span className="mod-meter-fill" style={{ width: `${pct}%` }} />
+    </span>
+  );
+}
 
 export function ModulationSection() {
   const mappings = useProjectStore((s) => s.project.modulations);
@@ -46,6 +76,9 @@ export function ModulationSection() {
   const targets = allParams(definition).filter((p) => p.type === 'number' && p.modulatable);
 
   const anyFrozen = mappings.some((m) => m.frozenValue !== null);
+  // A second REPLACE on one target is inert. Saying so is the difference
+  // between a considered rule and a row that silently does nothing.
+  const inertReplace = replaceConflicts(mappings);
 
   return (
     <div className="inspector-section">
@@ -113,6 +146,19 @@ export function ModulationSection() {
                   </option>
                 ))}
               </select>
+              <SourceMeter source={m.source} />
+              {m.mode === 'replace' ? (
+                <span
+                  className={`mod-mode${inertReplace.has(m.id) ? ' inert' : ''}`}
+                  title={
+                    inertReplace.has(m.id)
+                      ? 'Another Replace mapping already owns this parameter, so this row is inactive'
+                      : 'Replace: this signal positions the parameter'
+                  }
+                >
+                  {inertReplace.has(m.id) ? 'INERT' : 'SET'}
+                </span>
+              ) : null}
               <span
                 className="mod-amount mono"
                 title={targetDef ? `Amount of ${targetDef.label} range` : 'Amount'}
@@ -126,6 +172,23 @@ export function ModulationSection() {
             </div>
             {isOpen && (
               <div className="mod-detail">
+                <div className="param-row">
+                  <span className="param-label">Mapping</span>
+                  <div className="param-control">
+                    <select
+                      className="select"
+                      value={m.mode ?? 'add'}
+                      onChange={(e) =>
+                        updateMapping(m.id, {
+                          mode: e.target.value === 'replace' ? 'replace' : 'add',
+                        })
+                      }
+                    >
+                      <option value="add">Add — nudge from the current value</option>
+                      <option value="replace">Set — position within the range</option>
+                    </select>
+                  </div>
+                </div>
                 <ParameterSlider
                   label="Amount"
                   value={m.amount}
@@ -165,6 +228,28 @@ export function ModulationSection() {
                   step={0.01}
                   defaultValue={1}
                   onChange={(v) => updateMapping(m.id, { max: v })}
+                />
+                {/* The input window narrows attention to the part of the
+                    signal worth reacting to. It is NOT calibration: that
+                    adapts a signal to its source automatically, this is a
+                    choice about what to react to. */}
+                <ParameterSlider
+                  label="From"
+                  value={m.inMin ?? 0}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  defaultValue={0}
+                  onChange={(v) => updateMapping(m.id, { inMin: v })}
+                />
+                <ParameterSlider
+                  label="To"
+                  value={m.inMax ?? 1}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  defaultValue={1}
+                  onChange={(v) => updateMapping(m.id, { inMax: v })}
                 />
                 <div className="param-row">
                   <span className="param-label">Curve</span>

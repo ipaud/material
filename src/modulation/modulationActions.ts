@@ -8,19 +8,26 @@ export function addMapping(source: string, target: string): void {
   // v0.4A: a CENTRED signal rests at 0.5, so a 0..1 range would make "still"
   // contribute half the parameter span. The signal declares the range that
   // makes it neutral at rest.
-  const range = visualSignalDef(source)?.defaultMapping ?? { min: 0, max: 1 };
+  const def = visualSignalDef(source);
+  const range = def?.defaultMapping ?? { min: 0, max: 1 };
+  // v0.4C: a POSITION means nothing added to wherever a parameter happens to
+  // sit. A motion centroid driving a feedback centre has to map position to
+  // position, so positional signals arrive in Set mode at full weight; every
+  // other source keeps the historical additive default.
+  const positional = def?.domain === 'position';
   const mapping: ModulationMapping = {
     id: uid('mod'),
     enabled: true,
     source,
     target,
-    amount: 0.5,
+    amount: positional ? 1 : 0.5,
     min: range.min,
     max: range.max,
     invert: false,
     smoothing: 0.25,
     curve: 'linear',
     frozenValue: null,
+    ...(positional ? { mode: 'replace' as const } : {}),
   };
   useProjectStore.getState().apply((p) => ({ ...p, modulations: [...p.modulations, mapping] }));
 }

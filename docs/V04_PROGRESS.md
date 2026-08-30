@@ -142,3 +142,105 @@ Tests 1117 passing / 65 files · typecheck · lint · build · GPU goldens green
 cost flat in signal count · image-only demand does not wake optical flow.
 
 **Safe to proceed to C.**
+
+## C — mapping & performance UX
+
+### Decisions
+
+**Two modes, not five.** `add` (default, unchanged) and `replace`. Multiply was
+spiked and dropped: nothing in the Look vocabulary needed it that a Set window
+could not express, and every extra mode multiplies the composition rules.
+
+**`mode`, `inMin`, `inMax` are OPTIONAL, not defaulted.** Absent and `'add'`
+mean the same thing everywhere. Defaulting them would have rewritten every
+stored project on first save to say something it already meant, and forced 52
+construction sites to spell out three fields they do not care about. Schema
+stays **v3**.
+
+**At most one Set mapping per parameter.** Two mappings each claiming to *be*
+the parameter have no meaningful sum, and picking by evaluation order would
+make the result depend on row order. First enabled Set in document order wins;
+the rest are inert and the UI marks them `INERT`.
+
+**Positional signals default to Set at full weight.** A centroid added to
+wherever a parameter happens to sit is not a position. `addMapping` reads the
+signal's `domain` and picks the mode, so the default is right without the
+performer knowing the rule exists.
+
+**`amount` stays meaningful in both modes.** In Set it blends between the
+parameter's current value and the mapped position, so the slider still reads as
+"how much does this mapping matter".
+
+**Invert stays `1 − v`.** For centred signals that IS the bipolar inversion,
+because they publish `0.5 + 0.5·direction`. A separate bipolar path would have
+broken the unipolar sources sharing the evaluator, to compute the same number.
+
+**Calibration Lock / Reset added, runtime-only.** Lock freezes the envelopes;
+RAW and CALIBRATED keep moving, the range stops adapting underneath a lit
+scene. Reset forgets one pixel origin's ranges. Neither is persisted — storing
+a moving statistic would make an export irreproducible from a fresh open.
+
+**Rejected for now:** a dead zone for `motion.x/y` (the direction gate at the
+signal layer already suppresses sub-noise-floor jitter — a second suppressor
+would be duplicated noise policy); extra curves beyond the existing three; a
+Bézier editor; Multiply.
+
+### Measured gates
+
+**Position — the flagship.** `motion.centroidX → Feedback Center X` in Set mode
+with a 0.15–0.85 window, on a parameter whose range is −0.5..0.5:
+
+| centroidX | 0.05 | 0.25 | 0.50 | 0.75 | 0.95 |
+|---|---|---|---|---|---|
+| resolved centerX | **−0.315** | −0.175 | **0.000** | +0.175 | **+0.315** |
+
+Monotone, symmetric, and centred exactly when the motion is centred.
+
+**Near-ceiling rescue.** Feedback persistence parked at 0.98, luminance driving
+it from dark to bright:
+
+| mode | dark | bright | travel |
+|---|---|---|---|
+| Add, amount 1 | 0.980 | 0.995 | **1.5%** |
+| Set, window 0.50–0.99 | 0.748 | 0.990 | **24%** |
+
+Sixteen times the travel from the same signal. This is the failure the mode
+exists for, and it is not hypothetical — it is the feedback-persistence problem
+observed since CE1B.
+
+**Directional.** `motion.x → X Drift` in Add mode with a −1..1 window, on a
+−3..3 parameter: left **−3**, still **0** exactly, right **+3**. A centred
+signal at rest contributes nothing at all rather than a constant bias.
+
+### Tests
+
+23 new mapping goldens, every expectation a closed-form number: Add
+compatibility, output window semantics, summation, absence-as-neutral, Set
+positioning, Set travel windows, the ceiling rescue, amount-as-blend,
+Set-then-Add ordering, conflict inertness, disabled Set not claiming a target,
+input window renormalisation and clamping, identity default, degenerate window,
+centred invert, and centred rest contributing zero.
+
+Structural: the Output replica references no evaluator, no mapping mode, no
+calibration and no reducer; the frame channel carries no signal or mapping
+type; both apply paths go through one `composeTarget`.
+
+Compatibility: a mapping serialised before v0.4C parses with the new fields
+absent and evaluates bit-identically to an explicit `add`.
+
+### Known debt
+
+- The mapping row's live meter polls at 10 Hz while the section is open. It
+  reads the evaluator's last resolved values, so it costs a lookup and no
+  analysis, but it is a poll rather than a subscription.
+- Set mode has no UI affordance for "which parameter does this own" beyond the
+  `SET`/`INERT` badge.
+- Calibration Lock is global rather than per signal. Per-signal lock would need
+  a state model the performance UI cannot currently show compactly.
+
+### Gate
+
+Tests 1140 passing / 66 files · typecheck · lint · build · three product gates
+measured · old projects bit-identical.
+
+**Safe to proceed to D.**

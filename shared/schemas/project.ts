@@ -117,7 +117,39 @@ export const modulationMappingSchema = z.object({
   curve: z.enum(['linear', 'exponential', 'logarithmic']),
   /** FREEZE: when non-null, evaluator holds this captured value. */
   frozenValue: z.number().nullable().default(null),
+  /**
+   * v0.4C. `add` is the historical behaviour and the default, so every project
+   * written before this field loads with identical semantics.
+   *
+   * `replace` POSITIONS the parameter inside its own range instead of nudging
+   * it from wherever it sits. Positional signals need it: a motion centroid
+   * driving a feedback centre must map position to position, and "add ±amount
+   * to the current centre" throws the meaning away. It also rescues any
+   * parameter parked near its ceiling, where an additive mapping has nowhere
+   * left to travel.
+   */
+  mode: z.enum(['add', 'replace']).optional(),
+  /**
+   * Input window, in SOURCE units. The signal is renormalised from
+   * [inMin, inMax] to 0..1 before invert, curve and smoothing. Defaults to the
+   * identity, so it cannot change an existing project.
+   *
+   * This is creative remapping, NOT calibration: calibration adapts a signal
+   * to its source, this narrows attention to the part of the signal you care
+   * about. Keeping them separate is why one can be automatic and the other
+   * cannot.
+   */
+  inMin: z.number().optional(),
+  inMax: z.number().optional(),
 });
+/**
+ * The v0.4C fields are OPTIONAL rather than defaulted, so ABSENT and `'add'`
+ * mean the same thing everywhere — in a project written before v0.4C, in one
+ * written after, and in a mapping constructed in passing by a test or a
+ * preset. Defaulting them instead would have rewritten every stored project on
+ * first save to say something it already meant, and forced 52 construction
+ * sites to spell out three fields they do not care about.
+ */
 export type ModulationMapping = z.infer<typeof modulationMappingSchema>;
 
 // ---- Pattern sources (P4) ----------------------------------------------
