@@ -43,52 +43,46 @@ determinism contract that every system now meets.
 Project schema stays **v3** — every addition was additive and defaulted, so
 projects written before Creative Expansion open unchanged.
 
-Version note: this is 0.3.5, not 0.4. v0.4 is reserved below for Image /
-Motion Signals and that promise predates this work.
+Version note: that release was 0.3.5, not 0.4, because v0.4 was reserved for
+Image / Motion Signals. v0.4.0 below is that promise, kept.
 
-## Shipped — v0.4A: IMAGE / MOTION SIGNALS
+## v0.4 — IMAGE / MOTION SIGNALS — shipped
 
-The image itself is now a control source. Three signals — `image.luminance`,
-`motion.amount`, `motion.x` — measured on the GPU and joined to the existing
-modulation vocabulary. Full detail in [SIGNALS.md](SIGNALS.md).
+The image itself is a control source. Nine signals, measured on the GPU, joined
+to the existing modulation vocabulary. Full detail in [SIGNALS.md](SIGNALS.md).
 
-The scope was a deliberate vertical slice: three signals through every gate,
-rather than a dozen through none. What was built:
+| phase | what shipped |
+|---|---|
+| **v0.4A** | `image.luminance`, `motion.amount`, `motion.x`; the GPU reduction ladder; RAW/CALIBRATED with per-source calibration; the N−1 contract; export determinism |
+| **v0.4B** | `image.contrast`, `image.edgeEnergy`, `motion.y`, `motion.activity`, `motion.centroidX/Y` on one shared MRT ladder |
+| **v0.4C** | Set mapping mode, per-mapping input window, live meters, calibration Lock/Reset |
+| **v0.4D** | sixteen curated `Reactive` Looks, including Body Follow |
+| **v0.4E** | curation, QA, docs, release |
 
-- **One shared reduction ladder.** Extract to `R = luma, G = |flow|,
-  B = flow.x signed, A = coverage`, then 4×4 sum passes down to a tile of at
-  most 8×8. The readback is 240 bytes, not a frame. `ΣA == gridWidth·gridHeight`
-  exactly, on any dimensions, is the assertion that proves it.
-- **RAW vs CALIBRATED**, answering the design question this section reserved.
-  An asymmetric envelope (fast expand, slow contract, floored half-span) keyed
-  by pixel origin turns a 0.045 raw luminance span on a bright generator, a
-  0.234 span on a video and a **0.001** span on a still camera into 0.54, 1.00
-  and 0.27 of usable travel respectively — one Look, three sources.
-- **Demand-driven analysis.** Nothing mapped and no scope open means the
-  targets are released. Mapping a motion signal keeps the flow field alive even
-  when no technique wants it.
-- **The N−1 contract.** Preview and export evaluate signals in opposite order
-  relative to the source render, so both sample the previous frame. Repeat and
-  full-vs-subrange exports are byte-identical for all three signals, and
-  disabling the analyser changes every exported frame.
+The design question this section reserved — "a signal can be right and the knob
+still dead" — was answered by the RAW/CALIBRATED split. One unchanged Look
+turns a 0.045 raw luminance span on a generator, 0.234 on video and **0.001**
+on a still camera into 0.54, 1.00 and 0.27 of usable travel.
 
-Measured cost: 0.37–0.78 ms per analysis at 26 Hz against an 8.33 ms frame
-budget, 0.60–0.94 MB of ladder VRAM, preview holding 120 fps.
+Cost is flat in the number of signals: 5 draws, **one** 720-byte readback and
+2.81 MB whether one motion signal is mapped or all six, with preview holding
+120 fps.
 
-The candidate list below is what was NOT built, and stays available:
+### Not built, and available
 
 | IMAGE | MOTION |
 |---|---|
-| Contrast | Activity |
-| Edge Energy | Y / Direction |
-| Color Energy | Centroid X / Y |
-| Red / Green / Blue | Spread |
+| Red / Green / Blue | Direction (atan2) |
+| Colour Energy | Spread (second moment) |
 
-Each one needs the same treatment the first three got: a unit, a calibration
-decision, fixtures, an anti-dead-system companion test, and export proof. The
-ladder has a spare channel budget only if a new signal shares the same gate and
-cadence; anything that does not should justify a second chain rather than
-quietly widen this one.
+`motion.direction` waits for a mapping model that understands circular data —
+mapping an angle onto a linear parameter has a discontinuity at the wrap.
+Each of these needs what the nine got: a unit, a calibration decision,
+discriminating fixtures, an anti-dead companion, and export proof.
+
+## Next — v0.5: SHADER EXTENSIBILITY
+
+Reserved. Not started.
 
 ## Next (pre-v0.3 list)
 

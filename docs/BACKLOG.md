@@ -103,3 +103,36 @@ because it changes exported pixels.
   `slit-scan.strips`, `echo.copies` and `step-print.copies` are allocation
   shaping parameters that are currently continuously modulatable. Measured
   cost is acceptable today; the guard is a correctness nicety, not a bug.
+
+## Deferred from v0.4 — Image / Motion Signals
+
+Extracted deliberately, not forgotten. None of these is started.
+
+**Signals**
+
+- `motion.direction` — `atan2(y, x)` is semantically valid and awkward to map:
+  an angle has a discontinuity at the wrap that every linear parameter will
+  show. Needs a mapping model that understands circular data first.
+- `motion.spread` — second moment around the centroid. Interesting once
+  centroid workflows are in real use and ask for it.
+- `image.red` / `green` / `blue`, `image.colorEnergy` — cheap to compute, and
+  no evidence yet that they say anything luminance does not.
+
+**Mapping**
+
+- Multiply mode. Spiked during v0.4C and dropped: Add plus Set covered every
+  Look, and each extra mode multiplies the composition rules.
+- Richer curves than linear / exponential / logarithmic. A Bézier editor was
+  explicitly rejected.
+- UI for resolving multiple Set mappings on one parameter beyond the current
+  `INERT` badge.
+- Per-signal calibration lock (today Lock is global for the session).
+- Manual calibration persistence — deliberately excluded, because storing a
+  moving statistic makes an export irreproducible from a fresh open.
+
+**Bigger**
+
+- Signal recording / automation lanes.
+- Signal-to-signal modulation (a signal shaping another signal's response).
+- Anything model-based: ML vision, depth, pose or object tracking. Out of scope
+  by design — Motion Centre gives positional control with no model at all.

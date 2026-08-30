@@ -270,8 +270,8 @@ describe('measured live defects (§A6)', () => {
     expect(flow).toMatch(/get ready\(\): boolean \{\s*return this\.solves > 1;/);
     // A discontinuity must make the field un-ready again, or a seek would
     // publish the cleared field as measured motion.
-    const reset = flow.slice(flow.indexOf('reset(): void'));
-    expect(reset.slice(0, 200)).toContain('this.solves = 0');
+    const reset = flow.slice(flow.indexOf('reset(pairWillBeConstructed'));
+    expect(reset.slice(0, 800)).toContain('this.solves = pairWillBeConstructed ? 1 : 0');
   });
 });
 
@@ -338,5 +338,50 @@ describe('saturation is reported, not swallowed (§A9)', () => {
     );
     expect(none.hasFlow).toBe(false);
     expect(publishVisualSignals(none, demand, () => 0.5)).toEqual({});
+  });
+});
+
+describe('flow readiness distinguishes a constructed pair from a discontinuity (§E)', () => {
+  it('export declares its two-tap prime, preview does not', () => {
+    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    // Export builds prev-frame → this-frame explicitly, so its first solve is
+    // real. Requiring two solves there would have deleted motion from the
+    // first frame of every export.
+    expect(engine).toContain('this.flow?.reset(true)');
+    // The preview seek/loop path must NOT claim a constructed pair.
+    const resetPair = engine.slice(engine.indexOf('resetFlowPair(): void'));
+    expect(resetPair.slice(0, 200)).toContain('this.flow?.reset()');
+    const flow = src('src', 'rendering', 'flow', 'OpticalFlowField.ts');
+    expect(flow).toContain('reset(pairWillBeConstructed = false)');
+    expect(flow).toContain('this.solves = pairWillBeConstructed ? 1 : 0');
+  });
+});
+
+describe('demand follows the OVERLAY, not just the project (§E, §125)', () => {
+  it('the runtime pushes effective demand, because it owns the overlay', () => {
+    // A morph replaces the project's mappings while it runs. Computing demand
+    // from the project alone left a Look being morphed TO with its signals
+    // dark for the whole transition, snapping into life only at commit.
+    const runtime = src('src', 'modulation', 'runtime.ts');
+    expect(runtime).toContain('setDemandSink');
+    expect(runtime).toContain('pushDemand(overlay ? overlay.modulations : this.mappings)');
+    // Before any early return, or a frame that resolves nothing would freeze
+    // demand at whatever it last was.
+    const transform = runtime.slice(runtime.indexOf('transform(base: ParamRecord'));
+    expect(transform.indexOf('this.pushDemand(')).toBeLessThan(transform.indexOf('if (!techniqueId) return base;'));
+  });
+
+  it('the bridge forwards it and still owns scope demand', () => {
+    const bridge = src('src', 'rendering', 'engineBridge.ts');
+    expect(bridge).toContain('modulationRuntime.setDemandSink((ids) => engine.setVisualDemand(ids))');
+    expect(bridge).toContain('modulationRuntime.setScopeDemand(');
+  });
+
+  it('export demand covers every Look the timeline can morph to', () => {
+    // The export path has no frame loop pushing demand, so it has to reason
+    // about the whole timeline up front.
+    const runner = src('src', 'export', 'exportRunner.ts');
+    expect(runner).toContain('reachableLookIds');
+    expect(runner).toContain('project0.morphEvents.map((m) => m.targetLookId)');
   });
 });

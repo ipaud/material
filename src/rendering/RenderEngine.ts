@@ -442,7 +442,9 @@ export class RenderEngine {
     if (params) this.syncScene(params);
     if (!this.flowIsNeeded()) return;
     if (isFirstFrame) {
-      this.flow?.reset();
+      // The two-tap prime below builds a genuine adjacent pair, so the first
+      // solve after it IS a measurement — unlike a preview discontinuity.
+      this.flow?.reset(true);
       // CE1F: prime the pair with the PREVIOUS frame's source so the first
       // exported frame of a subrange carries the same motion as the same
       // global frame of a full export (flow needs two frames, always).

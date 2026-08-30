@@ -534,7 +534,20 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
      * construction.
      */
     const project0 = useProjectStore.getState().project;
-    const exportDemand = visualDemand(project0.modulations);
+    /**
+     * v0.4E — a timeline morph swaps in a Look's OWN modulations partway
+     * through the render, so demand has to cover every Look the timeline can
+     * reach, not just the mappings sitting in the project right now. Miss this
+     * and a morph's signals are absent for exactly the frames the morph
+     * covers, while the export stays perfectly deterministic about it.
+     */
+    const reachableLookIds = new Set(project0.morphEvents.map((m) => m.targetLookId));
+    const exportDemand = visualDemand([
+      ...project0.modulations,
+      ...project0.pinnedLooks
+        .filter((l) => reachableLookIds.has(l.id))
+        .flatMap((l) => l.modulations),
+    ]);
     /** Canonical calibration for THIS export — never the preview's session
      * state, for the same reason export never reuses preview smoothing. */
     const exportCalibration = new CalibrationStore();

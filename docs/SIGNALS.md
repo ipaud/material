@@ -249,16 +249,23 @@ after a calibrator is seeded, where a span of ~0 would otherwise explode.
 
 Measured on the reference machine, `noise` generator at 120 fps preview:
 
-| mapped | analysis rate | ladder VRAM | flow VRAM | preview fps |
-| --- | --- | --- | --- | --- |
-| nothing | — | 0 (released) | 0 (released) | 120.2 |
-| luminance | 26 Hz | 0.60 MB (256×144) | 0 | 120.0 |
-| motion | 26 Hz | 0.94 MB (320×180) | 2.20 MB | 120.0 |
-| all three | 26 Hz | 0.94 MB | 2.20 MB | 120.0 |
+| mapped | analysis rate | draws | readbacks | bytes | ladder VRAM | flow VRAM | preview fps |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| nothing | — | 0 | 0 | 0 | 0 (released) | 0 (released) | 120.2 |
+| 1 image signal | 26 Hz | 4 | **1** | 192 | 0.60 MB (256×144) | 0 | 120.0 |
+| all 3 image signals | 26 Hz | 4 | **1** | 192 | 0.60 MB | 0 | 119.7 |
+| 1 motion signal | 26 Hz | 5 | **1** | 720 | 2.81 MB (320×180) | 2.20 MB | 119.0 |
+| all 6 motion signals | 26 Hz | 5 | **1** | 720 | 2.81 MB | 2.20 MB | 120.0 |
+| **all nine** | 26 Hz | 5 | **1** | 720 | 2.81 MB | 2.20 MB | **120.0** |
 
-One ladder pass costs 0.37–0.78 ms wall including the readback stall, against
-an 8.33 ms budget at 120 fps. Analysis is demand-driven: nothing mapped and no
-scope open means the targets are released, exactly like the flow service.
+Cost is **flat in the number of signals**: one image signal costs exactly what
+three cost, and one motion signal exactly what six cost. One ladder pass costs
+0.37–0.78 ms wall including the readback stall, against an 8.33 ms budget at
+120 fps.
+
+Analysis is demand-driven: nothing mapped and no scope open means the targets
+are released, exactly like the flow service. Image-only demand never wakes
+optical flow — measured, not assumed.
 
 Mapping a motion signal also **keeps the flow field alive** even when no
 technique wants it — before v0.4A the field was disposed whenever
@@ -275,8 +282,30 @@ Preview and export evaluate signals in **opposite order** relative to the
 source render — preview evaluates after, export before. Sampling frame **N−1**
 in both is what makes them agree; the one-frame delay is a correctness
 requirement, not a stylistic choice. Verified: repeat export and
-full-vs-subrange export are byte-identical for all three signals, and disabling
-the analyser changes every exported frame.
+full-vs-subrange export are byte-identical for all signals, and disabling the
+analyser changes every exported frame.
+
+### Which signals are analysed
+
+Demand, not configuration. A signal is analysed when a mapping uses it, when a
+morph or candidate overlay's mappings use it, or when the scope is watching it.
+The runtime resolves the overlay, so the runtime decides; export cannot wait
+for a frame loop, so it unions every Look its morph events can reach.
+
+Closing the last thing that wanted a signal releases the GPU targets — and if
+nothing wants motion, the optical-flow field is released too.
+
+### Validity
+
+| state | meaning | published? |
+| --- | --- | --- |
+| `valid` | a measurement | yes |
+| `warming` | the calibrator has been seeded for less than 0.75 s | **no** |
+| `inactive` | no field, or no source | **no** |
+| `held` (centroids) | motion is below the floor; the last valid position stands | yes, marked HELD |
+
+A signal that is not published is ABSENT from the record, and absence is the
+evaluator's neutral: the mapping is skipped entirely.
 
 ### Saturation
 

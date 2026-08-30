@@ -286,10 +286,15 @@ export class OpticalFlowField {
 
   /** Discontinuity (seek, loop, source switch, context restore): next
    * update primes fresh — no giant vectors from unrelated frames (§15). */
-  reset(): void {
+  reset(pairWillBeConstructed = false): void {
     this.hasPrev = false;
     this.lastFrameKey = null;
-    this.solves = 0;
+    // `ready` discards the first solve after a reset because in PREVIEW that
+    // solve straddles the discontinuity. The export path is different: it
+    // deliberately primes with the previous frame and then solves against this
+    // one, so its first solve compares a genuine adjacent pair. A caller that
+    // constructs the pair itself says so, and keeps motion on frame one.
+    this.solves = pairWillBeConstructed ? 1 : 0;
   }
 
   get bytes(): number {

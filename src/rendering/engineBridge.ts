@@ -289,9 +289,15 @@ function configureModulation(): void {
   });
   // v0.4A: visual signals are demand-driven — nothing mapped means the
   // reducer sleeps and releases its targets, exactly like the flow service.
-  const demand = visualDemand(project.modulations, useScopeStore.getState().watching);
-  modulationRuntime.setVisualDemand(demand);
-  engine.setVisualDemand(demand);
+  // v0.4E: the runtime pushes the EFFECTIVE demand every frame, because a
+  // morph or a candidate overlay replaces the project's mappings while it
+  // runs. The bridge supplies the demand that has no mapping behind it — an
+  // open scope — and forwards whatever comes back to the engine, which owns
+  // the GPU. This is still the only wire between the two.
+  modulationRuntime.setScopeDemand(useScopeStore.getState().watching);
+  // Seed the engine immediately so a project change does not wait for the next
+  // rendered frame to release or acquire analysis targets.
+  engine.setVisualDemand(visualDemand(project.modulations, useScopeStore.getState().watching));
   const active = project.sources.find((s) => s.id === project.composition.sourceId) ?? null;
   modulationRuntime.setVisualOrigin(
     pixelOriginKey(active, {
@@ -350,6 +356,7 @@ export function startEngineBridge(): () => void {
   // elapsed and every visual signal stayed `warming` forever. Export does not
   // use this path — it owns a separate store stepped by frame time.
   engine.setVisualSink((stats) => modulationRuntime.setVisualStats(stats, performance.now() / 1000));
+  modulationRuntime.setDemandSink((ids) => engine.setVisualDemand(ids));
   syncFromProject();
   syncFromUi();
   return () => {

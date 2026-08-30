@@ -3,6 +3,7 @@ import type { ModulationMapping, ParamRecord } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { evalSources, type SourceContext } from './sources';
 import { calibrationStore } from '@/signals/visual/calibrationStore';
+import { visualDemand } from '@/signals/visual/demand';
 import { publishVisualSignals } from '@/signals/visual/publish';
 import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import { applySourceModulations, applyModulations, SmoothingState } from './evaluator';
@@ -43,8 +44,45 @@ class ModulationRuntime {
   private lastVisualStats: RawVisualStats | null = null;
   private lastVisualAtSec = -1;
 
+  /** Demand the UI adds on its own (an open scope), independent of mappings. */
+  private scopeDemand: ReadonlySet<VisualSignalId> = new Set();
+  private demandSink: ((ids: ReadonlySet<VisualSignalId>) => void) | null = null;
+  private lastDemandKey = '\u0000';
+
   setVisualDemand(ids: ReadonlySet<VisualSignalId>): void {
     this.visualDemand = ids;
+  }
+
+  /**
+   * v0.4E — who decides which signals are analysed.
+   *
+   * It cannot be the project's mapping list alone. A morph resolves an OVERLAY
+   * whose modulations replace the project's for as long as it runs, so a Look
+   * being morphed TO needs its signals analysed before the morph commits —
+   * otherwise its mappings sit dark for the whole transition and snap into
+   * life at the end. Candidate preview has the same shape.
+   *
+   * The runtime is the layer that resolves the overlay, so it is the layer
+   * that knows. It pushes the effective set outward; the bridge forwards it to
+   * the engine, which owns the GPU.
+   */
+  setScopeDemand(ids: ReadonlySet<VisualSignalId>): void {
+    this.scopeDemand = ids;
+    this.lastDemandKey = '\u0000';
+  }
+
+  setDemandSink(fn: ((ids: ReadonlySet<VisualSignalId>) => void) | null): void {
+    this.demandSink = fn;
+    this.lastDemandKey = '\u0000';
+  }
+
+  private pushDemand(mappings: readonly ModulationMapping[]): void {
+    const ids = visualDemand(mappings, this.scopeDemand as ReadonlySet<string>);
+    const key = [...ids].sort().join(',');
+    if (key === this.lastDemandKey) return;
+    this.lastDemandKey = key;
+    this.visualDemand = ids;
+    this.demandSink?.(ids);
   }
 
   /** The pixel origin calibration is scoped to. Null clears publication. */
@@ -125,6 +163,9 @@ class ModulationRuntime {
     // preview does the same for auditioning — visual only, never committed
     // (Phase 16). Morph wins: MUTATE is blocked while one runs.
     const overlay = morphRuntime.resolveOverlay(timeSec) ?? candidateRuntime.resolveOverlay();
+    // Before any early return: demand has to track the overlay even on a frame
+    // this function decides not to resolve.
+    this.pushDemand(overlay ? overlay.modulations : this.mappings);
     const techniqueId = overlay?.techniqueId ?? this.techniqueId;
     if (!techniqueId) return base;
     const definition = getTechnique(techniqueId);

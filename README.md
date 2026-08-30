@@ -65,11 +65,13 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | Area       | Status                                                                                                        |
 | ---------- | ------------------------------------------------------------------------------------------------------------- |
 | Sources    | PNG/JPEG/WebP, MP4/MOV (H.264, HEVC), WAV/MP3/AAC/M4A, SVG — plus LIVE: Camera, Screen, Window                |
-| Techniques | Mosaic, Temporal Mosaic, Echo, Step Print, Slit Scan                                                          |
+| Techniques | Mosaic, Temporal Mosaic, Echo, Step Print, Slit Scan, Feedback, Motion, Simulation                            |
 | Materials  | Square, Circle, Line, Dot, Rectangle, Triangle, custom SVG, raster image                                      |
 | Audio      | Offline analysis — master, RMS, peak, bass, mids, highs, centroid, flux, onset; tempo detection and tap tempo |
 | Beat grid  | Bars, beats, divisions and markers from BPM + offset + time signature                                         |
-| Modulation | Any signal → any modulatable parameter, with amount, range, curve, smoothing, freeze                          |
+| Image      | Luminance, contrast and edge energy of the frame itself, calibrated per source                                |
+| Motion     | Amount, activity, direction X/Y and the CENTRE of movement — from optical flow, no tracking model             |
+| Modulation | Any signal → any modulatable parameter: Add or Set, input/output range, curve, smoothing, freeze              |
 | Triggers   | Beat / bar / division / onset / marker → pulses, freeze, Look and morph actions, all quantizable              |
 | Looks      | Nine slots with thumbnails, keyboard recall, and morphs over seconds, beats or bars                           |
 | MIDI       | Web MIDI, MIDI Learn for parameters, macros and actions, pickup / soft takeover                               |
@@ -127,6 +129,10 @@ title bar.
   off the grid.
 - Physical MIDI hardware is untested: all MIDI validation used a virtual
   CoreMIDI device.
+- Image and motion signals over LIVE sources are live-class: real in the room,
+  absent from exports, like every other live signal.
+- Motion is measured by optical flow over a 320×180 analysis grid, so it sees
+  movement, not objects. There is no tracking, no depth and no recognition.
 - No performance recording. Live knob moves, pad hits and keystrokes are real
   in the room and absent from exports; recorded morphs are the exception.
 - ProRes availability depends on your FFmpeg build; the option is hidden if the

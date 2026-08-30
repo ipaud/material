@@ -176,3 +176,83 @@ describes a *class* of test that unit tests structurally cannot perform.
 The general rule: **a subsystem that is correct in isolation can still be
 wired to a path that never executes, a clock that never ticks, or a neighbour's
 initialisation transient.** Only a live run finds those.
+
+## v0.4B — MRT: three planes, one readback
+
+Six added signals needed six more sums than four channels hold. The ladder
+became multiple-render-target: one to three RGBA32F attachments carried through
+every level together, chosen by demand.
+
+```
+plane 0   R = L        G = L²      B = |∇L|    A = 1
+plane 1   R = |f|      G = f.x     B = f.y     A = moving ? 1 : 0
+plane 2   R = u·|f|    G = v·|f|   B = —       A = —
+```
+
+A second ladder would have been simpler to write and would have cost a second
+**readback**, and the readback stall is what this subsystem actually pays for.
+One extra pass stacks the three final tiles into a single target so the CPU
+still pays for exactly one GPU sync.
+
+three rewrites every `ShaderMaterial` to `#version 300 es` regardless, and with
+`glslVersion: GLSL3` it stops declaring `pc_fragColor` — so these shaders keep
+the repo's ESSL1 idiom (`varying`, `texture2D`) while declaring their own
+`layout(location = N) out`.
+
+### Added goldens
+
+| fixture | asserts | measured |
+|---|---|---|
+| flat 0.5 | contrast and edge are 0 at any brightness | 0.000000, 0.000000 |
+| split 50/50 | contrast is the theoretical max | **0.500000** |
+| ramp | contrast is 1/√12 | **0.288670** |
+| 16 stripes | same contrast as split, far more edge | 0.5, edge **0.096875** vs **0.003125** |
+| 16-cycle sine | edge matches the square of equal amplitude | 0.097941 |
+| same sine, ¼ swing | edge scales with amplitude | **0.024583** |
+| flow up / down | motion.y is 1 / 0 | **1.000000** / **0.000000** |
+| quarter-frame patch | activity is the AREA | **0.250000** |
+| patch left / right | centroidX | **0.125** / **0.875** |
+| patch top / bottom | centroidY, 0 = top | **0.125** / **0.875** |
+| still | centroid INVALID, activity 0 | invalid, 0 |
+
+`centroidTop` is the fixture that pins the vertical convention. Nothing else in
+the codebase records that `centroidY = 0` means the top of the image, and a
+positional signal with an unpinned axis is a coin flip.
+
+### A fixture that records a NON-difference
+
+A full-range ramp and a single hard edge read the **same** edge energy, because
+edge energy is total variation per texel and both traverse the range exactly
+once. That is correct, and it is committed as a fixture so that nobody "fixes"
+it later. Contrast is what separates those two — by a factor of nearly two.
+
+The corollary caught a wrong test of my own: a full-amplitude sine is not
+"blurred" relative to a square wave of the same period. Blur removes
+*amplitude*, and that is what shows up in edge energy.
+
+## v0.4 lessons that generalise
+
+Four defects reached working code, and every one of them was invisible to unit
+tests that all passed:
+
+- **A subsystem can be wired to a path that never runs.** The analysis call sat
+  in the transition-snapshot capture: demand set, texture present, grid valid,
+  zero reductions in 2.5 s of preview.
+- **A subsystem can be fed a clock that never ticks.** Calibration was stepped
+  by transport time, so a stopped transport pinned `dt` at 0 and every signal
+  stayed `warming` forever.
+- **A neighbour's initialisation transient can look like data.** The flow
+  field's priming update clears its targets by design; that zero, published,
+  seeded the motion calibrator's low envelope. Then the frame after it turned
+  out to be just as bad: the first real solve straddles the discontinuity, and
+  at a source switch it measured **9.435** texels/frame against a steady-state
+  median of **0.363**.
+- **One NaN can become permanent state.** A non-finite `dt` was stored in a
+  mapping's smoothing state, and every later step read it back as `prev`. The
+  parameter sat at NaN for the rest of the session while the mapping still
+  looked enabled.
+
+The shared shape: **correct in isolation, wrong in composition**. A unit test
+proves a function; only a live run proves it is called, called with a moving
+clock, called with data rather than with a neighbour's startup, and able to
+recover from one bad value.

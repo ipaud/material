@@ -748,3 +748,91 @@ that — never raw CPU float readbacks of live class targets).
   double the synchronisation points to save one channel of a 16-byte read.
 - **Schema stays v3.** Visual signals are new `MOD_SOURCES` ids inside the
   existing modulation registry; nothing about the project format changed.
+
+## v0.4B — signal vocabulary
+
+- **ADR — MRT rather than a second ladder.** Six new sums did not fit in four
+  channels. Three RGBA32F attachments carried through one ladder cost extra
+  fill rate, which is cheap; a second ladder would have cost a second readback,
+  which is not. A tiny pack pass stacks the final tiles so there is still
+  exactly one GPU sync per analysis.
+- **ADR — calibration is per-signal, not a pipeline stage.** Five of nine
+  signals opt out, for three different reasons: intrinsic bounds (`motion.x/y`),
+  an already-physical fraction (`motion.activity`), and coordinates that must
+  not be moved (`motion.centroidX/Y`). Running everything through the same
+  envelope would have been simpler and would have made two of those signals
+  lie.
+- **ADR — positional signals hold, they do not snap.** Below
+  `CENTROID_MIN_TEXELS` a centroid is noise divided by noise, which produces a
+  position that wanders the frame and looks exactly like tracking. The reducer
+  holds the last valid position and the scope reports `HELD`, so a motion-driven
+  effect stays where the gesture ended without the UI presenting a memory as a
+  measurement.
+- **ADR — contrast is a standard deviation.** `sqrt(E[L²] − E[L]²)`, which the
+  ladder yields for one extra accumulator. Naming an ad-hoc spread "contrast"
+  would have been cheaper and would have made the number unexplainable.
+- **ADR — edge energy is total variation per texel.** Its consequence is stated
+  in the fixtures: a ramp and a hard edge read alike. That is a property, not a
+  bug, and contrast is what distinguishes them.
+- **Deferred deliberately:** `motion.direction` (circular data has no sensible
+  linear mapping yet), `motion.spread`, RGB and colour energy. Easy to add is
+  not a reason to add.
+
+## v0.4C — mapping model
+
+- **ADR — two modes: Add and Set.** Add is unchanged and remains the default.
+  Set positions a parameter inside its own range. Multiply was spiked and
+  dropped — nothing in the Look vocabulary needed it, and every mode multiplies
+  the composition rules.
+- **ADR — `mode`/`inMin`/`inMax` are optional, not defaulted.** Absent and
+  `'add'` mean the same thing in every project ever written. Defaulting would
+  have rewritten every stored project on first save to say what it already
+  meant, and forced 52 construction sites to spell out three fields.
+  Schema stays **v3**.
+- **ADR — at most one Set per parameter, first enabled in document order.** Two
+  mappings each claiming to *be* a parameter have no meaningful sum, and
+  choosing by evaluation order would make the result depend on row order. The
+  losers are marked `INERT` in the UI rather than silently doing nothing.
+- **ADR — `amount` blends in Set mode.** The slider keeps one meaning across
+  both modes: how much this mapping matters.
+- **ADR — invert stays `1 − v`.** For centred signals that IS the bipolar
+  inversion, because they publish `0.5 + 0.5·direction`. A separate bipolar path
+  would have computed the same number while risking the unipolar sources that
+  share the evaluator.
+- **ADR — the input window is not calibration.** Calibration adapts a signal to
+  its source automatically; the window is a per-mapping choice about what to
+  react to. Conflating them is what makes a Look source-specific.
+- **ADR — calibration Lock/Reset are runtime-only.** Persisting a moving
+  statistic would make an export irreproducible from a fresh open.
+
+## v0.4D — signal-driven content
+
+- **ADR — signal Looks are ordinary presets.** A preset already carries a
+  technique, params, a material and its modulations. Inventing a parallel
+  content type would have doubled the save/load, curation and morph surfaces to
+  express the same thing.
+- **ADR — a new `Reactive` category.** Motion describes what a technique does;
+  Reactive describes where the control comes from. Filing them under Motion
+  would have hidden the distinction the release exists to make.
+- **ADR — ranges are hand-curated per Look.** A test rejects any Look whose
+  every window is the default 0..1, because that is the signature of nobody
+  having looked at the result.
+
+## v0.4E — release
+
+- **ADR — the runtime owns effective demand.** A morph resolves an overlay whose
+  modulations replace the project's while it runs, so demand computed from the
+  project alone left a Look being morphed TO with its signals dark for the whole
+  transition. The runtime resolves the overlay, so the runtime pushes demand;
+  the bridge adds scope demand and forwards it to the engine, which owns the
+  GPU. Export reasons about the whole timeline instead, unioning every Look its
+  morph events can reach.
+- **ADR — flow readiness distinguishes a constructed pair from a
+  discontinuity.** Preview discards its first solve after a reset because that
+  solve straddles the discontinuity. Export builds its pair deliberately with a
+  two-tap prime, says so, and keeps motion on frame one.
+- **ADR — smoothing refuses to store a non-finite value.** One NaN `dt` used to
+  poison a mapping permanently. Treating an unusable dt as no time passing keeps
+  the mapping alive and recoverable.
+- **Schema stays v3** for the whole of v0.4. Nine new source ids live in the
+  existing modulation registry, and three optional mapping fields are additive.
