@@ -265,7 +265,9 @@ describe('measured live defects (§A6)', () => {
     const engine = src('src', 'rendering', 'RenderEngine.ts');
     expect(engine).toContain('this.flow?.ready');
     const flow = src('src', 'rendering', 'flow', 'OpticalFlowField.ts');
-    expect(flow).toMatch(/get ready\(\): boolean \{\s*return this\.solves > 0;/);
+    // Two solves, not one: the first straddles the discontinuity. Measured at
+    // 9.435 texels/frame against a 0.363 median, and it seeded the envelope.
+    expect(flow).toMatch(/get ready\(\): boolean \{\s*return this\.solves > 1;/);
     // A discontinuity must make the field un-ready again, or a seek would
     // publish the cleared field as measured motion.
     const reset = flow.slice(flow.indexOf('reset(): void'));

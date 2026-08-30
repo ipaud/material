@@ -295,3 +295,33 @@ describe('old projects keep their exact meaning (§39, §62)', () => {
     expect(modulationMappingSchema.parse(m)).toEqual(m);
   });
 });
+
+describe('smoothing state cannot be permanently poisoned', () => {
+  it('a non-finite dt holds the previous value instead of storing NaN', () => {
+    // Found while a probe passed a technique id where the evaluator takes a
+    // time. One NaN dt used to write NaN into the mapping's smoothing state,
+    // and every later step read it back as `prev` — so the parameter sat at
+    // NaN for the rest of the session while the mapping still looked enabled.
+    const st = new SmoothingState();
+    expect(st.step('m', 0.4, 0.25, 1 / 60)).toBeGreaterThan(0);
+    const poisoned = st.step('m', 0.8, 0.25, Number.NaN);
+    expect(Number.isFinite(poisoned)).toBe(true);
+    // And it still tracks afterwards, rather than being stuck.
+    const after = st.step('m', 0.8, 0.25, 1 / 60);
+    expect(Number.isFinite(after)).toBe(true);
+    expect(after).toBeGreaterThan(poisoned);
+  });
+
+  it('a non-finite target does not become permanent state', () => {
+    const st = new SmoothingState();
+    st.step('m', 0.5, 0.25, 1 / 60);
+    expect(Number.isFinite(st.step('m', Number.NaN, 0.25, 1 / 60))).toBe(true);
+    expect(Number.isFinite(st.step('m', 0.6, 0.25, 1 / 60))).toBe(true);
+  });
+
+  it('an infinite dt behaves as a very long step, not as a poison', () => {
+    const st = new SmoothingState();
+    st.step('m', 0.2, 0.25, 1 / 60);
+    expect(Number.isFinite(st.step('m', 0.9, 0.25, Number.POSITIVE_INFINITY))).toBe(true);
+  });
+});

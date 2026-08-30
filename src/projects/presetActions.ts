@@ -5,6 +5,7 @@ import { uid } from '@/utils/id';
 import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
 import type { Preset } from '@shared/schemas/preset';
+import { SIGNAL_PRESETS } from './signalPresets';
 
 /** Built-in starting points. Source media is never part of a preset. */
 export const BUILTIN_PRESETS: Preset[] = [
@@ -3481,6 +3482,11 @@ export const BUILTIN_PRESETS: Preset[] = [
     ]
   },
 ];
+
+// v0.4D — signal-driven Looks live in their own module: they are ordinary
+// presets, but curating them is a different job from curating the technique
+// starting points above.
+BUILTIN_PRESETS.push(...SIGNAL_PRESETS);
 
 const AUDIO_SOURCES = new Set(['master', 'rms', 'bass', 'mids', 'highs', 'transients']);
 

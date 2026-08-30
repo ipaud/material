@@ -261,6 +261,7 @@ describe('preset catalog (§3, §6)', () => {
       'Feedback',
       'Motion',
       'Simulation',
+      'Reactive',
     ]);
     for (const p of BUILTIN_PRESETS) {
       expect(CATEGORIES.has(p.category), `${p.id}: category "${p.category}" is not curated`).toBe(

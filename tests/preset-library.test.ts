@@ -25,6 +25,9 @@ const CATEGORIES = [
   'Studies',
   'Live',
   'Performance',
+  // v0.4D: Looks driven by the image itself. A genuinely new kind of preset —
+  // filing them under Motion would hide what makes them different.
+  'Reactive',
 ];
 
 const SOURCE_IDS = new Set(MOD_SOURCES.map((s) => s.id));

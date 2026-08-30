@@ -2283,6 +2283,23 @@
       "triggerCount": 0
     },
     {
+      "id": "builtin-activity-mosh",
+      "name": "Activity Mosh",
+      "category": "Reactive",
+      "techniqueId": "motion-mosh",
+      "paramKeys": [
+        "blockiness",
+        "chromaDrift",
+        "flow",
+        "injection",
+        "mix",
+        "persistence",
+        "threshold"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
       "id": "builtin-bad-antenna",
       "name": "Bad Antenna",
       "category": "Analog",
@@ -2374,6 +2391,20 @@
         "threshold"
       ],
       "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-body-follow",
+      "name": "Body Follow",
+      "category": "Reactive",
+      "techniqueId": "feedback-zoom",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "zoom"
+      ],
+      "modulationCount": 3,
       "triggerCount": 0
     },
     {
@@ -2551,6 +2582,23 @@
       "triggerCount": 0
     },
     {
+      "id": "builtin-chroma-motion",
+      "name": "Chroma Motion",
+      "category": "Reactive",
+      "techniqueId": "feedback-rgb",
+      "paramKeys": [
+        "blueShift",
+        "greenShift",
+        "injection",
+        "mix",
+        "persistence",
+        "redShift",
+        "zoom"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
       "id": "builtin-chrono-noise",
       "name": "Chrono Noise",
       "category": "Temporal",
@@ -2669,6 +2717,23 @@
         "tileMode"
       ],
       "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-contrast-bloom",
+      "name": "Contrast Bloom",
+      "category": "Reactive",
+      "techniqueId": "feedback-bloom",
+      "paramKeys": [
+        "gain",
+        "injection",
+        "mix",
+        "persistence",
+        "radius",
+        "threshold",
+        "zoom"
+      ],
+      "modulationCount": 2,
       "triggerCount": 0
     },
     {
@@ -2826,6 +2891,21 @@
       "triggerCount": 0
     },
     {
+      "id": "builtin-directional-drag",
+      "name": "Directional Drag",
+      "category": "Reactive",
+      "techniqueId": "feedback-drift",
+      "paramKeys": [
+        "driftX",
+        "driftY",
+        "injection",
+        "mix",
+        "persistence"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
       "id": "builtin-echo-chamber",
       "name": "Echo Chamber",
       "category": "Temporal",
@@ -2843,6 +2923,37 @@
         "spacing",
         "temporalDirection",
         "tileMode"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-edge-grid",
+      "name": "Edge Grid",
+      "category": "Reactive",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "opacity",
+        "scale",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-edge-memory",
+      "name": "Edge Memory",
+      "category": "Reactive",
+      "techniqueId": "feedback-bloom",
+      "paramKeys": [
+        "gain",
+        "injection",
+        "mix",
+        "persistence",
+        "radius",
+        "threshold",
+        "zoom"
       ],
       "modulationCount": 1,
       "triggerCount": 0
@@ -2899,6 +3010,22 @@
         "threshold"
       ],
       "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-follow-kaleido",
+      "name": "Follow Kaleido",
+      "category": "Reactive",
+      "techniqueId": "feedback-kaleido",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "rotation",
+        "segments",
+        "zoom"
+      ],
+      "modulationCount": 2,
       "triggerCount": 0
     },
     {
@@ -3055,6 +3182,20 @@
       "triggerCount": 0
     },
     {
+      "id": "builtin-light-breath",
+      "name": "Light Breath",
+      "category": "Reactive",
+      "techniqueId": "feedback-zoom",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "zoom"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
       "id": "builtin-line-weave",
       "name": "Line Weave",
       "category": "Geometry",
@@ -3140,6 +3281,20 @@
         "field"
       ],
       "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-luma-pulse",
+      "name": "Luma Pulse",
+      "category": "Reactive",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "opacity",
+        "rotation",
+        "scale",
+        "spacing"
+      ],
+      "modulationCount": 1,
       "triggerCount": 0
     },
     {
@@ -3282,6 +3437,34 @@
         "scale"
       ],
       "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-motion-zoom",
+      "name": "Motion Zoom",
+      "category": "Reactive",
+      "techniqueId": "feedback-zoom",
+      "paramKeys": [
+        "injection",
+        "mix",
+        "persistence",
+        "zoom"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-movement-memory",
+      "name": "Movement Memory",
+      "category": "Reactive",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "offset",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 1,
       "triggerCount": 0
     },
     {
@@ -3537,6 +3720,20 @@
       "triggerCount": 0
     },
     {
+      "id": "builtin-slit-follow",
+      "name": "Slit Follow",
+      "category": "Reactive",
+      "techniqueId": "slit-scan",
+      "paramKeys": [
+        "interpolate",
+        "offsetSec",
+        "spanSec",
+        "strips"
+      ],
+      "modulationCount": 2,
+      "triggerCount": 0
+    },
+    {
       "id": "builtin-slow-burn",
       "name": "Slow Burn",
       "category": "Performance",
@@ -3665,6 +3862,20 @@
       "triggerCount": 0
     },
     {
+      "id": "builtin-still-life",
+      "name": "Still Life",
+      "category": "Reactive",
+      "techniqueId": "time-field",
+      "paramKeys": [
+        "depth",
+        "offset",
+        "scale",
+        "speed"
+      ],
+      "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
       "id": "builtin-strobe-cut",
       "name": "Strobe Cut",
       "category": "Performance",
@@ -3675,6 +3886,20 @@
         "rows"
       ],
       "modulationCount": 1,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-structure-react",
+      "name": "Structure React",
+      "category": "Reactive",
+      "techniqueId": "mosaic",
+      "paramKeys": [
+        "opacity",
+        "scale",
+        "spacing",
+        "threshold"
+      ],
+      "modulationCount": 2,
       "triggerCount": 0
     },
     {
@@ -3842,6 +4067,21 @@
         "threshold"
       ],
       "modulationCount": 0,
+      "triggerCount": 0
+    },
+    {
+      "id": "builtin-vector-drift",
+      "name": "Vector Drift",
+      "category": "Reactive",
+      "techniqueId": "feedback-drift",
+      "paramKeys": [
+        "driftX",
+        "driftY",
+        "injection",
+        "mix",
+        "persistence"
+      ],
+      "modulationCount": 2,
       "triggerCount": 0
     },
     {

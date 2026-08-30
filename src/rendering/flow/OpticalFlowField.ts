@@ -265,10 +265,23 @@ export class OpticalFlowField {
     this.solves++;
   }
 
-  /** True once a real Lucas-Kanade solve has run since the last prime. Until
-   * then the field is cleared, not measured. */
+  /**
+   * True once the field is measuring the CURRENT source at its normal cadence.
+   *
+   * Two solves, not one. The priming update clears the targets, so its zero is
+   * not a measurement — that much was known. But the first real solve is not
+   * one either: it compares the two frames that straddle the discontinuity,
+   * which at a source switch, a seek, or a slow first frame can be arbitrarily
+   * far apart. Measured on a generator switch: the first solve read 9.435
+   * analysis texels/frame against a steady-state median of 0.363, and because
+   * it SEEDED the motion calibrator's envelope, the knob sat at zero for
+   * several seconds afterwards while the range decayed back.
+   *
+   * From the second solve on, both frames come from the same source at the
+   * loop's own cadence.
+   */
   get ready(): boolean {
-    return this.solves > 0;
+    return this.solves > 1;
   }
 
   /** Discontinuity (seek, loop, source switch, context restore): next

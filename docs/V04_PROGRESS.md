@@ -244,3 +244,133 @@ Tests 1140 passing / 66 files · typecheck · lint · build · three product gat
 measured · old projects bit-identical.
 
 **Safe to proceed to D.**
+
+## D — signal-driven presets / Looks
+
+### Decisions
+
+**No new content system.** A preset already carries a technique, its params, a
+material and its modulations, so a signal-driven Look is an ordinary preset
+whose modulations come from the picture instead of the music. They live in
+`src/projects/signalPresets.ts` because curating them is a different job from
+curating technique starting points, but they are the same type and use the same
+apply path.
+
+**A new category, `Reactive`.** Filing them under Motion would have hidden what
+makes them different — Motion is about what the technique does, Reactive is
+about where the control comes from.
+
+**Sixteen Looks.** Every retained signal has at least one Look that shows what
+it is for, and a test asserts that.
+
+| Look | technique | driven by |
+|---|---|---|
+| **Body Follow** | feedback-zoom | centroidX/Y → centre, amount → zoom |
+| Movement Memory | time-field | amount → depth |
+| Directional Drag | feedback-drift | x → driftX, y → driftY |
+| Structure React | mosaic | edgeEnergy → scale, spacing |
+| Light Breath | feedback-zoom | luminance → zoom |
+| Activity Mosh | motion-mosh | activity → injection, blockiness |
+| Edge Memory | feedback-bloom | edgeEnergy → persistence |
+| Motion Zoom | feedback-zoom | amount → zoom |
+| Luma Pulse | mosaic | luminance → scale |
+| Vector Drift | feedback-drift | activity → persistence, x → driftX |
+| Contrast Bloom | feedback-bloom | contrast → gain, threshold (inverted) |
+| Follow Kaleido | feedback-kaleido | centroidX → rotation, activity → segments |
+| Slit Follow | slit-scan | centroidX → offsetSec, amount → spanSec |
+| Chroma Motion | feedback-rgb | x → redShift, y → blueShift |
+| Edge Grid | mosaic | edgeEnergy → spacing, luminance → opacity |
+| Still Life | time-field | activity **inverted** → depth |
+
+Still Life is Movement Memory backwards on purpose: having both proves the
+vocabulary reads in either direction rather than only flattering one.
+
+### Two defects found by building the content
+
+**A single NaN `dt` permanently poisoned a mapping's smoothing state.** The EMA
+stored the NaN and every later step read it back as `prev`, so the parameter sat
+at NaN for the rest of the session while the mapping still looked enabled — a
+silent, unrecoverable failure. `SmoothingState.step` now treats an unusable dt
+as no time passing and refuses to store a non-finite value. Found because a
+probe passed a technique id where the evaluator takes a time; the same could
+reach production from any NaN in the transport clock.
+
+**The first optical-flow solve after a discontinuity was seeding the motion
+calibrator.** Measured on a generator source switch: the first solve read
+**9.435** analysis texels/frame against a steady-state median of **0.363**,
+because it compares the two frames that straddle the switch. As the calibrator's
+seed it set the entire envelope, and `motion.amount` published **0** for several
+seconds afterwards — every motion-driven Look pinned at one end of its window.
+
+v0.4A had already established that the *priming* update is not a measurement;
+this is the frame after it. `OpticalFlowField.ready` now requires **two** solves.
+After the fix the same switch reads a maximum of 1.852 and the knob publishes
+0.766 within six seconds.
+
+### Measured gates
+
+**Anti-dead, all 16 Looks on a moving generator** — every Look's targets move:
+
+| Look | measured travel |
+|---|---|
+| Luma Pulse | scale 1.178 → 1.853 |
+| Contrast Bloom | gain 1.074 → 1.364 |
+| Chroma Motion | redShift 1.495 → 1.876, blueShift 2.382 → 2.854 |
+| Directional Drag | driftX −0.457 → −0.108, driftY −0.229 → 0.194 |
+| Edge Grid | spacing 0.178 → 0.196, opacity 0.806 → 0.919 |
+| (all others) | non-zero travel on every mapped target |
+
+**Body Follow on real video** — centroid spans 0.418–0.667 horizontally and the
+feedback centre follows at **r = 0.81** (the shortfall is the 0.25 smoothing,
+which is the point of it).
+
+**Static source** — centroid correctly reports INVALID (0/20 valid), holds 0.5,
+and the resolved centre sits at exactly 0. A motion Look on a still image
+settles rather than shimmering.
+
+**Source switch, one Look unchanged** (`Movement Memory`, depth in seconds):
+
+| source | travel |
+|---|---|
+| generator | 1.449 → 1.776 |
+| video | 0.758 → 1.206 |
+| camera | 0.847 → 1.170 |
+| generator again | 1.300 → 1.487 |
+
+The same Look is playable on all four, and the range recovers after coming back.
+
+### Curation
+
+Two Looks were tuned rather than shipped as first written:
+
+- **Edge Grid** drove `spacing` NEGATIVE at high edge energy (measured −0.051 to
+  −0.020), which overlaps tiles instead of tightening them. Window retuned to
+  keep the whole travel positive.
+- **Edge Grid**'s opacity mapping sat clamped at the ceiling for every sample,
+  because the base value was already 1. A resting point has to leave room for
+  the modulation it is paired with.
+
+One convention bug fixed: **Directional Drag** inverted `motion.y`, so upward
+movement smeared downward. `motion.y` keeps render orientation (1 = up) and the
+feedback shader samples the past at `uv − drift`, so +driftY drags upward too.
+Body Follow's `centroidY` inversion is the opposite case and IS correct:
+`centroidY` reads 0 at the top of the image, deliberately, because that is how
+a person describes a position.
+
+Nothing was dropped.
+
+### Known debt
+
+- Body Follow cannot be validated on a uniform-motion generator: uniform motion
+  has no centre, so the centroid correctly sits at 0.5 and the Look barely
+  moves. Real content or a camera is required, which is a fixture limitation
+  rather than a defect.
+- Live camera QA with a person moving is a human test; §84 is satisfied by
+  camera measurements, not by a person on video.
+
+### Gate
+
+Tests 1155 passing / 67 files · typecheck · lint · build · anti-dead on 16/16 ·
+export anti-noop and determinism re-verified after the flow change.
+
+**Safe to proceed to E.**

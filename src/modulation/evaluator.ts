@@ -21,13 +21,23 @@ export class SmoothingState {
       this.values.set(mappingId, target);
       return target;
     }
+    // A non-finite dt would make alpha NaN, and the NaN would then be STORED —
+    // poisoning that mapping for the rest of the session with no way back,
+    // because every later step reads it as `prev`. The parameter would sit at
+    // NaN and the mapping would look enabled and do nothing. Treat an
+    // unusable dt as no time passing, which holds the previous value.
+    const dt = Number.isFinite(dtSec) ? Math.max(dtSec, 0) : 0;
     // smoothing 0..1 → time constant up to ~0.8s.
     const tau = smoothing * 0.8;
-    const alpha = 1 - Math.exp(-dtSec / Math.max(tau, 1e-4));
+    const alpha = 1 - Math.exp(-dt / Math.max(tau, 1e-4));
     const prev = this.values.get(mappingId) ?? target;
     const next = prev + (target - prev) * alpha;
-    this.values.set(mappingId, next);
-    return next;
+    // Belt and braces: a non-finite TARGET must not become permanent state
+    // either. Falling back to the target keeps the mapping alive and lets the
+    // next good sample recover it.
+    const safe = Number.isFinite(next) ? next : Number.isFinite(target) ? target : 0;
+    this.values.set(mappingId, safe);
+    return safe;
   }
 
   /** Current smoothed value (for FREEZE capture). */
