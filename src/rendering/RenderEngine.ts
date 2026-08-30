@@ -981,6 +981,7 @@ export class RenderEngine {
           material: this.materialState,
           timeSec: this.timeSec,
           seed: this.seed,
+          renderer: this.renderer,
         });
       }
     }

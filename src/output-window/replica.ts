@@ -1,6 +1,8 @@
 import type * as THREE from 'three';
 import { RenderEngine } from '@/rendering/RenderEngine';
 import { getTechnique } from '@/techniques/registry';
+import type { LoadedShader } from '@shared/schemas/shaderPack';
+import { registerPack } from '@/shaders/packRegistry';
 import { FileImageSource } from '@/sources/FileImageSource';
 import { OutputCameraSource } from './outputCameraSource';
 import { OutputCaptureSource } from './outputCaptureSource';
@@ -36,6 +38,9 @@ export class OutputReplica {
   readonly engine = new RenderEngine();
 
   private activeTechniqueId: string | null = null;
+  /** Pack id → sorted shader hashes currently mounted, so an unchanged
+   * RenderInputs message costs nothing. */
+  private readonly shaderSignatures = new Map<string, string>();
   private temporalActive = false;
   private source: SourceRuntime | null = null;
   private camera: OutputCameraSource | null = null;
@@ -119,6 +124,12 @@ export class OutputReplica {
       this.latest = null;
       this.engine.resetTemporal();
     }
+
+    // v0.5: register any pack shaders this project can reach BEFORE the
+    // technique is synced, or the replica would resolve the id to the
+    // missing-pack placeholder and keep it. Definitions are data; the replica
+    // compiles locally, and the hash keeps a repeat message from recompiling.
+    this.syncCustomShaders(msg.customShaders);
 
     this.engine.setComposition(msg.compWidth, msg.compHeight, msg.background);
     if (msg.materialState) this.engine.setMaterialState(msg.materialState);
@@ -258,6 +269,43 @@ export class OutputReplica {
         else texture.dispose();
       })
       .catch((err) => console.warn('[replica] material load failed:', err));
+  }
+
+  /** Mirror the editor's pack registry for exactly the shaders it sent. */
+  private syncCustomShaders(shaders: readonly LoadedShader[] | undefined): void {
+    if (!shaders || shaders.length === 0) return;
+    const byPack = new Map<string, LoadedShader[]>();
+    for (const s of shaders) {
+      const list = byPack.get(s.packId);
+      if (list) list.push(s);
+      else byPack.set(s.packId, [s]);
+    }
+    for (const [packId, list] of byPack) {
+      const signature = list
+        .map((s) => s.hash)
+        .sort()
+        .join(',');
+      if (this.shaderSignatures.get(packId) === signature) continue;
+      this.shaderSignatures.set(packId, signature);
+      const first = list[0] as LoadedShader;
+      registerPack({
+        id: packId,
+        name: first.packName,
+        version: first.packVersion,
+        author: '',
+        description: '',
+        dir: '',
+        shaders: list,
+        warnings: [],
+      });
+      // A pack version the replica already mounted must re-mount its renderer,
+      // or the Output would keep drawing the previous revision.
+      if (this.activeTechniqueId?.startsWith(`custom:${packId}:`)) {
+        const id = this.activeTechniqueId;
+        this.activeTechniqueId = null;
+        this.syncTechnique(id, false);
+      }
+    }
   }
 
   private syncTechnique(techniqueId: string, temporalActive: boolean): void {

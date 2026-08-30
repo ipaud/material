@@ -34,6 +34,7 @@ function toInputsMsg(inputs: RenderInputs): RenderInputsMsg {
     compHeight: inputs.compHeight,
     background: inputs.background,
     source: inputs.source,
+    customShaders: inputs.customShaders,
   };
 }
 

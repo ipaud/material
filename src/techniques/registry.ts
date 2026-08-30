@@ -1,4 +1,6 @@
 import type { TechniqueDefinition } from './types';
+import { parseCustomTechniqueId } from '@shared/schemas/shaderPack';
+import { missingShaderDefinition } from '@/shaders/customTechnique';
 import { mosaicDefinition } from './mosaic/definition';
 import { echoDefinition } from './echo/definition';
 import { slitScanDefinition } from './slit-scan/definition';
@@ -9,15 +11,47 @@ import { motionDefinitions } from './motion/definitions';
 import { simulationDefinitions } from './simulation/definitions';
 
 const registry = new Map<string, TechniqueDefinition>();
+/** Placeholders are cached so a project's technique identity stays stable
+ * across frames while a pack is missing. */
+const missing = new Map<string, TechniqueDefinition>();
 
 export function registerTechnique(definition: TechniqueDefinition): void {
   registry.set(definition.id, definition);
 }
 
-export function getTechnique(id: string): TechniqueDefinition | null {
-  return registry.get(id) ?? null;
+export function unregisterTechnique(id: string): void {
+  registry.delete(id);
 }
 
+/**
+ * v0.5: a project may name a shader whose pack is not installed — moved to
+ * another machine, removed, not yet imported. Rather than returning null and
+ * leaving every caller to invent its own behaviour, the registry answers with
+ * a placeholder that passes the frame through and says what is missing. The
+ * project's own parameter values are untouched and come back when the pack
+ * does.
+ */
+export function getTechnique(id: string): TechniqueDefinition | null {
+  const found = registry.get(id);
+  if (found) return found;
+  if (parseCustomTechniqueId(id)) {
+    let placeholder = missing.get(id);
+    if (!placeholder) {
+      placeholder = missingShaderDefinition(id);
+      missing.set(id, placeholder);
+    }
+    return placeholder;
+  }
+  return null;
+}
+
+/** True when this id resolves only to the missing-pack placeholder. */
+export function isMissingTechnique(id: string | null): boolean {
+  if (!id) return false;
+  return parseCustomTechniqueId(id) !== null && !registry.has(id);
+}
+
+/** Built-in techniques plus every installed pack shader. */
 export function listTechniques(): TechniqueDefinition[] {
   return [...registry.values()];
 }

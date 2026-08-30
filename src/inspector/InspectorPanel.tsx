@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
@@ -16,11 +16,55 @@ import { PatternsSection } from '@/patterns/PatternsSection';
 import { MidiParamWrap } from './MidiParamWrap';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
+import { compileErrorFor, subscribePacks } from '@/shaders/packRegistry';
+import { isMissingTechnique } from '@/techniques/registry';
+import { parseCustomTechniqueId } from '@shared/schemas/shaderPack';
 import type { ParamValue } from '@shared/schemas/project';
 import { techniqueNeedsTemporal } from '@/techniques/registry';
 import { isLiveSource } from '@shared/schemas/project';
 import { getGenerator } from '@/sources/generators/definitions';
 import '@/components/parameter-slider.css';
+
+/**
+ * v0.5 — the one place a pack shader can report that it is unhappy.
+ *
+ * Two states, both actionable rather than mysterious: the pack is not
+ * installed (the project keeps its settings and says what is missing), or the
+ * GLSL did not compile (the shader name and the compiler's own message,
+ * against the author's line numbers). While either is true the host keeps
+ * drawing the last good frame.
+ */
+function ShaderStatus({ techniqueId }: { techniqueId: string | null }): React.ReactElement | null {
+  const [, force] = useState(0);
+  useEffect(() => subscribePacks(() => force((n) => n + 1)), []);
+  if (!techniqueId) return null;
+  const ref = parseCustomTechniqueId(techniqueId);
+  if (!ref) return null;
+
+  if (isMissingTechnique(techniqueId)) {
+    return (
+      <div className="shader-status missing">
+        <strong>Missing shader pack</strong>
+        <span className="mono">
+          {ref.packId} / {ref.shaderId}
+        </span>
+        <span>
+          The frame is passing through untouched. Import or reload the pack to restore it — this
+          project&rsquo;s settings are kept.
+        </span>
+      </div>
+    );
+  }
+  const error = compileErrorFor(techniqueId);
+  if (!error) return null;
+  return (
+    <div className="shader-status error">
+      <strong>Shader did not compile</strong>
+      <pre className="mono">{error}</pre>
+      <span>Still showing the last version that worked.</span>
+    </div>
+  );
+}
 
 export function InspectorPanel() {
   const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
@@ -139,6 +183,11 @@ export function InspectorPanel() {
                 </div>
               </div>
             </div>
+
+            {/* v0.5: a shader from a pack can fail to compile, or its pack can
+                be gone. Either way the user needs the pack, the shader and the
+                actual GLSL error — not a black rectangle and a console log. */}
+            <ShaderStatus techniqueId={technique?.techniqueId ?? null} />
 
             {/* CE1F: SOURCE parameters — a generator is a source, so its
                 params get their own group, never blended into the technique's. */}

@@ -119,6 +119,7 @@ export class TechniquePreviewRenderer {
         material: PREVIEW_MATERIAL,
         timeSec: PREVIEW_TIME,
         seed: PREVIEW_SEED,
+        renderer: this.renderer,
       });
 
       this.renderer.setRenderTarget(this.target);

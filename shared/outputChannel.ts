@@ -11,6 +11,7 @@
  */
 
 import type { MaterialState, ParamRecord } from './schemas/project';
+import type { LoadedShader } from './schemas/shaderPack';
 
 /** Low rate — project-shaped render configuration. */
 export interface RenderInputsMsg {
@@ -37,6 +38,17 @@ export interface RenderInputsMsg {
         params: Record<string, string | number | boolean>;
       }
     | null;
+  /**
+   * v0.5: shader DEFINITIONS the replica may need — the active custom
+   * technique and any pinned Look that names one. Data only: manifest entry
+   * plus GLSL text. No compiled program, no GPU object and no pixel ever
+   * crosses this channel; the replica compiles locally, exactly as the editor
+   * does, and caches by hash so a project change does not recompile.
+   *
+   * Low frequency by construction: this rides RenderInputs, which is sent on
+   * project changes, not per frame.
+   */
+  customShaders?: LoadedShader[] | undefined;
 }
 
 /** High rate — one evaluated frame from the authority's live render pass. */

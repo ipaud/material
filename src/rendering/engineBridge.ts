@@ -9,6 +9,7 @@ import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { modulationRuntime } from '@/modulation/runtime';
 import { visualDemand } from '@/signals/visual/demand';
+import { shadersReferencedBy } from '@/shaders/projectShaders';
 import { useScopeStore } from '@/signals/visual/scopeStore';
 import { pixelOriginKey } from '@/signals/visual/originKey';
 import { calibrationStore } from '@/signals/visual/calibrationStore';
@@ -212,6 +213,10 @@ function syncFromProject(): void {
   // never from whatever renderer happened to be mounted before.
   runtimeBus.setRenderInputs({
     techniqueId,
+    // v0.5: every pack shader this project can reach — the active technique
+    // and any pinned Look that names one, because a morph switches the
+    // Output's technique id without going through a project change.
+    customShaders: shadersReferencedBy(project),
     materialState: project.material,
     compWidth: composition.width,
     compHeight: composition.height,

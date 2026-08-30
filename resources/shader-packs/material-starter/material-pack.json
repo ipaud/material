@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "materialShaderVersion": 1,
+  "id": "material.starter",
+  "name": "MATERIAL Starter",
+  "version": "1.0.0",
+  "author": "MATERIAL",
+  "description": "Reference shaders written against Shader Contract v1. Copy this folder as a starting point for your own pack.",
+  "shaders": [
+    {
+      "id": "softWarp",
+      "name": "Soft Warp",
+      "description": "The frame breathes through a smooth domain warp.",
+      "file": "shaders/soft-warp.frag",
+      "params": [
+        { "id": "amount", "label": "Amount", "type": "float", "group": "Structure", "min": 0, "max": 0.2, "step": 0.001, "default": 0.04 },
+        { "id": "scale", "label": "Scale", "type": "float", "group": "Structure", "min": 0.5, "max": 12, "step": 0.05, "default": 3 },
+        { "id": "speed", "label": "Speed", "type": "float", "group": "Time", "min": 0, "max": 2, "step": 0.01, "default": 0.35 }
+      ],
+      "presets": [
+        { "id": "deepRipple", "name": "Deep Ripple", "params": { "amount": 0.12, "scale": 2, "speed": 0.6 } }
+      ]
+    },
+    {
+      "id": "scanBands",
+      "name": "Scan Bands",
+      "description": "Horizontal bands slip against each other like a broken sync.",
+      "file": "shaders/scan-bands.frag",
+      "params": [
+        { "id": "bands", "label": "Bands", "type": "float", "group": "Structure", "min": 2, "max": 120, "step": 1, "default": 24 },
+        { "id": "shift", "label": "Shift", "type": "float", "group": "Motion", "min": 0, "max": 0.25, "step": 0.001, "default": 0.03 },
+        { "id": "speed", "label": "Speed", "type": "float", "group": "Time", "min": 0, "max": 4, "step": 0.01, "default": 0.8 },
+        { "id": "mode", "label": "Direction", "type": "enum", "group": "Motion", "default": "alternate",
+          "options": [
+            { "value": "alternate", "label": "Alternate" },
+            { "value": "same", "label": "Same Way" }
+          ] }
+      ],
+      "presets": []
+    },
+    {
+      "id": "posterise",
+      "name": "Posterise",
+      "description": "Tones collapse into steps; the image becomes a print.",
+      "file": "shaders/posterise.frag",
+      "params": [
+        { "id": "steps", "label": "Steps", "type": "int", "group": "Color", "min": 2, "max": 32, "default": 6 },
+        { "id": "gamma", "label": "Gamma", "type": "float", "group": "Color", "min": 0.3, "max": 3, "step": 0.01, "default": 1 },
+        { "id": "mono", "label": "Monochrome", "type": "bool", "group": "Color", "default": false }
+      ],
+      "presets": [
+        { "id": "hardPrint", "name": "Hard Print", "params": { "steps": 3, "gamma": 1.6, "mono": true } }
+      ]
+    },
+    {
+      "id": "ripple",
+      "name": "Ripple",
+      "description": "Concentric rings push the image out from a centre you can drive.",
+      "file": "shaders/ripple.frag",
+      "params": [
+        { "id": "amount", "label": "Amount", "type": "float", "group": "Structure", "min": 0, "max": 0.15, "step": 0.001, "default": 0.03 },
+        { "id": "frequency", "label": "Frequency", "type": "float", "group": "Structure", "min": 1, "max": 60, "step": 0.5, "default": 18 },
+        { "id": "speed", "label": "Speed", "type": "float", "group": "Time", "min": 0, "max": 4, "step": 0.01, "default": 1.2 },
+        { "id": "centerX", "label": "Center X", "type": "float", "group": "Structure", "min": 0, "max": 1, "step": 0.01, "default": 0.5 },
+        { "id": "centerY", "label": "Center Y", "type": "float", "group": "Structure", "min": 0, "max": 1, "step": 0.01, "default": 0.5 }
+      ],
+      "presets": []
+    },
+    {
+      "id": "chromaShift",
+      "name": "Chromatic Shift",
+      "description": "Colour channels pull apart along one axis.",
+      "file": "shaders/chroma-shift.frag",
+      "params": [
+        { "id": "amount", "label": "Amount", "type": "float", "group": "Color", "min": 0, "max": 0.08, "step": 0.0005, "default": 0.008 },
+        { "id": "angle", "label": "Angle", "type": "float", "group": "Color", "min": -3.15, "max": 3.15, "step": 0.01, "default": 0 },
+        { "id": "falloff", "label": "Edge Falloff", "type": "float", "group": "Mix", "min": 0, "max": 1, "step": 0.01, "default": 0.4 }
+      ],
+      "presets": []
+    },
+    {
+      "id": "grainField",
+      "name": "Grain Field",
+      "description": "Deterministic grain that sits in the image rather than on top of it.",
+      "file": "shaders/grain-field.frag",
+      "params": [
+        { "id": "amount", "label": "Amount", "type": "float", "group": "Color", "min": 0, "max": 1, "step": 0.01, "default": 0.25 },
+        { "id": "size", "label": "Size", "type": "float", "group": "Structure", "min": 0.5, "max": 8, "step": 0.1, "default": 1.5 },
+        { "id": "speed", "label": "Speed", "type": "float", "group": "Time", "min": 0, "max": 24, "step": 0.1, "default": 8 },
+        { "id": "shadows", "label": "Shadows Only", "type": "bool", "group": "Mix", "default": false }
+      ],
+      "presets": []
+    }
+  ]
+}

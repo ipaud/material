@@ -71,6 +71,13 @@ export interface TechniqueContext {
   material: MaterialState;
   timeSec: number;
   seed: number;
+  /**
+   * v0.5: the live WebGL renderer, for techniques that must compile GLSL they
+   * did not author. Native techniques build their shaders at construction and
+   * ignore this; a pack-hosted shader has to validate source against a real
+   * context before it is allowed anywhere near a frame.
+   */
+  renderer: THREE.WebGLRenderer | null;
 }
 
 export interface TechniqueRenderer {

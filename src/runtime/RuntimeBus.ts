@@ -1,3 +1,4 @@
+import type { LoadedShader } from '@shared/schemas/shaderPack';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 
 /**
@@ -26,6 +27,9 @@ import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 /** Low-rate render inputs — change with the project, not per frame. */
 export interface RenderInputs {
   techniqueId: string | null;
+  /** v0.5: pack shader definitions the Output needs in order to compile the
+   * same technique locally. Data, not programs. */
+  customShaders?: LoadedShader[];
   materialState: MaterialState | null;
   compWidth: number;
   compHeight: number;

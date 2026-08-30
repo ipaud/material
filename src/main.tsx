@@ -42,6 +42,9 @@ import * as flowDiag from './rendering/flow/flowDiagnostics';
 import * as simDiag from './rendering/simulation/simDiagnostics';
 import * as transDiag from './rendering/transition/transitionDiagnostics';
 import * as statsDiag from './rendering/analysis/statsDiagnostics';
+import * as shaderDiag from './shaders/shaderDiagnostics';
+import { loadBuiltinPacks } from './shaders/builtinPack';
+import * as packRegistry from './shaders/packRegistry';
 import './styles/global.css';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
@@ -86,6 +89,12 @@ if (import.meta.env.DEV) {
       statsGoldens() {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         return e.renderer ? statsDiag.runStatsGoldens(e.renderer) : null;
+      },
+      /** v0.5A: shader host goldens — identity first, then time, seed, params,
+       * resolution, compile failure and last-known-good. */
+      shaderGoldens() {
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
+        return e.renderer ? shaderDiag.runShaderGoldens(e.renderer) : null;
       },
       /** CE1G: transition goldens (endpoints, coverage, determinism). */
       transitionGoldens() {
@@ -600,6 +609,7 @@ if (import.meta.env.DEV) {
       openProjectFromPath,
       modulationRuntime,
       modulationActions,
+      packRegistry,
       scopeStore: useScopeStore,
       playback,
       createFrameEvaluator,
@@ -625,6 +635,11 @@ if (import.meta.env.DEV) {
     },
   });
 }
+
+// v0.5A: the bundled starter pack goes through the same loader, schema and
+// host contract as any imported pack. Registration is pure data — no GPU work
+// happens until a shader is actually selected.
+for (const pack of loadBuiltinPacks()) packRegistry.registerPack(pack);
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');
