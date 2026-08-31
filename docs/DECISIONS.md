@@ -1003,3 +1003,156 @@ that — never raw CPU float readbacks of live class targets).
 - **ADR — every refusal names its feature.** MULTIPASS, PERSISTENT_BUFFER,
   MULTIPLE_IMAGE_INPUTS, GENERATOR, and each unsupported input type. "It did not
   load" is not actionable.
+
+## v0.7 — Performance Capture
+
+### Intent vs resolved state
+
+- **ADR — a Take records human control, never resolved engine state.** The
+  forbidden model is "frame 1 → save 200 params, frame 2 → save 200 params".
+  It destroys semantics: change a macro's targets and the Take still drives the
+  old ones; change a Look and the Take ignores it. And it is enormous — six
+  continuously-moving controls for ten minutes is 216 000 samples before
+  simplification, and that is *before* fanning each out to its targets.
+- **ADR — generated control is not recorded, by default and by policy.** Audio
+  analysis, Image/Motion Signals, Pattern output and calibration re-evaluate
+  during replay and export. That is what keeps a Take alive: replay it against
+  a different song and the Signals react to the new song while the gestures
+  stay as played. Baking any of them is backlogged as an explicit, separate
+  feature, because it is a different product.
+- **ADR — a macro is recorded as intent, one value, not as its fan-out.**
+  Recording the twelve parameters a macro moves would freeze the fan-out
+  against the mapping that existed at record time. Recording the hand means
+  editing the macro's targets afterwards changes what the Take does — which is
+  desirable, and is the whole reason macros exist.
+- **ADR — MIDI is captured as the semantic host control it resolved to.** Not
+  device plus CC number. Replay then needs no hardware and does not depend on a
+  mapping that may since have been reassigned. Raw-MIDI capture is a separate
+  backlogged mode with its own reasons.
+- **ADR — the Take enters at the BASE, where the human drag entered.** Take →
+  macros → modulation → pulses → clamp. Applying a Take after modulation would
+  let a replay overwrite the very Signals it was performed against.
+- **ADR — four event kinds, and structural edits are not among them.** Adding a
+  layer, changing a source or technique, editing routing or blend mode are
+  composition changes. A Look recall may change a technique; that is the Look's
+  doing and it is already one event.
+
+### The Take time model
+
+- **ADR — composition seconds as a double, relative to `startSec`.** No integer
+  ticks. Composition time in MATERIAL is already an exact float derived from a
+  frame index (`compositionTimeAt`), so the accumulated-frame drift that would
+  justify ticks does not exist. Ticks would add a conversion at every boundary
+  to solve a problem the clock does not have.
+- **ADR — nothing wall-clock is persisted.** `Date.now()` appears once, in
+  `createdAt`, as a label. Wall time may drive UI responsiveness; it never
+  drives Take timing.
+- **ADR — a monotonic `order` breaks same-timestamp ties.** JS sort stability
+  across engines is not a contract worth staking determinism on. `order` is
+  identity, not position: editing never renumbers it.
+- **ADR — the crossing interval is half-open EXCEPT at the Take origin.** An
+  event played in the very frame recording started was crossed by no interval
+  and vanished from live playback, while a seek — which reconstructs from the
+  origin — still had it. Nothing precedes the origin, so the origin is
+  inclusive. Found by the seek-equals-walk gate, which exists precisely to
+  compare the two paths against each other.
+- **ADR — lanes hold their last value past the recorded end, and contribute
+  nothing before the start.** The performer stopped with the faders where they
+  were; releasing would put a visible jolt at the end of every export. Before
+  the start, the project's own state is what a baseline restores to.
+- **ADR — seeking or looping while recording ends the take, keeping it.** A
+  wrapped or rewound playhead writes backwards time into a lane that has to
+  stay monotonic. Ending rather than cancelling, because a performer who seeks
+  by accident should not lose what they played. Loop is switched off for the
+  duration and switched back after.
+- **ADR — the resting sample is backdated one sample period.** Two samples
+  cannot share a timestamp in a strictly increasing lane, and putting both at
+  the touch instant let the first movement overwrite the resting value — so the
+  whole stretch before a gesture replayed at the value the performer dragged
+  *to*. Backdating by 1/60 s is the recorder's own resolution, not a
+  fabrication.
+- **ADR — stored points are rounded to four decimals.** A 0.05 ms time error
+  against a 16.7 ms frame, and a value error eighty times under the
+  simplification tolerance the gesture has already been through. It halves the
+  bytes: a ten-minute six-lane worst case went from 1.73 MB to 996 kB.
+
+### Stateful preroll with automation
+
+- **ADR — the Take is evaluated INSIDE `createFrameEvaluator`.** Not beside the
+  export loop. The runner already calls `evaluate(f)` for every frame from
+  zero, so putting the Take inside makes §105 and §106 true for free:
+  automation that changed feedback persistence at t = 2 is applied over the
+  whole history a subrange starts after.
+- **ADR — final parameter values are never reconstructed in place of history.**
+  Feedback, simulation and motion state depend on the control history, not on
+  the control's value at the export start. Smearing the final value backwards
+  over frames that never saw it is the failure this ADR exists to name.
+- **ADR — layer visibility is its own authority channel.** `LayerHost`
+  deliberately keeps drawing at opacity 0 so a stateful branch does not lose
+  its accumulation; disabling stops the branch. Folding a replayed mute into
+  opacity would silently change what a replayed feedback layer contains, so
+  `setAuthorityLayerEnabled` exists alongside `setAuthorityLayerOpacity`.
+- **ADR — one gesture, one record.** A morph launched by a Take does not append
+  a `morphEvent`: it is already recorded, in the Take, and two records give the
+  export two virtual morphs for one gesture — plus a dirty flag on every
+  replay. `ActiveMorph.record` says who owns the record.
+
+### Recording seams
+
+- **ADR — anti-recursion is structural, not a flag.** `gestures.ts` is the only
+  module that both records and applies; `livePerformer.ts` applies through the
+  primitives underneath it and has no import path back. A replayed Look recall
+  therefore cannot record itself because the function that would record it is
+  not in its call graph. An `origin` enum checked at runtime would have relied
+  on every future call site remembering to pass the right one. `origin` survives
+  on the event as diagnostics only, and the resolver ignores it.
+- **ADR — the export scheduler is constructed without a capture hook.** Same
+  reasoning one level down: `TriggerScheduler`'s hook is optional, and only
+  non-deterministic sources reach it — the same `isDeterministicSource`
+  predicate export already trusts to decide what it replays.
+- **ADR — replay is playback, so it neither dirties nor undoes.** The project
+  store gained `runSilently`, which scopes `apply` to behave as `applySilent`.
+  Scoping the store rather than writing a silent variant of every action keeps
+  one implementation of what a Look recall means.
+- **ADR — a deliberate STOP commits the resolved continuous values.** The
+  discrete side already stays where the Take left it. Lanes drive an overlay
+  that never writes, so releasing alone snapped every fader back to its stored
+  value the instant you stopped — and taking over by hand from a value that
+  just jumped is what makes a Take unusable live. The internal release, used
+  when another Take is selected or a recording begins, commits nothing.
+- **ADR — the baseline stores a LookCore, lazily.** A Look recall replaces
+  params, modulations and triggers; without a snapshot, seeking back before the
+  first recall left that Look on screen because nothing remembered what it
+  overwrote. It is the largest thing a baseline holds and it exists only in
+  Takes that can destroy the state it describes.
+
+### Editing
+
+- **ADR — the editor is a ruler, polylines and ticks. Nothing more.** No media
+  tracks, no clips, no waveform, no nested takes, no curve handles, no lanes
+  for hidden runtime state, no placing a Take on a project timeline. When a
+  Take needs more surgery than this, recording it again is faster and better.
+  If the UX ever seems to demand a generic timeline, the answer is to reduce
+  what the editor edits.
+- **ADR — trim folds trimmed-off state back in.** A Take cut to start after its
+  Freeze still replays frozen, and a morph whose window was cut away is
+  re-emitted as a recall of its target, which is the state the kept stretch
+  inherits. Only the last event of each identity, in recorded order. A boundary
+  sample is planted in each lane so replay begins at the value the gesture
+  actually had there.
+- **ADR — points are addressed by index, events by stable id.** An event is
+  something the performer did and may want to move years later. A point is one
+  sample of a gesture with no identity worth persisting; giving thirty-six
+  thousand of them string ids would triple a Take's size for nothing.
+- **ADR — recording always makes a new Take.** No punch-in, no overwrite.
+  Safer, and it makes "record it again" the cheap answer that keeps the editor
+  small.
+
+### Schema
+
+- **ADR — version 4 → 5, for the reverse direction.** The shape is additive
+  (`takes: []`, `activeTakeId: null`, both defaulted) and `migrateV4toV5` is a
+  stamp, like v2 → v3. The number moved so that v0.6.1 REFUSES a project
+  carrying a recorded performance instead of loading it and silently stripping
+  the performance as an unknown key. A refused version is a fixable message; a
+  dropped performance is not.

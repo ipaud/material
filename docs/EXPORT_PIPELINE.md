@@ -156,3 +156,53 @@ against a real v0.6.0 worktree, and by nothing else.
 A layer in export mode does not fall back to the live parameter transform,
 which reads wall time. Asserted structurally: `syncScene` guards on
 `this.paramTransform && !this.exportMode`.
+
+## v0.7 — a Take is an export program
+
+The project's selected Take drives the render. It is evaluated **inside**
+`createFrameEvaluator`, not beside the export loop, and that placement is the
+whole correctness argument.
+
+The runner already calls `evaluate(f)` for every frame from zero before a
+subrange begins — that is the preroll walk. Putting the Take inside it means a
+Take that changed a stateful parameter at t = 2 has that change applied over
+the whole history a subrange starting at t = 8 never rendered. Reconstructing
+only the parameter's *value* at t = 8 and using it for all of history is the
+failure this arrangement prevents: feedback, simulation and motion state depend
+on the control history, not on the control's final value.
+
+### What the Take supplies
+
+| | |
+|---|---|
+| Continuous lanes | the BASE parameters, opacities and macro values, before macros and modulation |
+| Discrete events | the same `working` copy the trigger `ActionTarget` writes |
+| Baseline | restored once at evaluator construction, including a `LookCore` if the Take recalls Looks |
+
+A recalled Look reaches `working` through `applyLookToWorking`, so a Look
+recalled by a Take and one recalled by a beat trigger are indistinguishable
+downstream. A morph launched by a Take pushes a `VirtualMorph` into the same
+list `morphEvents` populate — and appends no `morphEvent` of its own, because
+two records would replay one gesture twice.
+
+### Layer visibility
+
+`setAuthorityLayerEnabled` is a separate channel from
+`setAuthorityLayerOpacity`, and deliberately not folded into it: `LayerHost`
+keeps drawing at opacity 0 so a stateful branch does not lose what it has
+accumulated, while disabling stops the branch. A replayed mute has to reproduce
+whichever the performer actually did.
+
+Both are set during the preroll walk as well as during the real frames, so a
+branch the Take muted early stops accumulating from that point rather than from
+the export start.
+
+### Gates
+
+`tests/take-signature.test.ts` runs anti-noop, time-liveness, event-liveness,
+12× repeat, full-vs-subrange over three offsets, and cross-FPS at 24/25/30/60
+against a committed twelve-second performance fixture.
+
+The anti-noop gate is the one that matters most here, for the reason
+`docs/GPU_TESTING.md` keeps repeating: a perfectly deterministic export that
+ignores the Take passes every determinism check ever written.

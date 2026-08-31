@@ -42,6 +42,12 @@ anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 | `⇧1`–`⇧9` | Overwrite that slot with the current state |
 | `P`       | Pin the current state as a new Look        |
 | `F`       | Freeze all modulated values / release them |
+| `R`       | Arm recording — starts with the transport; stops it if recording |
+| `T`       | Play / stop the selected Take               |
+
+`R` and `T` are Performance Capture (`docs/PERFORMANCE_CAPTURE.md`). Arming
+and pressing play starts the recording in step with the song; pressing `R`
+while the transport already runs starts it immediately.
 
 In the PERFORM workspace, `1`–`9` obey the global quantization: the Look
 arrives on the next beat or bar rather than instantly.

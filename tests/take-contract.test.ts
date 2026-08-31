@@ -368,12 +368,16 @@ describe('simplification', () => {
   });
 
   it('survives a lane long enough to blow a recursive stack', () => {
+    // Ten minutes at 60Hz where EVERY sample reverses direction: the deepest
+    // recursion RDP can be given, and nothing a hand produces. Measured at
+    // ~7s once, at record stop; a real ten-minute gesture across six lanes
+    // simplifies in well under a second (docs/V07_PROGRESS.md).
     const samples = Array.from({ length: 36_000 }, (_, i) => ({
       t: i / 60,
       v: i % 2 === 0 ? 0 : 1,
     }));
     expect(() => simplifyLane(samples, 0.001)).not.toThrow();
-  });
+  }, 30_000);
 });
 
 describe('missing targets', () => {

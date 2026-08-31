@@ -176,6 +176,18 @@ that is sometimes wrong is worse than a number you typed.
 **Stem separation / "vocals" band.** Not shipping a band-pass filter labelled
 as vocal isolation.
 
+## After v0.7
+
+v0.7 shipped Performance Capture: record what the performer plays, replay it
+deterministically, edit it minimally, export it. `docs/BACKLOG.md` lists what
+was deliberately left out.
+
+The obvious next question is not another feature but a shape: MATERIAL can now
+build a system, play it, and record the playing. What it cannot do is get any
+of that anywhere except a file on disk — no live output to a second machine, no
+NDI/Syphon, no show file that survives a venue. That is the direction worth
+considering next, and it is a product decision rather than an engineering one.
+
 ## Out of scope for the foreseeable future
 
 Cloud, accounts, collaboration, plugin marketplace, AI generation, mobile,

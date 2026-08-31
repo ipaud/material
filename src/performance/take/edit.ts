@@ -1,5 +1,12 @@
 import type { PerformanceTake, TakeBaseline, TakeEvent, TakeLane } from '@shared/schemas/project';
-import { compareEvents, laneValueAt, simplifyLane, sortedEvents } from './model';
+import {
+  compareEvents,
+  laneValueAt,
+  quantiseSamples,
+  simplifyLane,
+  sortedEvents,
+  STORED_DECIMALS,
+} from './model';
 
 /**
  * v0.7C — minimal Take editing.
@@ -35,7 +42,7 @@ function laneOf(take: PerformanceTake, target: string): TakeLane | undefined {
 
 /** Re-sorted, so a moved point never leaves a lane non-monotonic. */
 function normalise(samples: readonly { t: number; v: number }[]): { t: number; v: number }[] {
-  const sorted = [...samples].map((s) => ({ ...s })).sort((a, b) => a.t - b.t);
+  const sorted = quantiseSamples(samples).sort((a, b) => a.t - b.t);
   // Two points at one instant make interpolation ambiguous; the later one wins,
   // matching how the recorder collapses a gesture made with a parked transport.
   const out: { t: number; v: number }[] = [];
@@ -140,7 +147,9 @@ export function simplifyTake(take: PerformanceTake, epsilon: number, target?: st
     ...take,
     lanes: take.lanes
       .map((l) =>
-        target && l.target !== target ? l : { ...l, samples: simplifyLane(l.samples, epsilon) },
+        target && l.target !== target
+          ? l
+          : { ...l, samples: quantiseSamples(simplifyLane(l.samples, epsilon)) },
       )
       .filter((l) => l.samples.length > 0),
   };
@@ -197,7 +206,7 @@ export function trimTake(take: PerformanceTake, from: number, to: number): Perfo
       ...(atStart === null ? [] : [{ t: start, v: atStart }]),
       ...inside.map((s) => ({ ...s })),
       ...(atEnd === null ? [] : [{ t: end, v: atEnd }]),
-    ]).map((s) => ({ t: Number((s.t - start).toFixed(6)), v: s.v }));
+    ]).map((s) => ({ t: Number((s.t - start).toFixed(STORED_DECIMALS)), v: s.v }));
     if (samples.length > 0) lanes.push({ ...lane, samples });
   }
 

@@ -5,7 +5,7 @@ import type {
   TakeEvent,
   TakeLane,
 } from '@shared/schemas/project';
-import { simplifyLane } from './model';
+import { quantiseSamples, simplifyLane } from './model';
 import { uid } from '@/utils/id';
 
 /**
@@ -216,9 +216,9 @@ class TakeRecorder {
         if (buffer.pending.t > last.t) buffer.samples.push(buffer.pending);
         else last.v = buffer.pending.v;
       }
-      const samples = simplify
-        ? simplifyLane(buffer.samples, SIMPLIFY_EPSILON * buffer.span)
-        : buffer.samples;
+      const samples = quantiseSamples(
+        simplify ? simplifyLane(buffer.samples, SIMPLIFY_EPSILON * buffer.span) : buffer.samples,
+      );
       if (samples.length > 0) lanes.push({ target, samples });
     }
     const events = [...this.events];

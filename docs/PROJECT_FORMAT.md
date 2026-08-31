@@ -242,7 +242,63 @@ Autosaves go to `userData/recovery/<sessionId>.json` every 15 s while the
 project is dirty. They record the project's original path but are never written
 back to it — see [TROUBLESHOOTING](TROUBLESHOOTING.md#recovery).
 
+## Takes (v0.7)
+
+`project.takes` holds recorded performances; `project.activeTakeId` names the
+one the transport replays and the panel edits. Both default, so a v4 document
+satisfies the v5 shape untouched.
+
+```jsonc
+{
+  "id": "take_9f3a",
+  "name": "TAKE 01",
+  "createdAt": "2026-08-31T18:12:04.221Z",
+  "startSec": 0,            // composition time the recording began
+  "durationSec": 12,        // from the actual STOP, so trailing silence survives
+  "lanes": [
+    {
+      "target": "layer:layer_3f21:opacity",   // never an index
+      "samples": [ { "t": 0, "v": 1 }, { "t": 2.4167, "v": 0.15 } ]
+    }
+  ],
+  "events": [
+    { "id": "tev_a1", "t": 6, "order": 1, "kind": "morph.start",
+      "lookId": "look_22", "morph": { "durationMode": "seconds",
+      "durationValue": 2, "curve": "easeInOut" }, "on": null,
+      "layerId": null, "origin": "user" }
+  ],
+  "baseline": {
+    "lanes": { "layer:layer_3f21:opacity": 1 },
+    "layerEnabled": { "layer_3f21": true },
+    "frozen": { "mod_7c": null },
+    "lookCore": null,         // present only in Takes that recall a Look
+    "activeLookId": null
+  }
+}
+```
+
+Lane times are **relative to `startSec`**, and both `t` and `v` are stored to
+four decimals — 0.05 ms against a 16.7 ms frame, and a value error eighty times
+under the simplification tolerance the gesture already passed through. It
+halves the file: a ten-minute six-lane worst case is 996 kB rather than 1.73 MB.
+
+`order` breaks ties between two events at the same `t`. It is identity, not
+position — editing never renumbers it.
+
+`origin` (`"user"` | `"midi"`) is diagnostics. Replay ignores it entirely.
+
+A lane whose `target` does not parse, or names a layer, macro or Look that no
+longer exists, goes inert and is reported in the panel. Nothing is ever
+silently repointed. Full semantics in [AUTOMATION](AUTOMATION.md).
+
+### Version 5
+
+Version 4 → 5 is a stamp; `migrateV4toV5` changes no data. The number moved so
+v0.6.1 refuses a project carrying a Take rather than opening it and stripping
+the performance as an unknown key.
+
 ## Keyframes
 
 The format reserves room for parameter automation (parameter, time, value,
-interpolation), but there is still no keyframe UI and nothing writes them.
+interpolation) predating v0.7. Nothing writes it — Takes are how MATERIAL
+records automation, and they record intent rather than baked values.

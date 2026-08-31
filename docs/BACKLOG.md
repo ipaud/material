@@ -210,3 +210,56 @@ Extracted deliberately. None of these is started.
 - An in-app shader editor or live GLSL coding.
 - Compute shaders / WebGPU.
 - Collaborative or shared packs.
+
+
+## v0.7 — Performance Capture
+
+Extracted from the v0.7 spec and deliberately not built. Every one of these
+would grow the Take from "a performance" toward "a timeline", which is the
+line v0.7 exists to hold.
+
+**Recording**
+
+- Punch-in and overdub recording (v0.7 always creates a new Take).
+- Loop recording and multi-cycle takes. Loop is suspended while recording,
+  because a wrapped playhead writes backwards time into a monotonic lane.
+- Recording structural edits: adding or deleting layers, changing sources or
+  techniques, editing routing and blend mode.
+- Raw MIDI Take mode — capturing device + CC rather than the resolved host
+  control. It would need the device and the record-time mapping to replay.
+- Recording from OSC, or to OSC/MIDI out.
+- Remote-control recording.
+
+**Takes as objects**
+
+- Several Takes playing at once.
+- Takes placed as clips on a project timeline, with offsets.
+- Nested Takes.
+- Takes portable between unrelated projects (v0.7 Takes belong to their
+  project — see the baseline).
+
+**Editing**
+
+- Bézier automation and per-segment easing.
+- Quantisation and beat-snapping of recorded events.
+- Automation import/export as a file format.
+- A generic lane for any runtime property.
+
+**Baking**
+
+- Baking Signals, Audio or Pattern output into a Take. This is a separate
+  product decision, not a missing feature: it would trade the thing that keeps
+  a Take alive — re-evaluation against whatever it is replayed over — for a
+  frozen recording.
+
+**Known debt**
+
+- `simplifyLane` is O(n^2) in the worst case. A pathological ten-minute lane
+  where every sample reverses direction takes ~7 s once, at record stop; a real
+  ten-minute six-lane performance simplifies in well under a second. Not worth
+  an interval tree until a real gesture provokes it.
+- `liveTarget.morphToLook` writes a `morphEvent` for a DETERMINISTIC trigger
+  morph, which the export also re-creates from the trigger itself. Benign
+  today — the duplicate interpolates from its own target, so it is visually a
+  no-op — and pre-dates v0.7. `ActiveMorph.record` is the mechanism that would
+  fix it.

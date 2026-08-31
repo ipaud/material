@@ -77,10 +77,11 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | Looks      | Nine slots with thumbnails, keyboard recall, and morphs over seconds, beats or bars                           |
 | MIDI       | Web MIDI, MIDI Learn for parameters, macros and actions, pickup / soft takeover                               |
 | Perform    | Dedicated workspace: Look strip, macros, trigger pads, quantized actions, minimal HUD                         |
+| Capture    | Record what you play as a Take — faders, macros, Looks, Morphs, Freeze — replay it, edit it, export it        |
 | Mutate     | CURRENT / CANDIDATE — generate, audition, apply or pin without disturbing the output                          |
 | Explore    | Seeded variations, parameter locks, MUTATE around a pick                                                      |
 | Export     | PNG still, PNG sequence (alpha), H.264 MP4, ProRes 422 HQ, ProRes 4444 (alpha)                                |
-| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v3 migration                      |
+| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v5 migration                      |
 | Live       | Camera / Screen / Window sources, intent-gated permissions, realtime temporal history, no audio capture       |
 | Output     | Display destination: fullscreen on a chosen monitor, passive replica, live fan-out                            |
 
@@ -100,6 +101,7 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | double-click a slider          | reset to default                               |
 | `1`–`9`, `⇧1`–`⇧9`             | apply / overwrite Look slots                   |
 | `P`, `F`                       | pin Look, freeze all                           |
+| `R`, `T`                       | arm recording, play the selected Take          |
 | `Q`, `M`, `Tab`, `Esc`         | quantization, morph, HUD, cancel (Performance) |
 | `Z X C V`                      | trigger pads (Performance)                     |
 | `G`, `⇧G`, `B` (hold), `Enter` | mutate, mutate again, audition, apply          |
@@ -138,8 +140,12 @@ title bar.
   absent from exports, like every other live signal.
 - Motion is measured by optical flow over a 320×180 analysis grid, so it sees
   movement, not objects. There is no tracking, no depth and no recognition.
-- No performance recording. Live knob moves, pad hits and keystrokes are real
-  in the room and absent from exports; recorded morphs are the exception.
+- Performance Capture records intent, not the picture: your gestures replay
+  while Signals, Audio and Patterns re-evaluate. Live gestures you did **not**
+  record are still absent from exports.
+- A Take is one performance at a time. No punch-in, no overdub, no takes placed
+  as clips on a timeline, no beat-snapping — see
+  [BACKLOG](docs/BACKLOG.md#v07--performance-capture).
 - ProRes availability depends on your FFmpeg build; the option is hidden if the
   encoder is not present.
 
@@ -149,7 +155,8 @@ title bar.
 [SHORTCUTS](docs/SHORTCUTS.md) ·
 [RELEASE_NOTES](docs/RELEASE_NOTES.md)
 
-**Systems** — [SHADERS](docs/SHADERS.md) · [SHADER PACKS](docs/SHADER_PACKS.md) · [ISF](docs/ISF.md) · [SIGNALS](docs/SIGNALS.md) ·
+**Systems** — [PERFORMANCE_CAPTURE](docs/PERFORMANCE_CAPTURE.md) ·
+[AUTOMATION](docs/AUTOMATION.md) · [SHADERS](docs/SHADERS.md) · [SHADER PACKS](docs/SHADER_PACKS.md) · [ISF](docs/ISF.md) · [SIGNALS](docs/SIGNALS.md) ·
 [MODULATION](docs/MODULATION.md) ·
 [PARAMETER_EVALUATION](docs/PARAMETER_EVALUATION.md) ·
 [PERFORMANCE](docs/PERFORMANCE.md) ·

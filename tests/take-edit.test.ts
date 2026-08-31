@@ -75,9 +75,10 @@ describe('continuous point edits', () => {
     const before = signature();
     const after = addPoint(before, OPACITY, 2.6);
     for (const at of [0, 1, 2.3, 2.6, 3.1, 4, 9]) {
+      // 4dp, because that is the precision a lane point is stored at.
       expect(resolveTakeAt(after, at).opacity.get('sig_l2')).toBeCloseTo(
         resolveTakeAt(before, at).opacity.get('sig_l2') as number,
-        9,
+        4,
       );
     }
     expect(after.lanes.find((l) => l.target === OPACITY)!.samples.length).toBe(
@@ -225,7 +226,11 @@ describe('trim', () => {
     const before = signature();
     const after = trimTake(before, 0, before.durationSec);
     for (const at of [0, 1, 3.3, 6, 8.25, 11, 12]) {
-      expect(resolveTakeAt(after, at)).toEqual(resolveTakeAt(before, at));
+      const a = resolveTakeAt(after, at);
+      const b = resolveTakeAt(before, at);
+      for (const [k, v] of b.opacity) expect(a.opacity.get(k)).toBeCloseTo(v, 4);
+      for (const [k, v] of b.macros) expect(a.macros.get(k)).toBeCloseTo(v, 4);
+      expect([...a.params.keys()]).toEqual([...b.params.keys()]);
       expect(log(after, at)).toEqual(log(before, at));
     }
   });

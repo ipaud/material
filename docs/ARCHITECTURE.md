@@ -89,6 +89,37 @@ otherwise the video element is master. Measured A/V drift during playback:
 Frame history is separate and composition-time addressed — see
 [TEMPORAL_ENGINE](TEMPORAL_ENGINE.md).
 
+## Performance Capture sits above the runtime, not inside it
+
+A Take never touches the engine. It resolves to two things — a set of base
+values and a set of semantic actions — and hands them to the layers that
+already existed.
+
+```
+gestures.ts     the ONE place that records AND applies. UI, keyboard, MIDI,
+                pads call it.
+   |            (livePerformer.ts applies through the primitives underneath
+   |             and has no import path back — anti-recursion is the module
+   |             graph, not a flag)
+   v
+recorder.ts     samples, epsilon, simplification, baseline
+   v
+takes[]         project data
+   v
+evaluate.ts     THE canonical evaluator. Pure for lanes, ordered for events.
+   |
+   +--> player.ts        -> modulationRuntime base + livePerformer  (preview)
+   +--> exportRunner.ts  -> working copy + LayerHost authority      (export)
+```
+
+The engine gained exactly one method for all of it —
+`setAuthorityLayerEnabled`, alongside the opacity and params authorities it
+already had. Everything else routes through seams that predate v0.7:
+`ActionTarget`, `TriggerScheduler`, `createFrameEvaluator`'s working copy, and
+the base-parameter position in `modulationRuntime.transform`.
+
+Full semantics in [AUTOMATION](AUTOMATION.md).
+
 ## Determinism
 
 Same project + same seed + same frame time ⇒ same image. Seeded PRNG
@@ -111,6 +142,7 @@ src/
   audio/        AudioEngine, FFT, analysis, worker, beat grid, waveform
   explore/      seeded exploration and the Explore workspace
   export/       export runner, dialog, still export
+  performance/  looks, morph, macros, candidate, and take/ (Performance Capture)
   projects/     project/preset/look actions, autosave
   viewport/ timeline/ inspector/ library/    panels
   state/ hooks/ utils/ types/

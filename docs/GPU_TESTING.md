@@ -396,3 +396,34 @@ then compare the two
 
 Skipping the first two steps produces a difference report that says nothing
 about the code. It cost most of an afternoon here.
+
+
+## v0.7 — Performance Capture gates
+
+`DETERMINISM != CORRECTNESS` applies with full force here, because a Take is
+exactly the kind of system that can be perfectly reproducible while doing
+nothing at all.
+
+| Gate | The mutation it must fail against |
+|---|---|
+| **Anti-noop** | Deselect the Take. The export must differ. |
+| **Time-liveness** | Freeze the Take's clock. An early frame must stop equalling a late one. |
+| **Event-liveness** | Remove one discrete event. The render must change. |
+| **Seek-equals-walk** | Reconstruct at time t, and walk frame by frame to t. The dispatched sequences must be identical. |
+| **Cross-FPS** | Evaluate at the same composition time under 24/25/30/60. Values must match to nine decimals. |
+| **Repeat** | Twelve runs of one range, byte-identical. |
+| **Full vs subrange** | Every matching global frame identical, morphs included. |
+
+The seek-equals-walk gate earned its place immediately: it caught an event at
+relative t = 0 being crossed by no interval, so it fired on a seek and never
+during live playback. Nothing else compared the two paths against each other.
+
+**Cross-FPS has a trap.** A 25 fps render has no frame at 2.5 s. Comparing
+"the last frame before 2.5 s" across rates compares different instants and
+fails for a reason that is not a bug. Name times every rate can land on.
+
+**A live probe needs a duration.** A generator-only project has no media, so
+`playback.getDuration()` is 0 and every `seek()` clamps to zero — while the
+internal composition clock happily runs past it during playback. A seek test
+against such a project silently becomes five requests for t = 0. Set a duration
+on the playback store first.

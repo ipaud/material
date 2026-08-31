@@ -96,7 +96,7 @@ describe('recorder: sampling policy', () => {
     // The resting value is backdated one sample period, so the step from 1 to
     // 0.4 is expressible at all — two samples cannot share a timestamp.
     expect(lane.samples[0]!.v).toBe(1);
-    expect(lane.samples[0]!.t).toBeCloseTo(2 - 1 / 60, 9);
+    expect(lane.samples[0]!.t).toBeCloseTo(2 - 1 / 60, 4); // stored to 4dp
     expect(lane.samples[1]).toEqual({ t: 2, v: 0.4 });
     // …so the whole stretch before the gesture replays as the resting value.
     expect(laneValueAt(lane, 0)).toBe(1);

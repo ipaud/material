@@ -137,6 +137,30 @@ export function simplifyLane(
   return out;
 }
 
+/**
+ * Stored precision for a lane point.
+ *
+ * A raw composition time is a full double — `123.45678901234567` — and so is a
+ * value that came off a fader. Serialised, that is 47 bytes a point, and a
+ * ten-minute six-handed performance is 1.7 MB of digits nobody can perceive.
+ *
+ * Four decimals on each halves it. The time error is 0.05 ms against a 16.7 ms
+ * frame; the value error is 0.00005 against a simplification tolerance of
+ * 0.004 that the gesture has already been through — eighty times larger. The
+ * rounding is absolute rather than relative, so a parameter that runs 0..4096
+ * keeps every digit that could matter and a 0..1 fader keeps four it does not.
+ */
+export const STORED_DECIMALS = 4;
+
+export function quantiseSamples(
+  samples: readonly { t: number; v: number }[],
+): { t: number; v: number }[] {
+  return samples.map((s) => ({
+    t: Number(s.t.toFixed(STORED_DECIMALS)),
+    v: Number(s.v.toFixed(STORED_DECIMALS)),
+  }));
+}
+
 /** Largest value error simplification introduced, in the lane's own domain. */
 export function laneError(
   original: readonly { t: number; v: number }[],
