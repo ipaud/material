@@ -45,6 +45,16 @@ export interface ActiveMorph {
   startTime: number;
   endTime: number;
   curve: MorphCurve;
+  /**
+   * v0.7: whether completing this morph appends a `morphEvent`.
+   *
+   * `morphEvents` exist so export can replay a transition the performer did
+   * live. A morph a TAKE launched is already recorded — in the Take — so
+   * writing it to history as well would give the export two virtual morphs
+   * for one gesture, and dirty the project every time a Take is replayed.
+   * One gesture, one record.
+   */
+  record: boolean;
 }
 
 class MorphRuntime {
@@ -124,7 +134,13 @@ class MorphRuntime {
    */
   start(
     targetLookId: string,
-    options: { startQuantize: QuantizeMode; duration: MorphDuration; curve: MorphCurve },
+    options: {
+      startQuantize: QuantizeMode;
+      duration: MorphDuration;
+      curve: MorphCurve;
+      /** Default true; false when something else already owns the record. */
+      record?: boolean;
+    },
     atTime = playback.getTime(),
   ): boolean {
     if (blockedByExport('Morph')) return false;
@@ -143,6 +159,7 @@ class MorphRuntime {
       startTime,
       endTime,
       curve: options.curve,
+      record: options.record ?? true,
     };
     this.transitionGeneration++;
     this.committedSide = -1;
@@ -271,6 +288,17 @@ class MorphRuntime {
     this.active = null;
     this.snapshotTaken = false;
     engine.setTransition(null);
+    if (!morph.record) {
+      // A Take owns this morph's record. Land the target state so the
+      // composition is where the performance left it, then say nothing:
+      // no history entry, no undo entry, no dirty flag (§76).
+      useProjectStore.getState().applySilent((p) => {
+        const target = p.pinnedLooks.find((l) => l.id === morph.targetLookId) ?? null;
+        const stacked = target ? projectWithLayerLooks(p, target) : p;
+        return projectWithLookCore(stacked, morph.target, morph.targetLookId);
+      });
+      return;
+    }
     useProjectStore.getState().apply((p) => {
       // v0.6D — only the PRIMARY layer interpolates. A morph is a continuous
       // blend between two states of one material, and there is no meaningful
@@ -310,6 +338,10 @@ class MorphRuntime {
     const overlay = this.resolveOverlay(atTime);
     this.active = null;
     if (!overlay) return;
+    if (!morph.record) {
+      useProjectStore.getState().applySilent((p) => projectWithLookCore(p, overlay, null));
+      return;
+    }
     useProjectStore.getState().apply((p) => ({
       ...projectWithLookCore(p, overlay, null),
       morphEvents: [

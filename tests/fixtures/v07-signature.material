@@ -1,0 +1,520 @@
+{
+  "version": 5,
+  "name": "v0.7 SIGNATURE",
+  "sources": [],
+  "composition": {
+    "sourceId": null,
+    "audioSourceId": null,
+    "width": 1920,
+    "height": 1080,
+    "background": "#000000"
+  },
+  "layers": [
+    {
+      "id": "sig_l1",
+      "name": "BASE",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": null,
+      "technique": {
+        "id": "tech_sig_l1",
+        "techniqueId": "mosaic",
+        "enabled": true,
+        "params": {
+          "scale": 1,
+          "depth": 0.5
+        }
+      },
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      }
+    },
+    {
+      "id": "sig_l2",
+      "name": "MID",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": null,
+      "technique": {
+        "id": "tech_sig_l2",
+        "techniqueId": "mosaic",
+        "enabled": true,
+        "params": {
+          "scale": 2
+        }
+      },
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      }
+    },
+    {
+      "id": "sig_l3",
+      "name": "TOP",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": null,
+      "technique": {
+        "id": "tech_sig_l3",
+        "techniqueId": "mosaic",
+        "enabled": true,
+        "params": {
+          "scale": 3
+        }
+      },
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      }
+    }
+  ],
+  "selectedLayerId": "sig_l1",
+  "techniques": [],
+  "material": {
+    "materialId": "square",
+    "colorMode": "source",
+    "params": {},
+    "assetPath": null
+  },
+  "modulations": [
+    {
+      "id": "sig_mod",
+      "enabled": true,
+      "source": "beat",
+      "target": "depth",
+      "amount": 0.6,
+      "min": 0,
+      "max": 1,
+      "invert": false,
+      "smoothing": 0.2,
+      "curve": "linear",
+      "frozenValue": null
+    }
+  ],
+  "triggers": [],
+  "timeline": {
+    "inSec": null,
+    "outSec": null,
+    "loop": true,
+    "bpm": 120,
+    "beatOffsetSec": 0,
+    "beatsPerBar": 4,
+    "markers": []
+  },
+  "pinnedLooks": [
+    {
+      "id": "sig_look_a",
+      "createdAt": "2026-08-31T00:00:00.000Z",
+      "label": "LOOK A",
+      "note": "",
+      "slot": 1,
+      "seed": 7,
+      "thumbnail": null,
+      "techniques": [
+        {
+          "id": "lt_sig_look_a",
+          "techniqueId": "mosaic",
+          "enabled": true,
+          "params": {
+            "scale": 6,
+            "depth": 0.2
+          }
+        }
+      ],
+      "layers": [],
+      "selectedLayerId": "sig_l1",
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      },
+      "modulations": [
+        {
+          "id": "sig_mod",
+          "enabled": true,
+          "source": "beat",
+          "target": "depth",
+          "amount": 0.6,
+          "min": 0,
+          "max": 1,
+          "invert": false,
+          "smoothing": 0.2,
+          "curve": "linear",
+          "frozenValue": null
+        }
+      ],
+      "triggers": []
+    },
+    {
+      "id": "sig_look_b",
+      "createdAt": "2026-08-31T00:00:00.000Z",
+      "label": "LOOK B",
+      "note": "",
+      "slot": 2,
+      "seed": 7,
+      "thumbnail": null,
+      "techniques": [
+        {
+          "id": "lt_sig_look_b",
+          "techniqueId": "mosaic",
+          "enabled": true,
+          "params": {
+            "scale": 12,
+            "depth": 0.9
+          }
+        }
+      ],
+      "layers": [],
+      "selectedLayerId": "sig_l1",
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      },
+      "modulations": [
+        {
+          "id": "sig_mod",
+          "enabled": true,
+          "source": "beat",
+          "target": "depth",
+          "amount": 0.6,
+          "min": 0,
+          "max": 1,
+          "invert": false,
+          "smoothing": 0.2,
+          "curve": "linear",
+          "frozenValue": null
+        }
+      ],
+      "triggers": []
+    }
+  ],
+  "activeLookId": null,
+  "morphEvents": [],
+  "midiMappings": [],
+  "patternSources": [],
+  "macros": [
+    {
+      "id": "sig_macro",
+      "name": "SWEEP",
+      "value": 0,
+      "mappings": [
+        {
+          "targetParam": "scale",
+          "amount": 0.5,
+          "min": 0,
+          "max": 1,
+          "invert": false,
+          "curve": "linear",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "performancePads": [],
+  "takes": [
+    {
+      "id": "sig_take",
+      "name": "SIGNATURE",
+      "createdAt": "2026-08-31T00:00:00.000Z",
+      "startSec": 0,
+      "durationSec": 12,
+      "lanes": [
+        {
+          "target": "layer:sig_l2:opacity",
+          "samples": [
+            {
+              "t": 0,
+              "v": 1
+            },
+            {
+              "t": 2,
+              "v": 1
+            },
+            {
+              "t": 2.25,
+              "v": 0.89375
+            },
+            {
+              "t": 2.5,
+              "v": 0.7875
+            },
+            {
+              "t": 2.75,
+              "v": 0.68125
+            },
+            {
+              "t": 3,
+              "v": 0.575
+            },
+            {
+              "t": 3.25,
+              "v": 0.46875
+            },
+            {
+              "t": 3.5,
+              "v": 0.3625
+            },
+            {
+              "t": 3.75,
+              "v": 0.25625
+            },
+            {
+              "t": 4,
+              "v": 0.15
+            }
+          ]
+        },
+        {
+          "target": "macro:sig_macro",
+          "samples": [
+            {
+              "t": 0,
+              "v": 0
+            },
+            {
+              "t": 4,
+              "v": 0
+            },
+            {
+              "t": 4.25,
+              "v": 0.125
+            },
+            {
+              "t": 4.5,
+              "v": 0.25
+            },
+            {
+              "t": 4.75,
+              "v": 0.375
+            },
+            {
+              "t": 5,
+              "v": 0.5
+            },
+            {
+              "t": 5.25,
+              "v": 0.625
+            },
+            {
+              "t": 5.5,
+              "v": 0.75
+            },
+            {
+              "t": 5.75,
+              "v": 0.875
+            },
+            {
+              "t": 6,
+              "v": 1
+            },
+            {
+              "t": 6.25,
+              "v": 0.9
+            },
+            {
+              "t": 6.5,
+              "v": 0.66667
+            },
+            {
+              "t": 6.75,
+              "v": 0.43333
+            },
+            {
+              "t": 7,
+              "v": 0.2
+            }
+          ]
+        },
+        {
+          "target": "layer:sig_l3:opacity",
+          "samples": [
+            {
+              "t": 0,
+              "v": 1
+            },
+            {
+              "t": 10,
+              "v": 1
+            },
+            {
+              "t": 10.25,
+              "v": 0.875
+            },
+            {
+              "t": 10.5,
+              "v": 0.75
+            },
+            {
+              "t": 10.75,
+              "v": 0.625
+            },
+            {
+              "t": 11,
+              "v": 0.5
+            },
+            {
+              "t": 11.25,
+              "v": 0.375
+            },
+            {
+              "t": 11.5,
+              "v": 0.25
+            },
+            {
+              "t": 11.75,
+              "v": 0.125
+            },
+            {
+              "t": 12,
+              "v": 0
+            }
+          ]
+        },
+        {
+          "target": "param:sig_l1:scale",
+          "samples": [
+            {
+              "t": 0,
+              "v": 1
+            },
+            {
+              "t": 1,
+              "v": 1
+            },
+            {
+              "t": 1.25,
+              "v": 1.3125
+            },
+            {
+              "t": 1.5,
+              "v": 1.625
+            },
+            {
+              "t": 1.75,
+              "v": 1.9375
+            },
+            {
+              "t": 2,
+              "v": 2.25
+            },
+            {
+              "t": 2.25,
+              "v": 2.5625
+            },
+            {
+              "t": 2.5,
+              "v": 2.875
+            },
+            {
+              "t": 2.75,
+              "v": 3.1875
+            },
+            {
+              "t": 3,
+              "v": 3.5
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "id": "sig_e0",
+          "t": 0,
+          "order": 0,
+          "kind": "look.recall",
+          "lookId": "sig_look_a",
+          "morph": null,
+          "on": null,
+          "layerId": null,
+          "origin": "user"
+        },
+        {
+          "id": "sig_e1",
+          "t": 6,
+          "order": 1,
+          "kind": "morph.start",
+          "lookId": "sig_look_b",
+          "morph": {
+            "durationMode": "seconds",
+            "durationValue": 2,
+            "curve": "easeInOut"
+          },
+          "on": null,
+          "layerId": null,
+          "origin": "user"
+        },
+        {
+          "id": "sig_e2",
+          "t": 8,
+          "order": 2,
+          "kind": "freeze.set",
+          "on": true,
+          "lookId": null,
+          "morph": null,
+          "layerId": null,
+          "origin": "user"
+        },
+        {
+          "id": "sig_e3",
+          "t": 8.5,
+          "order": 3,
+          "kind": "freeze.set",
+          "on": false,
+          "lookId": null,
+          "morph": null,
+          "layerId": null,
+          "origin": "midi"
+        },
+        {
+          "id": "sig_e4",
+          "t": 11,
+          "order": 4,
+          "kind": "layer.enable",
+          "layerId": "sig_l3",
+          "on": false,
+          "lookId": null,
+          "morph": null,
+          "origin": "user"
+        }
+      ],
+      "baseline": {
+        "lanes": {
+          "layer:sig_l2:opacity": 1,
+          "macro:sig_macro": 0,
+          "layer:sig_l3:opacity": 1,
+          "param:sig_l1:scale": 1
+        },
+        "layerEnabled": {
+          "sig_l1": true,
+          "sig_l2": true,
+          "sig_l3": true
+        },
+        "frozen": {
+          "sig_mod": null
+        }
+      }
+    }
+  ],
+  "activeTakeId": "sig_take",
+  "performanceQuantize": "bar",
+  "explore": {
+    "lockedParams": [],
+    "lastSeed": 7
+  }
+}

@@ -104,7 +104,15 @@ export function performMorph(
   curve: MorphCurve,
   startQuantize: Parameters<typeof morphRuntime.start>[1]['startQuantize'],
 ): boolean {
-  const started = morphRuntime.start(lookId, { startQuantize, duration, curve });
+  // While a Take is recording it becomes this morph's record; writing a
+  // morphEvent as well would hand the export two virtual morphs for one
+  // gesture.
+  const started = morphRuntime.start(lookId, {
+    startQuantize,
+    duration,
+    curve,
+    record: !takeRecorder.recording,
+  });
   if (!started) return false;
   const active = morphRuntime.current;
   takeRecorder.event(

@@ -8,6 +8,7 @@ import { freezeMapping, unfreezeMapping, updateMapping } from '@/modulation/modu
 import { applyLook, pinCurrentLook } from '@/projects/lookActions';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { performTriggerAction } from '@/performance/take/gestures';
+import { takeRecorder } from '@/performance/take/recorder';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
 
@@ -116,7 +117,15 @@ const liveTarget: ActionTarget = {
     // default musical length of one bar, easeInOut (documented default).
     morphRuntime.start(
       id,
-      { startQuantize: 'off', duration: { mode: 'bars', bars: 1 }, curve: 'easeInOut' },
+      {
+        startQuantize: 'off',
+        duration: { mode: 'bars', bars: 1 },
+        curve: 'easeInOut',
+        // A recording Take captures the live-class fire that got here, so it
+        // owns the record; a deterministic trigger is re-created by the
+        // export's own ActionTarget and never needed one.
+        record: !takeRecorder.recording,
+      },
       atTime,
     );
   },

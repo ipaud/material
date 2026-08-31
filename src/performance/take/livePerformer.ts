@@ -66,7 +66,9 @@ export const livePerformer: TakePerformer = {
     silently(() =>
       morphRuntime.start(
         lookId,
-        { startQuantize: 'off', duration, curve: spec.curve },
+        // record: false — this morph is already recorded, in the Take that is
+        // replaying it. See ActiveMorph.record.
+        { startQuantize: 'off', duration, curve: spec.curve, record: false },
         atComposition,
       ),
     );
