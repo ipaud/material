@@ -155,7 +155,7 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
     // a cross-layer route drove the preview but vanished from the render.
     const runner = read('src', 'export', 'exportRunner.ts');
     expect(runner).toContain('createSecondaryLayerEvaluator');
-    expect(runner).toContain('engine.setExportLayerParams(');
+    expect(runner).toContain('engine.setAuthorityLayerParams(');
     // Walked in the preroll too, or a subrange enters with no smoothing
     // history and disagrees with a full export.
     const preroll = runner.slice(runner.indexOf('for (let f = 0; f < startFrame; f++)'));
@@ -169,7 +169,7 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
     // Publishing them afterwards primed frame N from frame N-1.
     const runner = read('src', 'export', 'exportRunner.ts');
     const loop = runner.slice(runner.indexOf('for (let i = 0; i < totalFrames; i++)'));
-    const publish = loop.indexOf('engine.setExportLayerParams(');
+    const publish = loop.indexOf('engine.setAuthorityLayerParams(');
     const feedback = loop.indexOf('engine.prepareFeedbackForExport(');
     const flow = loop.indexOf('engine.prepareFlowForExport(');
     expect(publish).toBeGreaterThan(-1);

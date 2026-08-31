@@ -1,4 +1,5 @@
 import type { LoadedShader } from '@shared/schemas/shaderPack';
+import type { OutputLayerInput } from '@shared/outputChannel';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 
 /**
@@ -50,6 +51,9 @@ export interface RenderInputs {
         params: Record<string, string | number | boolean>;
       }
     | null;
+  /** v0.6E: the layer stack, as configuration. Resolved per-frame values ride
+   * FrameState, so the Output still evaluates nothing. */
+  layers?: OutputLayerInput[];
   /** Project generation — replicas drop state when it changes. */
   generation: number;
 }
@@ -76,6 +80,10 @@ export interface FrameState {
   transition?:
     | { generation: number; progress: number; style: string; params: Record<string, number> }
     | undefined;
+  /** v0.6E: every layer's resolved parameters and opacity. */
+  layerParams?: Record<string, ParamRecord> | undefined;
+  layerOpacity?: Record<string, number> | undefined;
+  layerSourceParams?: Record<string, ParamRecord> | undefined;
   materialState: MaterialState | null;
 }
 
@@ -146,12 +154,23 @@ class RuntimeBus {
     temporalActive: boolean,
     sourceParams?: ParamRecord,
     transition?: FrameState['transition'],
+    /** v0.6E: the rest of the stack, resolved. `finalParams` stays the
+     * selected layer's, so everything that read it before layers is
+     * unchanged. */
+    stack?: {
+      layerParams: Record<string, ParamRecord>;
+      layerOpacity: Record<string, number>;
+      layerSourceParams: Record<string, ParamRecord>;
+    },
   ): void {
     const frame: FrameState = {
       compTime,
       techniqueId: this.inputs.techniqueId,
       temporalActive,
       finalParams,
+      layerParams: stack?.layerParams,
+      layerOpacity: stack?.layerOpacity,
+      layerSourceParams: stack?.layerSourceParams,
       // CE1F: resolved generator params (authority = editor). Absent when no
       // generator is active, so the hot path does not grow for other sources.
       sourceParams,

@@ -340,6 +340,39 @@ function syncFromProject(): void {
 
   configureModulation();
 
+  /**
+   * One source, as the Output describes it. Factored out so the layer stack
+   * below reuses EXACTLY the same rules — including the acquisition mirror,
+   * where a live descriptor is emitted only while the editor is actually
+   * capturing, so STOP here releases the replica's join too.
+   */
+  const describeSource = (src: ReturnType<typeof findSource>) =>
+    src
+      ? src.kind === 'generator'
+        ? {
+            kind: 'generator' as const,
+            generator: src.generator,
+            seed: src.seed,
+            params: src.params,
+          }
+        : src.kind === 'camera'
+          ? cameraManager.isLive()
+            ? { kind: 'live-camera' as const, deviceId: src.deviceId ?? null }
+            : null
+          : src.kind === 'screen' || src.kind === 'window'
+            ? captureManager.isLive()
+              ? src.kind === 'screen'
+                ? { kind: 'live-screen' as const, displayId: src.displayId ?? null }
+                : { kind: 'live-window' as const }
+              : null
+            : {
+                kind: (src.kind === 'image' ? 'file-image' : 'file-video') as
+                  | 'file-image'
+                  | 'file-video',
+                path: src.path,
+              }
+      : null;
+
   // RuntimeBus (18A): project-shaped render inputs, low rate. techniqueId is
   // explicit render state — a replica synchronizes its renderer from this,
   // never from whatever renderer happened to be mounted before.
@@ -377,6 +410,17 @@ function syncFromProject(): void {
             : null
           : { kind: source.kind === 'image' ? 'file-image' : 'file-video', path: source.path }
       : null,
+    // v0.6E: the stack, as CONFIGURATION. Resolved per-frame values ride
+    // FrameState; the replica still evaluates nothing.
+    layers: renderedLayers(project.layers).map((l) => ({
+      id: l.id,
+      techniqueId: l.technique?.enabled === false ? null : (l.technique?.techniqueId ?? null),
+      materialState: l.material,
+      blendMode: l.blendMode,
+      enabled: true,
+      opacity: l.opacity,
+      source: describeSource(findSource(project, l.sourceId)),
+    })),
     generation: projectGeneration,
   });
 

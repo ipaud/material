@@ -161,8 +161,11 @@ describe('structural gates', () => {
     const channel = code('shared', 'outputChannel.ts');
     expect(channel.includes("kind: 'generator'")).toBe(true);
     expect(channel.includes('sourceParams')).toBe(true);
+    // Declarations only: a comment saying "no pixels cross the process" is
+    // the opposite of a violation, and a bare substring gate cannot tell.
+    const decls = channel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     for (const banned of ['ImageData', 'pixels', 'dataUrl']) {
-      expect(channel.includes(banned), `channel must not carry ${banned}`).toBe(false);
+      expect(decls.includes(banned), `channel must not carry ${banned}`).toBe(false);
     }
   });
 

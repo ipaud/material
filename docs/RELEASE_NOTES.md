@@ -1,5 +1,89 @@
 # Release Notes
 
+## v0.6.0 — LAYER COMPOSITION
+
+Several visual materials can now coexist in one composition and be played
+together. Up to four.
+
+That is a small sentence and a large change. MATERIAL has always been one
+source through one technique; from v0.6 a composition is a stack, each layer a
+complete instrument with its own source, technique, material, feedback history
+and image analysis.
+
+It is deliberately still not a compositor. No nesting, no groups, no
+adjustment layers, no timeline, no routing matrix. Four layers, blended
+bottom-up, and the ability for one to listen to another.
+
+### Layers
+
+Add up to four. Each carries a blend mode — normal, add, screen, multiply,
+difference, lighten, darken — an opacity, mute and solo. Reordering rebuilds
+nothing: a feedback surface or a running simulation survives being moved up
+the stack, because a layer is identified by what it is rather than where it
+sits.
+
+Mute and fade are not the same thing, on purpose. A muted layer is not
+rendered at all, so it costs nothing and its history stops advancing. A layer
+faded to zero is still rendered, so fading it back up resumes where the
+material would have been rather than where it was abandoned. Solo is a view
+over both: releasing it restores exactly the stack you had.
+
+### One layer can listen to another
+
+The part worth having. A mapping can read one layer's image and drive
+another's:
+
+```
+Camera → motion signals → Reaction Diffusion's centre
+                        → the video layer's opacity
+```
+
+Signals are addressed by layer, never by position, so reordering cannot
+silently re-point a route. A layer reacts to itself unless told otherwise,
+which means existing projects behave exactly as they did. Layers may form
+loops — B reacting to A while A reacts to B — and they settle at one frame of
+latency per hop rather than deadlocking, because every visual signal has
+always been sampled from the previous frame.
+
+Opacity joined the things a signal can drive, since fading one layer with
+another's motion is half the reason to want layers at all.
+
+### One camera, several layers
+
+A live device is acquired once and shown by every layer pointed at it — one
+permission, one decode, one calibration envelope, so a Look written against
+that camera stays playable on both. Only layers something actually reads from
+are analysed; the rest cost nothing.
+
+### Looks are compositions now
+
+A Look captures the whole stack: every layer's source, technique, material,
+blend and opacity. Recalling one restores the composition and keeps the
+runtimes alive, so a slot press does not visibly reset a feedback layer.
+Looks pinned before v0.6 keep doing exactly what they always did — apply to
+the selected layer, leave the rest alone.
+
+### Everything downstream follows
+
+Export resolves every layer, not just the selected one. The Output window
+composites the same stack from the same code, driven entirely by resolved
+values, with no evaluation of its own and no pixel crossing the process.
+
+### Compatibility
+
+Projects are schema v4. A v0.5 project opens as a single layer and renders
+**byte-identically** — verified against a v0.5.0 build, not asserted.
+
+### Measured
+
+At 1920×1080 with four heavy techniques, each with its own generator: vsync
+throughout, ~0.4 ms of CPU per frame, ~50 MB of layer targets. A single
+opaque layer skips the compositor entirely.
+
+Four-layer export with two cross-layer routes: repeat byte-identical,
+full-versus-subrange byte-identical, and disabling the routes changes every
+frame.
+
 ## v0.3.5 — CREATIVE EXPANSION 01
 
 The creative layer. v0.3 made MATERIAL a live instrument; this release gives

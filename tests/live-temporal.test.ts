@@ -37,6 +37,11 @@ function mockRenderer(): { renderer: THREE.WebGLRenderer; writes: () => number }
 
 const tex = new THREE.Texture();
 
+/** Source with comments removed, so a gate reads code and not prose. */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 describe('realtime advance (wall clock into the existing atlas)', () => {
   it('primes on first frame, then advances one slot per grid step', () => {
     const p = new TemporalFrameProvider();
@@ -213,13 +218,20 @@ describe('structural wiring (§18F)', () => {
   });
 
   it('FrameState carries no temporal history payload (param-only contract)', () => {
-    const channel = code('shared', 'outputChannel.ts');
-    for (const banned of ['atlas', 'history', 'layers', 'slots']) {
+    // Scan the DECLARATIONS, not the prose. v0.6 added a layer stack to
+    // RenderInputs — configuration, not history — and a bare substring gate
+    // banning the word "layers" could not tell the two apart, nor could it
+    // tell a payload field from a comment explaining why there isn't one.
+    const channel = stripComments(code('shared', 'outputChannel.ts'));
+    for (const banned of ['atlas', 'history', 'slots']) {
       expect(
         channel.toLowerCase().includes(banned),
         `outputChannel must not carry ${banned}`,
       ).toBe(false);
     }
+    // The stack that IS allowed carries configuration and resolved values only.
+    expect(channel).toContain('layers?: OutputLayerInput[]');
+    expect(channel.toLowerCase().includes('texture')).toBe(false);
   });
 });
 
@@ -249,14 +261,18 @@ describe('release gates (18G)', () => {
     }
   });
 
-  it('app version is 0.5.0 while the project schema stays v3', async () => {
+  it('app version and project schema version move together and deliberately', async () => {
     // The ROADMAP reserved v0.4 for Image / Motion Signals and v0.5 for Shader
     // Extensibility; both promises were kept in order. The format still has not
     // moved: a pack shader stores the same techniqueId / enabled / params a
     // native one does, and every v0.5 addition is a new id or an optional
     // field, so a project written before any of it parses unchanged.
+    // v0.6 is the first release since v0.2 where the FORMAT had to move: a
+    // composition is a stack, and there is no way to express that in v3. The
+    // migration is invisible and single-layer output is byte-identical to
+    // v0.5.0, so the bump buys structure rather than breaking anything.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    expect(pkg.version).toBe('0.5.0');
+    expect(pkg.version).toBe('0.6.0');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(4);
   });

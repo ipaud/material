@@ -750,7 +750,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         evaluateLayers.opacityAt(frame.timeSec); // walk opacity smoothing too
         if (!walkGpu || f < walkFrom) continue;
         prerollLayers.set(selectedLayerOf(project0).id, frame.params);
-        engine.setExportLayerParams(prerollLayers);
+        engine.setAuthorityLayerParams(prerollLayers);
         rendererSync.sync(frame.techniqueId, frame.params);
         engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
         engine.prepareFlowForExport(
@@ -793,8 +793,8 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // differently-sized source than the full export's same global frame.
       const layerParams = new Map(evaluateLayers.paramsAt(timeSec));
       layerParams.set(selectedLayerOf(project0).id, params);
-      engine.setExportLayerParams(layerParams);
-      engine.setExportLayerOpacity(evaluateLayers.opacityAt(timeSec));
+      engine.setAuthorityLayerParams(layerParams);
+      engine.setAuthorityLayerOpacity(evaluateLayers.opacityAt(timeSec));
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       // CE1H: optical flow is a source-derived pair and must advance per

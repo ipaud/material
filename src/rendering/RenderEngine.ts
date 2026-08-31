@@ -78,6 +78,68 @@ export class RenderEngine {
 
   private frameSink: (() => void) | null = null;
 
+  /**
+   * v0.6E — one message per frame, carrying the whole stack.
+   *
+   * The Output is a replica of the COMPOSITION, so it needs every layer's
+   * resolved parameters and every layer's resolved opacity — a signal may be
+   * driving either, and the replica must never work that out for itself.
+   * `finalParams` stays the selected layer's, so everything that read it
+   * before layers still reads the same thing.
+   */
+  private publishComposition(): void {
+    if (this.exportMode || this.branches.length === 0) return;
+    const selected = this.branches[this.selectedLayerIndex] ?? this.branches[0];
+    if (!selected) return;
+    const layerParams: Record<string, ParamRecord> = {};
+    const layerOpacity: Record<string, number> = {};
+    // A generator's SOURCE parameters are a different set from its layer's
+    // technique parameters, and the replica drives its local generator with
+    // them. Sending only the technique's produced a flat grey image in the
+    // Output while the editor showed a moving pattern.
+    const layerSourceParams: Record<string, ParamRecord> = {};
+    for (const [i, b] of this.branches.entries()) {
+      const resolved = b.engine.lastResolved;
+      if (resolved) layerParams[b.id] = resolved;
+      layerOpacity[b.id] = this.effectiveOpacity(i);
+      if (b.engine.hasGenerator) layerSourceParams[b.id] = b.engine.resolvedSourceParams();
+    }
+    const primary = selected.engine.lastResolved;
+    if (!primary) return;
+    runtimeBus.emitFrame(
+      this.timeSec,
+      primary,
+      selected.engine.isTemporalActive,
+      selected.engine.hasGenerator ? selected.engine.resolvedSourceParams() : undefined,
+      this.transitionState
+        ? {
+            generation: this.transitionGeneration,
+            progress: this.transitionState.progress,
+            style: this.transitionState.params.style,
+            params: { ...this.transitionState.params } as unknown as Record<string, number>,
+          }
+        : undefined,
+      { layerParams, layerOpacity, layerSourceParams },
+    );
+  }
+
+  /** Read by the host when it publishes the stack. */
+  get lastResolved(): ParamRecord | null {
+    return this.lastResolvedParams;
+  }
+
+  /** What this engine last resolved for its technique — the host reads it
+   * off each branch to publish the stack in one message. */
+  private lastResolvedParams: ParamRecord | null = null;
+
+  get compositionWidth(): number {
+    return this.compWidth;
+  }
+
+  get compositionHeight(): number {
+    return this.compHeight;
+  }
+
   /** Composition time, for authority that resolves values against it. */
   get currentTimeSec(): number {
     return this.timeSec;
@@ -315,8 +377,13 @@ export class RenderEngine {
   private effectiveOpacity(index: number): number {
     const state = this.layerStates[index];
     if (!state) return 0;
+    // Authority first: during an export, and in the Output replica, the value
+    // has already been resolved elsewhere and this engine must not re-derive
+    // it. Checking the live sink first meant the replica ignored the resolved
+    // opacity it had just been sent.
+    const authority = this.authorityLayerOpacity?.get(state.id);
+    if (authority !== undefined) return authority;
     if (!this.layerStateSink) return state.opacity;
-    if (this.exportLayerOpacity) return this.exportLayerOpacity.get(state.id) ?? state.opacity;
     return this.layerStateSink(state.id, state.opacity).opacity;
   }
 
@@ -329,10 +396,10 @@ export class RenderEngine {
   }
 
   /** EXPORT authority: resolved opacities, resolved by the export evaluator. */
-  private exportLayerOpacity: ReadonlyMap<string, number> | undefined;
+  private authorityLayerOpacity: ReadonlyMap<string, number> | undefined;
 
-  setExportLayerOpacity(byLayer: ReadonlyMap<string, number> | undefined): void {
-    this.exportLayerOpacity = byLayer;
+  setAuthorityLayerOpacity(byLayer: ReadonlyMap<string, number> | undefined): void {
+    this.authorityLayerOpacity = byLayer;
   }
 
   private visibleLayers(): number[] {
@@ -399,8 +466,12 @@ export class RenderEngine {
   private renderComposition(
     renderer: THREE.WebGLRenderer,
     transparent: boolean,
-    paramsByLayer?: ReadonlyMap<string, ParamRecord>,
+    override?: ReadonlyMap<string, ParamRecord>,
   ): THREE.Texture | null {
+    // The Output replica evaluates nothing: its parameters arrive resolved and
+    // are held as authority values, so the ordinary preview path has to reach
+    // for them exactly as the export path does.
+    const paramsByLayer = override ?? this.authorityLayerParams;
     const indices = this.visibleLayers();
     const composed: CompositeLayer[] = [];
     for (const i of indices) {
@@ -979,7 +1050,7 @@ export class RenderEngine {
           isFirstFrame,
           width,
           height,
-          this.exportLayerParams?.get(b.id),
+          this.authorityLayerParams?.get(b.id),
         );
       }
       return;
@@ -1215,7 +1286,7 @@ export class RenderEngine {
         b.engine.prepareFeedbackForExport(
           compositionTime,
           isFirstFrame,
-          this.exportLayerParams?.get(b.id),
+          this.authorityLayerParams?.get(b.id),
         );
       }
       return;
@@ -1313,8 +1384,8 @@ export class RenderEngine {
     this.exportMode = false;
     // Resolved export values must not survive into the preview, or a layer
     // keeps rendering the last exported frame’s parameters.
-    this.exportLayerParams = undefined;
-    this.exportLayerOpacity = undefined;
+    this.authorityLayerParams = undefined;
+    this.authorityLayerOpacity = undefined;
     this.temporal?.invalidate();
     this.invalidate();
   }
@@ -1503,6 +1574,7 @@ export class RenderEngine {
         const slot = this.branches[single]!;
         slot.engine.renderLayerToCanvas(renderer);
         renderer.setScissorTest(false);
+        this.publishComposition();
         return;
       }
       const composed = this.renderComposition(renderer, this.checkerboard);
@@ -1524,6 +1596,7 @@ export class RenderEngine {
         }
       }
       renderer.setScissorTest(false);
+      this.publishComposition();
       return;
     }
 
@@ -1629,18 +1702,18 @@ void main() { fragColor = texture(uTex, vUv); }`,
    * draws the values the evaluator produced rather than whatever the preview
    * last pushed.
    */
-  private exportLayerParams: ReadonlyMap<string, ParamRecord> | undefined;
+  private authorityLayerParams: ReadonlyMap<string, ParamRecord> | undefined;
 
   /** QA capture: every resolved per-layer set an export published, in order.
    * Comparing two runs of the same export tells an evaluator divergence apart
    * from a render divergence, which is otherwise guesswork. */
   exportParamLog: Record<string, ParamRecord>[] = [];
 
-  setExportLayerParams(params: ReadonlyMap<string, ParamRecord> | undefined): void {
+  setAuthorityLayerParams(params: ReadonlyMap<string, ParamRecord> | undefined): void {
     if (params && this.exportParamLog.length < 4096) {
       this.exportParamLog.push(Object.fromEntries([...params].map(([k, v]) => [k, { ...v }])));
     }
-    this.exportLayerParams = params;
+    this.authorityLayerParams = params;
   }
 
   /** Editor/replica set this each frame from RESOLVED values. */
@@ -1698,7 +1771,12 @@ void main() { fragColor = texture(uTex, vUv); }`,
         // RuntimeBus seam (18A): the live pass publishes its evaluated frame.
         // renderStill/export pass paramsOverride and never reach the bus —
         // export isolation is preserved by construction.
-        if (paramsOverride === undefined && !this.exportMode) {
+        this.lastResolvedParams = params;
+        // A BRANCH is not the composition: if every layer published, the
+        // Output would receive one message per layer per frame and show
+        // whichever arrived last. The host publishes once, below, with the
+        // whole stack attached.
+        if (paramsOverride === undefined && !this.exportMode && !this.isBranch) {
           runtimeBus.emitFrame(
             this.timeSec,
             params,
@@ -1884,7 +1962,7 @@ void main() { fragColor = texture(uTex, vUv); }`,
           // Both have to reach the branches: taking the map alone dropped the
           // primary's modulation, and taking the override alone dropped every
           // route into another layer.
-          let byLayer = this.exportLayerParams;
+          let byLayer = this.authorityLayerParams;
           if (paramsOverride) {
             const id = this.branches[this.selectedLayerIndex]?.id ?? this.branches[0]?.id;
             if (id) byLayer = new Map([...(byLayer ?? []), [id, paramsOverride]]);

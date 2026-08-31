@@ -35,6 +35,9 @@ function toInputsMsg(inputs: RenderInputs): RenderInputsMsg {
     background: inputs.background,
     source: inputs.source,
     customShaders: inputs.customShaders,
+    // v0.6E: the stack, as configuration. Dropping it here is exactly the
+    // class of bug that made CE1F/CE1G invisible in the Output for a release.
+    layers: inputs.layers,
   };
 }
 
@@ -55,6 +58,10 @@ function toFrameMsg(frame: FrameState): FrameStateMsg {
     sourceParams: frame.sourceParams,
     transition: frame.transition,
     materialState: frame.materialState,
+    // v0.6E: the rest of the stack, already resolved by the editor.
+    layerParams: frame.layerParams,
+    layerOpacity: frame.layerOpacity,
+    layerSourceParams: frame.layerSourceParams,
   };
 }
 

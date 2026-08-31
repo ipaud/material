@@ -49,6 +49,31 @@ export interface RenderInputsMsg {
    * project changes, not per frame.
    */
   customShaders?: LoadedShader[] | undefined;
+  /**
+   * v0.6E — the layer stack, as CONFIGURATION.
+   *
+   * The Output is a replica of the composition, and with layers the
+   * composition is a stack. It still evaluates nothing: this carries which
+   * layers exist, what each one is made of and how it blends, exactly the way
+   * the single-technique fields above always have. The resolved per-frame
+   * values — parameters and opacity — ride FrameState.
+   *
+   * The single-layer fields are kept and still describe the SELECTED layer,
+   * so a replica that has not been taught about layers keeps working and the
+   * diagnostics that read them do not have to change.
+   */
+  layers?: OutputLayerInput[] | undefined;
+}
+
+/** One layer's worth of RenderInputs. Configuration only — no pixels. */
+export interface OutputLayerInput {
+  id: string;
+  techniqueId: string | null;
+  materialState: MaterialState | null;
+  blendMode: string;
+  enabled: boolean;
+  opacity: number;
+  source: RenderInputsMsg['source'];
 }
 
 /** High rate — one evaluated frame from the authority's live render pass. */
@@ -71,6 +96,18 @@ export interface FrameStateMsg {
     | { generation: number; progress: number; style: string; params: Record<string, number> }
     | undefined;
   materialState: MaterialState | null;
+  /**
+   * v0.6E — resolved values for EVERY layer, keyed by layer id.
+   *
+   * `finalParams` above still carries the selected layer's, unchanged. These
+   * carry the rest, plus every layer's resolved opacity, because a signal may
+   * be driving it and the replica must never work that out for itself.
+   */
+  layerParams?: Record<string, ParamRecord> | undefined;
+  layerOpacity?: Record<string, number> | undefined;
+  /** Each generator layer's resolved SOURCE parameters — a different set from
+   * its technique's, and what the replica drives its local generator with. */
+  layerSourceParams?: Record<string, ParamRecord> | undefined;
 }
 
 export interface TransportMsg {

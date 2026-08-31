@@ -200,8 +200,8 @@ describe('v0.6C — blend', () => {
   it('export resolves layer opacity from authority, never from the live sink', () => {
     const engine = read('src', 'rendering', 'RenderEngine.ts');
     const fn = engine.slice(engine.indexOf('private effectiveOpacity('));
-    expect(fn.slice(0, 500)).toContain('this.exportLayerOpacity');
+    expect(fn.slice(0, 500)).toContain('this.authorityLayerOpacity');
     const runner = read('src', 'export', 'exportRunner.ts');
-    expect(runner).toContain('engine.setExportLayerOpacity(');
+    expect(runner).toContain('engine.setAuthorityLayerOpacity(');
   });
 });

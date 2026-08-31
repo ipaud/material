@@ -27,6 +27,32 @@ pushes state into `RenderEngine` imperatively. The engine keeps its own state
 and renders on demand in its own `requestAnimationFrame` loop. Parameter drags
 never re-render anything above the slider itself.
 
+## Layers are branches of the same engine
+
+A composition is up to four layers, and a layer is a `RenderEngine` in
+**branch mode** — the same class, constructed differently. A branch owns one
+creative chain (source, generator, temporal history, optical flow, technique,
+analysis, feedback) and owns no canvas, no loop and no view transform, because
+those belong to the composition hosting it.
+
+Reuse rather than a second implementation, deliberately: two renderers for one
+job drift within a release. The host owns the canvas, the animation loop, the
+view and one `LayerCompositor`, and owns no creative state of its own.
+
+Two consequences worth knowing:
+
+- **Anything the host asks about itself must also ask its branches.** Every
+  predicate that used to answer for one engine — "is a live source active",
+  "is this a feedback technique", "what should I analyse" — is now a question
+  about the stack. Each one that was missed produced a silent, deterministic
+  wrong answer rather than an error: a render loop that slept through
+  animating layers, an export that inherited the previous export's feedback
+  history. See [LAYERS](LAYERS.md).
+- **A single opaque Normal layer skips the compositor entirely**, in preview
+  and in export, drawing exactly where the pre-layer engine drew. That is both
+  the fast path and the reason single-layer output stays byte-identical to
+  v0.5.
+
 The whole mosaic is **one `InstancedBufferGeometry` and one draw call**. Grid
 layout, sampling, luminance mapping and temporal offsets are computed in the
 vertex shader from `gl_InstanceID` and uniforms — no per-instance attribute

@@ -5,7 +5,7 @@ They are meant to be readable and diffable.
 
 ```jsonc
 {
-  "version": 3,
+  "version": 4,
   "name": "Burnout",
   "sources": [
     {
@@ -21,9 +21,22 @@ They are meant to be readable and diffable.
     "width": 3840, "height": 2160,
     "background": "#000000"
   },
-  "techniques": [
-    { "id": "tech_1", "techniqueId": "mosaic", "enabled": true, "params": { "columns": 18, "maxOffsetSec": 0.9, … } }
+  // v4: a composition is a stack of up to four layers, each a complete
+  // instrument. Order is bottom-first — layers[0] is underneath.
+  "layers": [
+    {
+      "id": "layer_1",
+      "name": "",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",     // normal|add|screen|multiply|difference|lighten|darken
+      "sourceId": "src_a1d8858c",
+      "technique": { "id": "tech_1", "techniqueId": "mosaic", "enabled": true, "params": { "columns": 18, … } },
+      "material": { "materialId": "square", "colorMode": "source", "params": { "aspect": 1 }, "assetPath": null }
+    }
   ],
+  "selectedLayerId": "layer_1",
   "material": { "materialId": "square", "colorMode": "source", "params": { "aspect": 1 }, "assetPath": null },
   "modulations": [
     {
@@ -126,6 +139,24 @@ They are meant to be readable and diffable.
   stream, track, permission or resolution state — and opening a project with
   one never touches the OS camera: acquisition happens exclusively on the
   explicit START action.
+- **v3 → v4 (v0.6) introduces layers, and is invisible.** A v3 project's
+  `composition.sourceId`, `techniques[0]` and `material` become `layers[0]`,
+  whose id is the fixed `layer_1` so the migration is deterministic and a
+  re-migrated project is byte-identical. `composition.sourceId` is KEPT as the
+  project-wide anchor — frame size derives from it, and it is what the
+  migration reads — but a layer owns its own `sourceId` from v4 on and does
+  **not** fall back to the composition's: a layer with `sourceId: null`
+  renders nothing, deliberately, because a silent fallback makes "which source
+  is this layer showing" unanswerable. Single-layer output is byte-identical
+  to v0.5.0, verified against a v0.5.0 build rather than asserted.
+- **`layers` is capped at four** (`MAX_LAYERS`), measured rather than guessed.
+- **Modulation gained two optional layer ids**, `targetLayerId` and
+  `sourceLayerId`, both stored as ids and never indices so reordering the
+  stack cannot re-point a route. Absent means "the bottom layer, from its own
+  signals", which is what a pre-v4 mapping meant.
+- **Looks gained an optional `layers` array** and a `selectedLayerId`. A Look
+  pinned before v0.6 has neither and keeps applying to the selected layer
+  alone; absence is the record of "this predates layers", not an empty stack.
 - **Screen/Window sources (18E) are additive variants INSIDE v3.** The
   source union gained `{kind:"screen", displayId}` and
   `{kind:"window", titleHint}` without a version bump: no existing field

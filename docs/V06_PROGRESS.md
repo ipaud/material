@@ -294,6 +294,90 @@ landed on layer 1. Measured directly — a three-layer recall came back with
 layer 2's Slit Scan sitting on layer 1. A Look now records which layer it was
 pinned from, and that selection wins.
 
-## E — Export, QA, release
+## E — Export, Output, QA, release
 
-Not started. No `v0.6.0` tag until A–E all pass.
+Status: **complete**.
+
+### The Output gap from B, closed
+
+The replica renders the stack now, from the same `RenderEngine` and the same
+`LayerCompositor` the editor uses. What crosses the channel is unchanged in
+kind: **configuration** on the low-rate message (which layers exist, what each
+is made of, how it blends) and **resolved values** on the per-frame one
+(parameters, opacity, source parameters). No evaluator, no store, no pixel.
+
+`src/output-window/outputLayer.ts` holds one layer's media and renderer,
+scoped by layer id — the same lifecycle the replica always had for its single
+source, instanced. A live device is still acquired once per replica and shared
+by every layer showing it.
+
+| Gate | Result |
+|---|---|
+| Editor vs Output, two blended layers | **identical** — mean 159, non-black 46 656, across two processes |
+| Replica composites the stack | branches `L1, L2`, blend and opacity honoured |
+| Channel carries no pixels | asserted against declarations, not prose |
+| Replica imports no evaluator | asserted for `replica.ts` and `outputLayer.ts` |
+
+A layer running a **temporal** technique is the documented exception: the
+replica accumulates its own history from the moment it opens, so its atlas is
+not the editor's. Same rule as a morph opened mid-transition. Measured while
+diagnosing: mean 128 against the editor's 191 with a Slit Scan layer, which is
+also how a real bug was found underneath it — the replica was giving generator
+layers no temporal source at all.
+
+### Four-layer release fixture
+
+Four techniques, four sources, four blend modes, a cross-layer technique route
+and a cross-layer opacity route, at 320×180 exported to 160×90 at 12 fps.
+
+| Gate | Result |
+|---|---|
+| Frames actually move | 12/12 distinct |
+| Repeat export | 12/12 identical |
+| Full vs subrange | 12/12 identical |
+| Anti-noop (routes on vs off) | 12/12 differ |
+
+### Soak
+
+1280×720, four layers, two cross-layer routes, with layer add/delete, solo
+cycling and enable cycling every few iterations.
+
+Textures, geometries, programs, render-target bytes, branch count and
+calibration-cache size were **constant** throughout; GL errors zero. Heap
+oscillated 26–37 MB with no trend.
+
+### Packaged QA
+
+`npm run package` produces `release/mac-arm64/MATERIAL.app` at version 0.6.0.
+It launches, renders at 130 fps, and its `app.asar` contains the v0.6 code
+(`LayerCompositor`, `renderLayerToCanvas`, `authorityLayerParams`,
+`OutputLayer`, the layer strip).
+
+Note for future QA: CDP `Runtime.evaluate` does not answer in a packaged
+Electron build, so the packaged pass is launch, render and artifact inspection
+rather than a driven scenario. That is a property of the harness, not of the
+build.
+
+### Three more bugs
+
+1. **Every branch published its own frame to the Output.** `syncScene` emits,
+   and every layer runs it, so the replica received one message per layer per
+   frame and showed whichever arrived last. The host now publishes once, after
+   compositing, with the whole stack attached.
+
+2. **The bridge declared the stack and never copied it.** `RenderInputs` grew
+   a `layers` field that `toInputsMsg` did not forward, so the replica kept its
+   single-source path and rendered one technique — the exact shape of the CE1F
+   and CE1G defects, where a field was declared, read by the replica, and never
+   written by the sender. Now gated on both messages.
+
+3. **The Output ignored the opacity it had just been sent.** `effectiveOpacity`
+   consulted the live sink before the authority value, and the replica has no
+   sink, so it fell through to the stored value. Authority now wins first — in
+   the replica and during an export alike.
+
+### Docs
+
+`docs/LAYERS.md` (new), `docs/PROJECT_FORMAT.md` (schema v4 and the migration),
+`docs/ARCHITECTURE.md` (branch-mode engine and what it implies),
+`docs/RELEASE_NOTES.md` (v0.6.0).

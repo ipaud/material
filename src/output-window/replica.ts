@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { OutputLayer } from './outputLayer';
 import { RenderEngine } from '@/rendering/RenderEngine';
 import { getTechnique } from '@/techniques/registry';
 import type { LoadedShader } from '@shared/schemas/shaderPack';
@@ -49,6 +50,14 @@ export class OutputReplica {
   private generatorParams: Record<string, string | number | boolean> = {};
   private transitionGeneration = 0;
   private sourceKey: string | null = null;
+  /**
+   * v0.6E — one entry per layer. The single-source fields above still serve
+   * the SELECTED layer's video slave and the diagnostics, so nothing that
+   * read them had to change.
+   */
+  private readonly layers = new Map<string, OutputLayer>();
+  private layerOrder: string[] = [];
+  private selectedLayerId: string | null = null;
   private generation = -999;
   private clock: ClockBase = { authorityTimeSec: 0, atWall: Date.now(), playing: false };
   private slaveTimer: ReturnType<typeof setInterval> | null = null;
@@ -177,11 +186,79 @@ export class OutputReplica {
       }
     }
 
+    this.applyLayerInputs(msg);
+
     // First contact only: seed the renderer so a static scene shows before
     // the first FrameState. After that, FrameState owns technique identity.
     if (this.activeTechniqueId === null && msg.techniqueId) {
       this.syncTechnique(msg.techniqueId, false);
     }
+  }
+
+  /**
+   * v0.6E — mirror the stack.
+   *
+   * The replica's engine is the same RenderEngine the editor uses, so it
+   * composites layers the same way, from the same code. What arrives here is
+   * only configuration: which layers exist, what each is made of, how it
+   * blends. Resolved values ride FrameState, and the replica still evaluates
+   * nothing.
+   */
+  private applyLayerInputs(msg: RenderInputsMsg): void {
+    const inputs = msg.layers;
+    if (!inputs || inputs.length === 0) {
+      // No stack in the message: an authority that predates layers, or a
+      // composition with nothing in it. Leave the single-source path alone.
+      if (this.layerOrder.length > 0) this.releaseLayers();
+      return;
+    }
+    this.engine.syncLayers(
+      inputs.map((l) => ({
+        id: l.id,
+        enabled: l.enabled,
+        opacity: l.opacity,
+        blendMode: l.blendMode as never,
+        selected: l.techniqueId === msg.techniqueId,
+      })),
+    );
+    for (const [id, layer] of [...this.layers]) {
+      if (inputs.some((l) => l.id === id)) continue;
+      layer.dispose(this.engine.branchFor(id));
+      this.layers.delete(id);
+    }
+    const liveKinds = new Map<string, 'camera' | 'capture'>();
+    for (const input of inputs) {
+      const branch = this.engine.branchFor(input.id);
+      if (!branch) continue;
+      let layer = this.layers.get(input.id);
+      if (!layer) {
+        layer = new OutputLayer(input.id);
+        this.layers.set(input.id, layer);
+      }
+      layer.applyInputs(branch, input, msg.generation);
+      const kind = layer.wantsLiveTexture;
+      if (kind) liveKinds.set(input.id, kind);
+    }
+    this.layerOrder = inputs.map((l) => l.id);
+    this.selectedLayerId =
+      inputs.find((l) => l.techniqueId === msg.techniqueId)?.id ?? (inputs[0]?.id ?? null);
+    this.engine.setLiveLayerKinds(liveKinds);
+    // One join per device, shared by every layer showing it — the replica
+    // owns the join for the same reason the editor does.
+    const wantsCamera = [...liveKinds.values()].includes('camera');
+    const wantsCapture = [...liveKinds.values()].includes('capture');
+    const cameraInput = inputs.find((l) => l.source?.kind === 'live-camera');
+    if (wantsCamera && cameraInput?.source?.kind === 'live-camera') {
+      void this.loadCamera(cameraInput.source.deviceId ?? null, `layers:${msg.generation}`);
+    }
+    if (wantsCapture) void this.loadCapture(`layers:${msg.generation}`);
+  }
+
+  private releaseLayers(): void {
+    for (const [id, layer] of this.layers) layer.dispose(this.engine.branchFor(id));
+    this.layers.clear();
+    this.layerOrder = [];
+    this.engine.syncLayers([]);
   }
 
   /** 18D fan-out — see outputCameraSource.ts for the measured ADR. */
@@ -351,8 +428,35 @@ export class OutputReplica {
       this.transitionGeneration = 0;
       this.engine.setTransition(null);
     }
+    // v0.6E — every layer's generator, driven by the params the EDITOR
+    // resolved for that layer, and every layer's resolved opacity.
+    if (this.layers.size > 0) {
+      const renderer = (this.engine as unknown as { renderer: THREE.WebGLRenderer | null })
+        .renderer;
+      if (renderer) {
+        for (const [id, layer] of this.layers) {
+          const branch = this.engine.branchFor(id);
+          if (!branch) continue;
+          layer.advanceGenerator(
+            branch,
+            renderer,
+            msg.compTime,
+            msg.layerSourceParams?.[id] ??
+              (id === this.selectedLayerId ? msg.sourceParams : undefined),
+            this.engine.compositionWidth,
+            this.engine.compositionHeight,
+          );
+        }
+      }
+      if (msg.layerOpacity) {
+        this.engine.setAuthorityLayerOpacity(new Map(Object.entries(msg.layerOpacity)));
+      }
+      if (msg.layerParams) {
+        this.engine.setAuthorityLayerParams(new Map(Object.entries(msg.layerParams)));
+      }
+    }
     // CE1F: drive the local generator with the params the EDITOR resolved.
-    if (this.generator) {
+    if (this.layers.size === 0 && this.generator) {
       const params = msg.sourceParams ?? this.generatorParams;
       const renderer = (this.engine as unknown as { renderer: THREE.WebGLRenderer | null })
         .renderer;

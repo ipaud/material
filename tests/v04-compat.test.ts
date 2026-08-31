@@ -134,7 +134,12 @@ describe('security surface is unchanged (§137)', () => {
   it('no frame data crosses any IPC boundary', () => {
     // The whole point of the GPU ladder is that pixels never leave the GPU
     // except as a 720-byte tile inside the renderer process.
-    const channel = read('shared', 'outputChannel.ts');
+    // Declarations only. A comment saying "no pixels cross the process" is the
+    // opposite of a violation, and a bare substring gate cannot tell it from
+    // a payload field — v0.6 added exactly such a comment and this went red.
+    const channel = read('shared', 'outputChannel.ts')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
     for (const forbidden of ['Float32Array', 'ImageData', 'pixels', 'readback']) {
       expect(channel.includes(forbidden), `channel must not carry ${forbidden}`).toBe(false);
     }
