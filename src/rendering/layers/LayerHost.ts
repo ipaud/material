@@ -119,6 +119,7 @@ export class LayerHost {
     this.exportMode = false;
     this.authorityParams = undefined;
     this.authorityOpacity = undefined;
+    this.authorityEnabled = undefined;
     for (const s of this.slots) s.runtime.endExportMode();
   }
 
@@ -322,6 +323,7 @@ export class LayerHost {
   private opacitySink: ((layerId: string, opacity: number) => { opacity: number }) | null = null;
   private authorityParams: ReadonlyMap<string, ParamRecord> | undefined;
   private authorityOpacity: ReadonlyMap<string, number> | undefined;
+  private authorityEnabled: ReadonlyMap<string, boolean> | undefined;
 
   setParamTransformFactory(
     make: ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord) | null,
@@ -342,6 +344,20 @@ export class LayerHost {
 
   setAuthorityOpacity(byLayer: ReadonlyMap<string, number> | undefined): void {
     this.authorityOpacity = byLayer;
+  }
+
+  /**
+   * v0.7: a Take can mute a layer, and export has to obey.
+   *
+   * Enabled is not expressible as opacity 0 — the comment on `visibleIndices`
+   * says why. Opacity 0 deliberately keeps drawing, so a feedback or
+   * simulation branch does not lose what it has been accumulating; disabling
+   * stops the branch. A replayed mute has to reproduce whichever of those the
+   * performer actually did, so it gets its own authority channel rather than
+   * being folded into the other one.
+   */
+  setAuthorityEnabled(byLayer: ReadonlyMap<string, boolean> | undefined): void {
+    this.authorityEnabled = byLayer;
   }
 
   get authorityParamsSnapshot(): ReadonlyMap<string, ParamRecord> | undefined {
@@ -429,7 +445,7 @@ export class LayerHost {
   private visibleIndices(): number[] {
     const out: number[] = [];
     for (const [i, state] of this.states.entries()) {
-      if (!state.enabled) continue;
+      if (!(this.authorityEnabled?.get(state.id) ?? state.enabled)) continue;
       if (!this.slots[i]) continue;
       out.push(i);
     }

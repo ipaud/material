@@ -234,6 +234,10 @@ export class RenderEngine {
     this.layerHost.setAuthorityOpacity(byLayer);
   }
 
+  setAuthorityLayerEnabled(byLayer: ReadonlyMap<string, boolean> | undefined): void {
+    this.layerHost.setAuthorityEnabled(byLayer);
+  }
+
   private onContextLost = (event: Event): void => {
     event.preventDefault();
     console.warn('[engine] WebGL context lost — awaiting restore');

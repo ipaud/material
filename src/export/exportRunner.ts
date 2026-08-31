@@ -20,6 +20,13 @@ import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
 import { revealProgress, switchPoint } from '@/performance/transitionWindow';
 import { visualDemand } from '@/signals/visual/demand';
 import { CALIBRATION_PREROLL_SEC } from '@/signals/visual/calibration';
+import {
+  replayDiscreteBetween,
+  replayDiscreteUpTo,
+  resolveTakeAt,
+  type TakeMorphSpec,
+  type TakePerformer,
+} from '@/performance/take/evaluate';
 import { CalibrationStore } from '@/signals/visual/calibrationStore';
 import { publishVisualSignals } from '@/signals/visual/publish';
 import { pixelOriginKey } from '@/signals/visual/originKey';
@@ -32,6 +39,7 @@ import type {
   MorphCurve,
   MorphTransition,
   ParamRecord,
+  PerformanceTake,
   PinnedLook,
   Project,
   TriggerMapping,
@@ -272,7 +280,75 @@ export function createFrameEvaluator(
   const scheduler = new TriggerScheduler(virtualTarget);
   scheduler.reset(startSec);
 
-  return (
+  /**
+   * v0.7 — the Take, evaluated inside the ONE frame evaluator.
+   *
+   * Putting it here rather than beside the export loop is what makes §105 and
+   * §106 true for free: the preroll already calls `evaluate(f)` for every
+   * frame from zero, so a Take that changes feedback persistence at t=2 has
+   * that change applied over the whole history a subrange starts after —
+   * rather than the final value being smeared backwards over frames that
+   * never saw it.
+   *
+   * The performer writes the same `working` copy the trigger ActionTarget
+   * does, so a Look recalled by a Take and one recalled by a beat trigger are
+   * indistinguishable downstream.
+   */
+  const take = project.takes.find((t) => t.id === project.activeTakeId) ?? null;
+  const takePerformer: TakePerformer = {
+    restoreBaseline: (baseline) => {
+      for (const m of working.modulations) {
+        const frozen = baseline.frozen[m.id];
+        if (frozen !== undefined) m.frozenValue = frozen;
+      }
+      for (const [id, enabled] of Object.entries(baseline.layerEnabled)) {
+        takeLayerEnabled.set(id, enabled);
+      }
+    },
+    recallLook: (lookId) => applyLookToWorking(lookById.get(lookId)),
+    startMorph: (lookId, atComposition, spec: TakeMorphSpec) => {
+      const look = lookById.get(lookId);
+      if (!look) return;
+      const { bpm, beatsPerBar } = project.timeline;
+      const beatSec = bpm && bpm > 0 ? 60 / bpm : 0.5;
+      const seconds =
+        spec.durationMode === 'seconds'
+          ? spec.durationValue
+          : spec.durationMode === 'beats'
+            ? spec.durationValue * beatSec
+            : spec.durationValue * beatSec * beatsPerBar;
+      virtualMorphs.push({
+        startTime: atComposition,
+        endTime: atComposition + Math.max(seconds, 0.05),
+        curve: spec.curve,
+        source: workingCore(),
+        target: lookToCore(look),
+        applied: false,
+        // A Take records the morph's INVOCATION, not the pixel transition it
+        // was performed with — the style is a performance setting rather than
+        // Look content, so a replay uses the documented default.
+        transition: DEFAULT_MORPH_TRANSITION,
+      });
+    },
+    setFreeze: (on) => {
+      for (const m of working.modulations) {
+        if (on) {
+          if (m.enabled && m.frozenValue === null) {
+            m.frozenValue = shapedUnitValue(m, lastSources, smoothing, 0);
+          }
+        } else {
+          m.frozenValue = null;
+        }
+      }
+    },
+    setLayerEnabled: (layerId, on) => takeLayerEnabled.set(layerId, on),
+  };
+  /** Layer visibility as the Take last left it — read by the export loop. */
+  const takeLayerEnabled = new Map<string, boolean>();
+  let takeLastTime: number | null = null;
+  if (take) replayDiscreteUpTo(take, -Infinity, takePerformer);
+
+  const evaluateFrame = (
     frameIndex: number,
   ): {
     timeSec: number;
@@ -282,6 +358,13 @@ export function createFrameEvaluator(
   } => {
     const timeSec = compositionTimeAt(startSec, fps, frameIndex);
     scheduler.advanceTo(timeSec, working.triggers, triggerCtx);
+    if (take) {
+      // Crossings, not reconstruction: the export walks time forwards from
+      // frame zero, so it has a previous frame for every frame but the first.
+      if (takeLastTime === null) replayDiscreteUpTo(take, timeSec, takePerformer);
+      else replayDiscreteBetween(take, takeLastTime, timeSec, takePerformer);
+      takeLastTime = timeSec;
+    }
 
     // Morph replay: commit completed morphs (in time order), then resolve any
     // interval that covers this frame into an interpolated overlay core.
@@ -332,11 +415,26 @@ export function createFrameEvaluator(
     if (visualProvider) sourceCtx.visual = visualProvider();
     const sources = evalSources(timeSec, sourceCtx);
     lastSources = sources;
-    // Macro values are project state (deterministic snapshot); live macro
-    // MOVEMENT is not recorded and cannot appear here (§41).
+    // Macro values are project state; live macro MOVEMENT reaches export only
+    // when a Take recorded it, and then it enters as a value the macro HAS,
+    // fanned out through whatever mappings the macro carries now (§82/§83).
+    const resolved = take ? resolveTakeAt(take, timeSec) : null;
+    const primaryId = selectedLayerOf(project).id;
+    const takeParams = resolved?.params.get(primaryId);
+    const macros =
+      resolved && resolved.macros.size > 0
+        ? project.macros.map((m) => {
+            const v = resolved.macros.get(m.id);
+            return v === undefined ? m : { ...m, value: v };
+          })
+        : project.macros;
+    // The Take enters at the BASE, the same seam the human drag it recorded
+    // entered — before macros, before modulation. Applying it after would let
+    // a replay overwrite the very Signals it was performed against.
+    const workingBase = overlay ? overlay.params : working.params;
     const baseParams = applyMacros(
-      overlay ? overlay.params : working.params,
-      project.macros,
+      takeParams ? { ...workingBase, ...takeParams } : workingBase,
+      macros,
       definition,
     );
     const mappings = overlay ? overlay.modulations : working.modulations;
@@ -349,6 +447,17 @@ export function createFrameEvaluator(
       transition,
     };
   };
+
+  /**
+   * Layer visibility as the Take has left it at the last evaluated frame.
+   *
+   * Not expressible as opacity 0: LayerHost deliberately keeps drawing an
+   * invisible layer so a stateful branch does not lose its accumulation, while
+   * disabling stops the branch. A replayed mute has to reproduce whichever of
+   * those the performer actually did.
+   */
+  evaluateFrame.layerEnabled = (): ReadonlyMap<string, boolean> => takeLayerEnabled;
+  return evaluateFrame;
 }
 
 /**
@@ -368,6 +477,9 @@ export function createSecondaryLayerEvaluator(
   primaryLayerId: string,
   fps: number,
   visualFor: (layerId: string) => Record<string, number>,
+  /** v0.7: the Take supplies the BASE for any layer opacity or parameter it
+   * recorded — before this layer's own mappings, exactly as a fader would. */
+  take: PerformanceTake | null = null,
 ): { paramsAt: (t: number) => Map<string, ParamRecord>; opacityAt: (t: number) => Map<string, number> } {
   const analysis = useAudioStore.getState().analysis;
   const byTarget = mappingsByTarget(project);
@@ -411,21 +523,32 @@ export function createSecondaryLayerEvaluator(
     return visual;
   };
   const opacityAt = (timeSec: number): Map<string, number> => {
+    const resolved = take ? resolveTakeAt(take, timeSec) : null;
     const out = new Map<string, number>();
     for (const e of opacityEntries) {
+      const played = resolved?.opacity.get(e.layerId);
+      const stored = played === undefined ? e.stored : { opacity: played };
       if (e.mappings.length === 0) {
-        out.set(e.layerId, e.stored.opacity);
+        out.set(e.layerId, stored.opacity);
         continue;
       }
       const sources = evalSources(timeSec, { ...ctx, visual: visualFrom(e) });
       out.set(
         e.layerId,
-        applyLayerModulations(e.stored, e.mappings, sources, e.smoothing, dt).opacity,
+        applyLayerModulations(stored, e.mappings, sources, e.smoothing, dt).opacity,
       );
     }
     return out;
   };
   const paramsAt = (timeSec: number): Map<string, ParamRecord> => {
+    const resolved = take ? resolveTakeAt(take, timeSec) : null;
+    const macros =
+      resolved && resolved.macros.size > 0
+        ? project.macros.map((m) => {
+            const v = resolved.macros.get(m.id);
+            return v === undefined ? m : { ...m, value: v };
+          })
+        : project.macros;
     const out = new Map<string, ParamRecord>();
     for (const e of entries) {
       const definition = getTechnique(e.technique.techniqueId);
@@ -434,7 +557,11 @@ export function createSecondaryLayerEvaluator(
       out.set(
         e.layerId,
         applyModulations(
-          applyMacros({ ...e.technique.params }, project.macros, definition),
+          applyMacros(
+            { ...e.technique.params, ...(resolved?.params.get(e.layerId) ?? {}) },
+            macros,
+            definition,
+          ),
           e.mappings,
           sources,
           definition,
@@ -708,6 +835,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       selectedLayerOf(project0).id,
       request.fps,
       visualFor,
+      project0.takes.find((t) => t.id === project0.activeTakeId) ?? null,
     );
     const startFrame = Math.round(request.startSec * request.fps);
     let primeTemporal = true;
@@ -751,6 +879,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         if (!walkGpu || f < walkFrom) continue;
         prerollLayers.set(selectedLayerOf(project0).id, frame.params);
         engine.setAuthorityLayerParams(prerollLayers);
+        engine.setAuthorityLayerEnabled(evaluate.layerEnabled());
         rendererSync.sync(frame.techniqueId, frame.params);
         engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
         engine.prepareFlowForExport(
@@ -795,6 +924,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       layerParams.set(selectedLayerOf(project0).id, params);
       engine.setAuthorityLayerParams(layerParams);
       engine.setAuthorityLayerOpacity(evaluateLayers.opacityAt(timeSec));
+      engine.setAuthorityLayerEnabled(evaluate.layerEnabled());
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       // CE1H: optical flow is a source-derived pair and must advance per
