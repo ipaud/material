@@ -1100,7 +1100,7 @@ export class RenderEngine {
     this.exportMode = false;
     // Resolved export values must not survive into the preview, or a layer
     // keeps rendering the last exported frame’s parameters.
-    this.authorityLayerParams = undefined;
+    this.layerHost.setAuthorityParams(undefined);
     this.temporal?.invalidate();
     this.invalidate();
   }
@@ -1414,7 +1414,6 @@ void main() { fragColor = texture(uTex, vUv); }`,
    * draws the values the evaluator produced rather than whatever the preview
    * last pushed.
    */
-  private authorityLayerParams: ReadonlyMap<string, ParamRecord> | undefined;
 
   /**
    * QA capture, OFF by default: every resolved per-layer set an export
@@ -1432,7 +1431,11 @@ void main() { fragColor = texture(uTex, vUv); }`,
     if (params && this.exportParamLog && this.exportParamLog.length < 4096) {
       this.exportParamLog.push(Object.fromEntries([...params].map(([k, v]) => [k, { ...v }])));
     }
-    this.authorityLayerParams = params;
+    // ONE owner. Keeping a second copy on the engine meant the export
+    // prerolls — which read the host's — were handed undefined, so a feedback
+    // or motion layer prerolled from live state and a subrange stopped
+    // matching a full export.
+    this.layerHost.setAuthorityParams(params);
   }
 
   /** Editor/replica set this each frame from RESOLVED values. */
@@ -1690,7 +1693,7 @@ void main() { fragColor = texture(uTex, vUv); }`,
           // Both have to reach the branches: taking the map alone dropped the
           // primary's modulation, and taking the override alone dropped every
           // route into another layer.
-          let byLayer = this.authorityLayerParams;
+          let byLayer = this.layerHost.authorityParamsSnapshot;
           if (paramsOverride) {
             const id = this.layerHost.selectedLayerId;
             if (id) byLayer = new Map([...(byLayer ?? []), [id, paramsOverride]]);

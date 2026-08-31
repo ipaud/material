@@ -169,3 +169,32 @@ describe('v0.6.1 — a rebuilt runtime is configured from scratch', () => {
     expect(gen).toContain('if (!force && !reallocated &&');
   });
 });
+
+describe('v0.6.1 — authority values have exactly one owner', () => {
+  it('the engine keeps no second copy of the resolved layer params', () => {
+    // Caught by the v0.6.0 reference comparison, not by the suite: the engine
+    // still had its own authorityLayerParams field while the export prerolls
+    // read the host's. The prerolls were handed undefined, so a feedback or
+    // motion layer prerolled from live state and full-vs-subrange dropped to
+    // 4/12 and 0/12 — while repeat determinism stayed a perfect 12/12, which
+    // is precisely how a self-referential baseline would have missed it.
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    expect(engine.includes('private authorityLayerParams'), 'no second copy').toBe(false);
+    expect(engine).toContain('this.layerHost.setAuthorityParams(params)');
+    // Everything that reads them reads the host.
+    const still = engine.slice(engine.indexOf('renderStill('));
+    expect(still).toContain('this.layerHost.authorityParamsSnapshot');
+  });
+
+  it('export preroll asks the SET, never the selected technique', () => {
+    // A stateful system on a non-selected layer must still be prerolled.
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const feedback = engine.slice(engine.indexOf('get isFeedbackTechnique()'));
+    expect(feedback.slice(0, 400)).toContain('this.layerHost.anyLayerUsesFeedback()');
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const req = host.slice(host.indexOf('exportRequirements(): LayerRequirements {'));
+    // Aggregated with `some` across every layer, not read off one of them.
+    expect(req.slice(0, 800)).toContain('all.some((r) => r.needsFeedbackPreroll)');
+    expect(req.slice(0, 800)).toContain('all.some((r) => r.needsTemporalHistory)');
+  });
+});
