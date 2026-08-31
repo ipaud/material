@@ -6,6 +6,7 @@ import { StageOverlay } from '@/performance/ui/StageOverlay';
 import { StatusRail } from '@/performance/ui/StatusRail';
 import { HudLine } from '@/performance/ui/HudLine';
 import { ActionsStrip, LooksStrip, MacrosStrip } from '@/performance/ui/PerformanceWorkspace';
+import { LayerStrip } from '@/performance/ui/LayerStrip';
 
 /**
  * PERFORM — play the system. Output dominates; the status rail answers
@@ -51,6 +52,7 @@ export function PerformWorkspace() {
         </main>
         <StatusRail />
       </div>
+      <LayerStrip />
       <LooksStrip />
       <MacrosStrip />
       <ActionsStrip />

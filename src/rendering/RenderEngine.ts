@@ -320,6 +320,14 @@ export class RenderEngine {
     return this.layerStateSink(state.id, state.opacity).opacity;
   }
 
+  /** What a layer is ACTUALLY being composited at, for the performance UI.
+   * Null when the layer is unknown, so the strip can tell "not modulated"
+   * apart from "modulated to exactly the stored value". */
+  resolvedOpacity(layerId: string): number | null {
+    const index = this.layerStates.findIndex((s) => s.id === layerId);
+    return index < 0 ? null : this.effectiveOpacity(index);
+  }
+
   /** EXPORT authority: resolved opacities, resolved by the export evaluator. */
   private exportLayerOpacity: ReadonlyMap<string, number> | undefined;
 

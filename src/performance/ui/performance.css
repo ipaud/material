@@ -802,3 +802,137 @@
     border-right: 1px solid var(--border-0);
   }
 }
+
+/* ── v0.6D — layer stack ──────────────────────────────────────────────────
+   Bottom layer first, left to right, matching the compositor's order: what
+   sits on the left is underneath. */
+.perf-layers {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--border-0);
+  background: var(--surface-1);
+}
+.perf-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px 7px;
+  border-right: 1px solid var(--border-0);
+  border-top: 1px solid transparent;
+  transition: opacity 120ms ease;
+}
+.perf-layer.selected {
+  border-top-color: var(--accent);
+  background: var(--surface-2);
+}
+.perf-layer.muted {
+  opacity: 0.42;
+}
+.perf-layer.dimmed {
+  opacity: 0.28;
+}
+.perf-layer.soloed .perf-layer-num {
+  color: var(--accent);
+}
+.perf-layer-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.perf-layer-num {
+  font-size: 10px;
+  opacity: 0.55;
+}
+.perf-layer-name {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.perf-layer-tech {
+  font-size: 9px;
+  opacity: 0.45;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The fader carries two readings: the resting value the performer set, and
+   the value a signal is actually producing. */
+.perf-layer-fader {
+  position: relative;
+  height: 16px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  cursor: ew-resize;
+  overflow: hidden;
+}
+.perf-layer-fader:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.perf-layer-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--border-1);
+}
+.perf-layer-live {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  opacity: 0.5;
+}
+.perf-layer-value {
+  position: absolute;
+  inset: 0 4px 0 auto;
+  display: flex;
+  align-items: center;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+.perf-layer-value em {
+  font-style: normal;
+  color: var(--accent);
+  margin-left: 5px;
+}
+.perf-layer-controls {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 4px;
+  align-items: center;
+}
+.perf-layer-btn {
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.perf-layer-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-0);
+}
+.perf-layer-blend {
+  height: 16px;
+  padding: 0 2px;
+  font-size: 9px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  color: var(--text-2);
+  cursor: pointer;
+}

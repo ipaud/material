@@ -300,6 +300,34 @@ export const timelineStateSchema = z.object({
 });
 export type TimelineState = z.infer<typeof timelineStateSchema>;
 
+export const blendModeSchema = z.enum([
+  'normal',
+  'add',
+  'screen',
+  'multiply',
+  'difference',
+  'lighten',
+  'darken',
+]);
+
+/**
+ * One layer's worth of a Look: everything that makes the layer look the way it
+ * does, and nothing about the layer's identity beyond the id used to match it
+ * back up. Source is included because a layer without its material is not the
+ * same look; runtime state (history, calibration) never is.
+ */
+export const layerLookSchema = z.object({
+  id: z.string(),
+  name: z.string().max(48).default(''),
+  enabled: z.boolean().default(true),
+  opacity: z.number().min(0).max(1).default(1),
+  blendMode: blendModeSchema.default('normal'),
+  sourceId: z.string().nullable().default(null),
+  technique: techniqueInstanceSchema.nullable().default(null),
+  material: materialStateSchema,
+});
+export type LayerLook = z.infer<typeof layerLookSchema>;
+
 export const pinnedLookSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -314,6 +342,32 @@ export const pinnedLookSchema = z.object({
   material: materialStateSchema,
   modulations: z.array(modulationMappingSchema),
   triggers: z.array(triggerMappingSchema).default([]),
+  /**
+   * v0.6D — the whole stack, when the Look was pinned from a composition that
+   * had one.
+   *
+   * With layers, "the look" of MATERIAL IS the stack: recalling a slot and
+   * getting a hybrid — this Look's technique wearing whatever else happened
+   * to be loaded — is not what anyone means by recalling a look. So a Look
+   * pinned from v0.6 on captures every layer.
+   *
+   * It stays OPTIONAL because a Look pinned before v0.6 has no stack to
+   * capture, and must keep doing exactly what it always did: apply to the
+   * selected layer and leave the rest alone. Absence is the honest record of
+   * "this look predates layers", and inventing a single-layer stack for it
+   * would silently start wiping layers the performer added later.
+   */
+  layers: z.array(layerLookSchema).optional(),
+  /**
+   * Which layer was selected when this Look was pinned.
+   *
+   * The Look's `techniques`/`material` describe THAT layer, and they are
+   * applied on top of the restored stack. Without this the core landed on
+   * whatever the fallback picked — measured: recalling a three-layer Look put
+   * layer 2's technique onto layer 1 whenever the previously selected layer
+   * no longer existed.
+   */
+  selectedLayerId: z.string().nullable().optional(),
 });
 export type PinnedLook = z.infer<typeof pinnedLookSchema>;
 
@@ -488,15 +542,6 @@ export type Composition = z.infer<typeof compositionSchema>;
  */
 export const MAX_LAYERS = 4;
 
-export const blendModeSchema = z.enum([
-  'normal',
-  'add',
-  'screen',
-  'multiply',
-  'difference',
-  'lighten',
-  'darken',
-]);
 export type BlendMode = z.infer<typeof blendModeSchema>;
 
 /**

@@ -26,7 +26,7 @@ export const LAYER_OPACITY_TARGET = 'layer.opacity';
 
 const LAYER_DEFINITION: TechniqueDefinition = {
   id: '__layer__',
-  label: 'Layer',
+  name: 'Layer',
   sections: [
     {
       id: 'layer',

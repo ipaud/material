@@ -245,7 +245,54 @@ a route that only appears to work cannot pass.
 
 ## D — Performance UX
 
-Not started.
+Status: **complete**.
+
+### Decisions
+
+| Question | Decision | Why |
+|---|---|---|
+| Look or Scene? | **A Look is the whole composition.** No second concept. | With layers, "the look" of MATERIAL *is* the stack. Recalling a slot and getting a hybrid — this Look's technique wearing whatever else happened to be loaded — is not what anyone means by recalling a look. A Look/Scene duality would mean two strips, two sets of slots, two MIDI bindings and an explanation. |
+| Looks pinned before v0.6 | Restore the **selected layer only**, exactly as they always did | Absence of a recorded stack is the honest record of "this predates layers". Inventing a one-layer stack for it would silently wipe layers the performer added afterwards. |
+| A layer the Look does not mention | **Removed** | The Look is the whole composition, so recall has to be idempotent. Leaving strays behind means the result depends on what was loaded before. |
+| Layer identity on recall | Matched by **id**, so survivors keep their runtime | A feedback surface or a simulation is not rebuilt because a Look was recalled — the recall is instant instead of a visible reset. |
+| Solo on recall | **Not restored** | Solo is live performance state, not part of a look. Recalling must not silently re-solo something the performer released. |
+| Morph across a stack | The **primary layer interpolates**; the rest arrive at the end, in the same atomic commit | There is no meaningful interpolation between "three layers" and "two": the stack is structure, not a value. One commit, so the performer never watches a stack settle piece by piece. |
+| Freeze | **Unchanged** | Mapping ids are unique project-wide and one `SmoothingState` serves every layer, so freeze needed no layer dimension. Asserted, so it does not grow one by accident. |
+| Strip order | **Bottom layer first, left to right** | It is the compositor's own order: what sits on the left is underneath. A top-down list would read the opposite way round from the picture. |
+
+### The layer strip
+
+`src/performance/ui/LayerStrip.tsx` — one cell per layer: index, name, the
+technique it is running, an opacity fader, mute, solo and blend mode.
+
+The fader carries **two** numbers whenever a signal is driving opacity: the
+resting value the performer set, and the value the signal is actually
+producing. Showing only the stored one makes a modulated layer look broken;
+showing only the live one makes the fader impossible to aim. Verified live with
+a layer whose opacity is driven by another layer's motion — the cell reads
+`0.85 1.00`, the second in accent.
+
+Keyboard-operable throughout (`role="slider"`, arrow keys, `aria-valuenow`),
+because a performance surface that only responds to a mouse is not one.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| Composition recall is exact | 3 layers captured and restored identically after deleting one, changing another and adding a third |
+| Recall is idempotent | applying twice equals applying once |
+| Runtimes survive recall | branches stayed `L1, L2, L3` — no rebuild |
+| A pre-v0.6 Look leaves the stack alone | returns the project unchanged, by identity |
+| Suite / lint / build | 1341 tests, all clean |
+
+### One bug
+
+**Recall put the wrong technique on the wrong layer.** A Look's
+`techniques`/`material` describe one layer, and that layer was being chosen by
+a fallback: when the previously selected layer no longer existed, the core
+landed on layer 1. Measured directly — a three-layer recall came back with
+layer 2's Slit Scan sitting on layer 1. A Look now records which layer it was
+pinned from, and that selection wins.
 
 ## E — Export, QA, release
 

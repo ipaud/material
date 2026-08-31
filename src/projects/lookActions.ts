@@ -1,4 +1,5 @@
 import { selectedLayerOf } from '@shared/schemas/project';
+import { captureLayerLooks, projectWithLayerLooks } from '@/performance/layerLook';
 import { isDarkThumbnail, renderThumbnail } from '@/performance/thumbnail';
 import { blockedByExport } from '@/export/exportGuard';
 import { useProjectStore } from '@/state/projectStore';
@@ -57,6 +58,8 @@ export function pinCurrentLook(): PinnedLook | null {
     thumbnail: renderLookThumbnail(project),
     // The Look records the selected layer's branch, matching captureLookCore.
     techniques: selectedLayerOf(project).technique ? [selectedLayerOf(project).technique!] : [],
+    layers: captureLayerLooks(project),
+    selectedLayerId: selectedLayerOf(project).id,
     material: selectedLayerOf(project).material,
     modulations: project.modulations,
     triggers: project.triggers,
@@ -68,13 +71,23 @@ export function pinCurrentLook(): PinnedLook | null {
   return look;
 }
 
-/** ATOMIC apply: the whole look state commits as one operation (§5). */
+/**
+ * ATOMIC apply: the whole look state commits as one operation (§5).
+ *
+ * v0.6D — a Look pinned from a composition restores the whole stack; one
+ * pinned before layers existed restores the selected layer and leaves the
+ * rest alone. Both land in a single project update, so a recall is one undo
+ * entry and never shows a half-applied composition.
+ */
 export function applyLook(lookId: string): void {
   if (blockedByExport('Applying a Look')) return;
   useProjectStore.getState().apply((p) => {
     const look = p.pinnedLooks.find((l) => l.id === lookId);
     if (!look) return p;
-    return projectWithLookCore(p, lookToCore(look), look.id);
+    // The stack first, so the core lands on the layer the Look says is
+    // selected rather than on whatever was selected a moment ago.
+    const stacked = projectWithLayerLooks(p, look);
+    return projectWithLookCore(stacked, lookToCore(look), look.id);
   });
 }
 
@@ -118,6 +131,8 @@ export function updateLook(lookId: string): void {
         ? {
             ...l,
             techniques: selectedLayerOf(p).technique ? [selectedLayerOf(p).technique!] : [],
+            layers: captureLayerLooks(p),
+            selectedLayerId: selectedLayerOf(p).id,
             material: selectedLayerOf(p).material,
             modulations: p.modulations,
             triggers: p.triggers,

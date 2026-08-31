@@ -55,6 +55,11 @@ export function projectWithLookCore(
   const target = selectedLayerOf(project);
   return {
     ...project,
+    // NOTE: this restores the SELECTED layer only. A Look pinned from v0.6 on
+    // also carries the stack, and `applyLook` layers that on top — see
+    // projectWithLayerLooks. Keeping the single-layer path intact is what lets
+    // a pre-v0.6 Look keep behaving exactly as it did.
+
     layers: project.layers.map((l) =>
       l.id === target.id
         ? {

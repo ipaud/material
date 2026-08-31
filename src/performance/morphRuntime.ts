@@ -1,4 +1,5 @@
 import { selectedLayerOf } from '@shared/schemas/project';
+import { projectWithLayerLooks } from '@/performance/layerLook';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { playback } from '@/playback/PlaybackController';
@@ -270,8 +271,18 @@ class MorphRuntime {
     this.active = null;
     this.snapshotTaken = false;
     engine.setTransition(null);
-    useProjectStore.getState().apply((p) => ({
-      ...projectWithLookCore(p, morph.target, morph.targetLookId),
+    useProjectStore.getState().apply((p) => {
+      // v0.6D — only the PRIMARY layer interpolates. A morph is a continuous
+      // blend between two states of one material, and there is no meaningful
+      // interpolation between "three layers" and "two layers": the stack is
+      // structure, not a value. So the rest of the target's composition
+      // arrives at the end, in the same atomic commit as the interpolated
+      // layer, and the performer sees one change rather than a half-morphed
+      // stack settling piece by piece.
+      const target = p.pinnedLooks.find((l) => l.id === morph.targetLookId) ?? null;
+      const stacked = target ? projectWithLayerLooks(p, target) : p;
+      return {
+      ...projectWithLookCore(stacked, morph.target, morph.targetLookId),
       morphEvents: [
         ...p.morphEvents,
         {
@@ -284,7 +295,8 @@ class MorphRuntime {
           transition: { ...this.transition },
         },
       ],
-    }));
+      };
+    });
     useUiStore.getState().pushToast('info', `Morph complete → ${morph.targetLabel}`);
     void (atTime);
   }
