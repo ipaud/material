@@ -219,9 +219,8 @@ export function probeLayers(
     renderer: THREE.WebGLRenderer | null;
     layerIds: string[];
     branchFor(id: string): {
-      renderLayerTo(t: THREE.WebGLRenderTarget, o: { clear: boolean; skip?: ReadonlySet<string> }): void;
+      renderLayerTo(t: THREE.WebGLRenderTarget, o: { clear: boolean }): void;
       sourceTexture: THREE.Texture | null;
-      lastLayerRender: Record<string, unknown> | null;
       scene: THREE.Scene;
       camera: THREE.Camera;
     } | null;
@@ -259,23 +258,7 @@ export function probeLayers(
       t.dispose();
       return buf;
     };
-    // Order matters for diagnosis: the same call twice tells a priming
-    // failure apart from a wiring failure.
     const px = readInto((t) => branch.renderLayerTo(t, { clear: true }));
-    const pxAgain = readInto((t) => branch.renderLayerTo(t, { clear: true }));
-    const bisect: Record<string, unknown> = {};
-    for (const step of ['temporal', 'camera', 'generator', 'flow', 'sync', 'stats', 'feedback']) {
-      const buf = readInto((t) => branch.renderLayerTo(t, { clear: true, skip: new Set([step]) }));
-      bisect[step] = stat(buf).nonBlack;
-    }
-    bisect.all = stat(
-      readInto((t) =>
-        branch.renderLayerTo(t, {
-          clear: true,
-          skip: new Set(['temporal', 'camera', 'generator', 'flow', 'sync', 'stats', 'feedback']),
-        }),
-      ),
-    ).nonBlack;
     // Sample the layer's SOURCE too: a black layer with a black source is an
     // upstream failure, a black layer over a live source is the technique.
     // Bypass renderLayerTo entirely: same scene, same camera, explicit
@@ -295,9 +278,6 @@ export function probeLayers(
     const src = branch.sourceTexture;
     perLayer[id] = {
       layer: stat(px),
-      layerAgain: stat(pxAgain),
-      info: branch.lastLayerRender,
-      bisect,
       direct: stat(px2),
       source: src ? readCentre(renderer, src, 16) : null,
     };

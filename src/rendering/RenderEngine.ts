@@ -530,26 +530,22 @@ export class RenderEngine {
    * to the host: no well, no viewport rect, no transition compositing. What
    * comes out is one layer's pixels, ready for the compositor.
    */
-  renderLayerTo(
-    target: THREE.WebGLRenderTarget,
-    opts: { clear: boolean; skip?: ReadonlySet<string> },
-  ): void {
+  renderLayerTo(target: THREE.WebGLRenderTarget, opts: { clear: boolean }): void {
     const renderer = this.renderer;
     if (!renderer) return;
     const prevTarget = renderer.getRenderTarget();
     try {
       // Neither setPixelRatio nor setViewport belongs here — see bindTarget.
-      const skip = opts.skip;
-      if (!skip?.has('temporal') && this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
+      if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
         const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
         this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
       }
-      if (!skip?.has('camera')) this.updateCamera(target.width / Math.max(target.height, 1));
-      if (!this.exportMode && !skip?.has('generator')) this.renderGenerator(renderer, this.timeSec);
-      if (!this.exportMode && !skip?.has('flow')) this.updateFlowService(renderer);
-      if (!skip?.has('sync')) this.syncScene();
-      if (!this.exportMode && !skip?.has('stats')) this.updateVisualStats(renderer);
-      if (this.feedbackActive && !skip?.has('feedback')) {
+      this.updateCamera(target.width / Math.max(target.height, 1));
+      if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
+      if (!this.exportMode) this.updateFlowService(renderer);
+      this.syncScene();
+      if (!this.exportMode) this.updateVisualStats(renderer);
+      if (this.feedbackActive) {
         (
           this.techniqueRenderer as unknown as {
             feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
@@ -571,24 +567,11 @@ export class RenderEngine {
         renderer.clear();
       }
       renderer.render(this.scene, this.camera);
-      this.lastLayerRender = {
-        target: [target.width, target.height],
-        viewport: renderer.getViewport(new THREE.Vector4()).toArray() as number[],
-        triangles: renderer.info.render.triangles,
-        calls: renderer.info.render.calls,
-        sceneChildren: this.scene.children.length,
-        camAspect: (this.camera as THREE.PerspectiveCamera).aspect,
-        camZ: this.camera.position.z,
-        srcTex: !!this.sourceTexture,
-        exportMode: this.exportMode,
-      };
     } finally {
       renderer.setRenderTarget(prevTarget);
     }
   }
 
-  /** v0.6A diagnosis: what the last layer draw actually saw. */
-  lastLayerRender: Record<string, unknown> | null = null;
 
   /**
    * Draw this branch onto whatever is currently bound — the canvas, inside the
@@ -1704,13 +1687,20 @@ void main() { fragColor = texture(uTex, vUv); }`,
    */
   private authorityLayerParams: ReadonlyMap<string, ParamRecord> | undefined;
 
-  /** QA capture: every resolved per-layer set an export published, in order.
+  /**
+   * QA capture, OFF by default: every resolved per-layer set an export
+   * published, in order.
+   *
    * Comparing two runs of the same export tells an evaluator divergence apart
-   * from a render divergence, which is otherwise guesswork. */
-  exportParamLog: Record<string, ParamRecord>[] = [];
+   * from a render divergence, which is otherwise guesswork — it is how a
+   * v0.6B non-determinism was pinned to the feedback surface rather than to
+   * the maths, when the parameters matched to six decimals and the pixels did
+   * not. Enabling it allocates; leaving it off costs one null check.
+   */
+  exportParamLog: Record<string, ParamRecord>[] | null = null;
 
   setAuthorityLayerParams(params: ReadonlyMap<string, ParamRecord> | undefined): void {
-    if (params && this.exportParamLog.length < 4096) {
+    if (params && this.exportParamLog && this.exportParamLog.length < 4096) {
       this.exportParamLog.push(Object.fromEntries([...params].map(([k, v]) => [k, { ...v }])));
     }
     this.authorityLayerParams = params;
