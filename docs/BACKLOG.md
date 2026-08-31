@@ -5,36 +5,36 @@ Nothing here is scheduled; each entry says what it is and what it depends on.
 
 ## Code debt taken on knowingly
 
-### RenderEngine.ts is 2044 lines — DEBT (v0.6)
+### RenderEngine.ts — DISCHARGED in v0.6.1, with a remainder
 
-The repo's own rule is 800. `RenderEngine.ts` was already over at 1149 before
-layers; v0.6 took it to 2044, which is the largest single quality cost of the
-release and is recorded here rather than glossed.
-
-The extraction is not vague. The layer-host concerns form a coherent unit of
-roughly 350 lines with a narrow interface onto the rest of the engine:
+v0.6 recorded this at 2044 lines against a house rule of 800. v0.6.1 split the
+branch role out and it is now **987**:
 
 ```
-branches / layerStates / selectedLayerIndex
-syncLayers · branchFor · layerIds · layerCount
-renderComposition · renderDirectLayer · ensureLayerTarget · visibleLayers
-singleOpaqueLayer · effectiveOpacity · publishComposition
-distributeLiveSources · setLiveLayerKinds · applyBranchVisualDemand
+LayerRuntimeImpl   933   one creative chain
+LayerHost          564   the layer set
+RenderEngine       987   canvas, loop, view, compositor, publication
+layerRuntime       118   the contract between them
 ```
 
-A `LayerHost` owning those, with `RenderEngine` delegating, would take the
-file back under the limit without touching branch mode itself.
+The point was never the line count — it was that one class played two roles,
+so a host could answer a branch question. That is now impossible by
+construction. See the Runtime Ownership ADR.
 
-**Why not now.** It moves ~40 private members across a boundary immediately
-after v0.6 proved single-layer output byte-identical to v0.5.0, and every
-structural regression test added this release reads `RenderEngine.ts` as
-source text, so they would all need re-pointing in the same change. High churn,
-zero behavioural gain, at exactly the moment the gates are green.
+**What is left, and why it was not done.** `RenderEngine` is still ~190 lines
+over the rule. The two cohesive seams remaining:
 
-**What makes it safe later.** Those same gates: the identity comparison against
-a real v0.5.0 build, the compositor goldens, the four-layer export matrix and
-`probeLayers`. Do the split first, re-run them, and the refactor is verified by
-construction rather than by reading.
+- **`renderStill` and the export snapshot (~170 lines).** Rendering the
+  composition offscreen at an arbitrary size, with the transition A/B dance.
+  Cohesive, and a plausible `StillRenderer`.
+- **The view transform (~90 lines).** `view`, `fit`, `zoomTo`, `zoomAround`,
+  `panBy`, `updateCamera` — pure zoom/pan maths with no GPU state.
+
+Neither was taken in v0.6.1 because the phase had already found and fixed two
+of its own regressions, and each further move spends the same equivalence
+budget for no behavioural gain. Both are safe to do later against the same
+gates: the v0.6.0 worktree comparison, the six content-floored fixtures, the
+export preroll matrix and `probeLayers`.
 
 ### Masks — DEFERRED (v0.6C)
 

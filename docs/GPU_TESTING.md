@@ -317,3 +317,49 @@ once.
 Line-anchor checks that are conceptually per-line. The regression test asserts
 both directions: a `#define` mentioning a host name is fine, an actual
 redeclaration is still caught.
+
+## v0.6.1 — comparing against a real previous release
+
+The reference for a behaviour-preserving change is a **git worktree of the
+released tag**, running as a second app, not the candidate's own prior
+behaviour.
+
+```bash
+git worktree add /tmp/ref060 v0.6.0
+ln -s "$PWD/node_modules" /tmp/ref060/node_modules
+( cd /tmp/ref060 && env -u ELECTRON_RUN_AS_NODE npm run dev )
+```
+
+Both sides are driven by the **same fixture text** (`fixtures.mjs`), so a
+difference cannot come from how the two were set up.
+
+### Every fixture declares a content floor
+
+```js
+'two-routed': { minNonBlack: 20000, minVariance: 100, ... }
+```
+
+The comparison reports `IDENTICAL` only when the hashes match **and** both
+sides clear the floor. Two blank frames agreeing is two failures, not a match
+— which is exactly how a v0.6 identity gate passed while nothing rendered.
+
+### Why self-referential baselines fail
+
+v0.6.1's own extraction introduced a bug where the export prerolls received
+`undefined` parameters. Repeat determinism stayed 12/12 and every existing
+test passed, because both runs were wrong in the same way. Only the v0.6.0
+comparison moved: full-vs-subrange fell to 4/12 for feedback and 0/12 for
+motion.
+
+A baseline that is a copy of the thing under test can validate black against
+black. It can also validate wrong against wrong.
+
+### The three permanent gate families
+
+| Gate | Asks | Fails when |
+|---|---|---|
+| **Content floor** | is there a picture at all? | the system is dormant |
+| **Time liveness** | does `t1 != t2` change the frame? | a clock is frozen |
+| **Anti-noop** | does disabling this change the pixels? | the feature is inert |
+
+Determinism belongs alongside all three, never instead of them.

@@ -1,5 +1,14 @@
 # Roadmap
 
+## v0.6.1 — Runtime Ownership (shipped)
+
+A behaviour-preserving refactor, no user-facing change. `RenderEngine` stopped
+being one class playing two roles: `LayerRuntimeImpl` owns one creative chain,
+`LayerHost` owns the set, and the composition owns the canvas, the loop and
+the single frame publication. Every runtime question now carries its scope in
+its name. 2044 lines to 987, verified byte-identical against a v0.6.0 worktree.
+
+
 ## v0.1 — shipped
 
 Phases 0–9. Secure Electron shell; GPU mosaic; SVG and raster materials;

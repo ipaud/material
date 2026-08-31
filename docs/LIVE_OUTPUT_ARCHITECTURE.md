@@ -614,3 +614,39 @@ opened mid-session warms up locally (~2.3 s to full span). Measured: 24
 slot-writes/s at 120 fps render over a 30 fps source; atlas fixed at
 ~7.9 MB per renderer for any source resolution (256×144 slots, blit-time
 downsample); 3-minute live soak with flat heap and zero GL errors.
+
+## v0.6.1 — publication ownership
+
+The Output receives **exactly one** `FrameState` per authority frame, and the
+composition is what publishes it.
+
+Before v0.6.1 the emit lived in `syncScene`, which every layer runs, so a
+four-layer composition sent four messages per frame and the replica showed
+whichever arrived last. `RenderEngine.publishComposition()` is now the only
+`runtimeBus.emitFrame` call in the tree, called after compositing on both the
+direct fast path and the composite path.
+
+That is structural, not a guard: `LayerRuntimeImpl` has no `runtimeBus`
+import. A layer cannot publish because it cannot reach the bus.
+
+The replica has no single-source path any more either. It held a full second
+copy of the source, generator and technique machinery — which is what let it
+render one technique while the editor rendered four — and the editor has sent
+a layer stack on every message since v0.6. `OutputLayer` owns one layer's
+media and renderer, scoped by layer id, and a live device is still joined once
+per replica and shared by every layer showing it.
+
+What crosses the channel is unchanged in kind: **configuration** on the
+low-rate message and **resolved values** on the per-frame one. No evaluator,
+no store, no pixel.
+
+One thing the replica still does on the high-rate message: follow
+`FrameState.techniqueId` for the SELECTED layer. A cross-technique morph
+switches technique without a project change, and `RenderInputs` is low-rate,
+so the 18A invariant needs the per-frame path. Deleting that line while
+removing the legacy block was one of two regressions this refactor caught in
+itself.
+
+**Measured parity**, two blended layers at the same composition time, editor
+against Output across processes: identical mean (159) and identical non-black
+count (46 656), before and after closing and reopening the Output window.

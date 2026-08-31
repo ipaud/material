@@ -125,3 +125,91 @@ so smoothing ran slower in proportion to the layer count.
 
 Publication happens at step 9 and nowhere else. Branches were each publishing,
 so the Output received one message per layer per frame.
+
+---
+
+# R2–R5 — the boundary as built
+
+## The three classes
+
+| | LOC | Owns | Cannot |
+|---|---|---|---|
+| **`LayerRuntimeImpl`** | 933 | One creative chain: source, generator, temporal history, optical flow, technique, image analysis, feedback | Reach a canvas, a loop, a view or the bus |
+| **`LayerHost`** | 564 | The runtime map by layer id, layer targets, the compositor, shared live devices, authority values, analysis demand | Know what a technique *is* |
+| **`RenderEngine`** | 987 | Canvas, animation loop, view transform, transition compositor, the single frame publication | Answer a creative question — it has no fields to answer one from |
+
+`layerRuntime.ts` (118) holds the contract between the first two. The host
+depends on the interface, never on the concrete class, so the set of things a
+host may ask a layer is a short, reviewable list.
+
+## Ownership table
+
+| Object | Owner | Key | Shared | Disposed by | Reset when |
+|---|---|---|---|---|---|
+| `LayerRuntimeImpl` | `LayerHost` | layer id | no | layer removed · `disposeAll` | never reused across ids |
+| Layer target | `LayerHost` | layer index | no | size change · renderer swap · layer removed | composition resize |
+| Compositor accumulators | `LayerHost` | — | across layers | `disposeAll` · context loss | context restore |
+| `WebGLRenderer` | `RenderEngine` | — | by every runtime | `dispose()` | `adoptRenderer` on replacement |
+| Camera / capture feed | the manager, published via `setLiveSource` | device kind | **yes**, across layers | last consumer | acquisition stop |
+| `OpticalFlowField` | `LayerRuntimeImpl` | — | no | `disposeBranch` · demand drops | source identity change · seek |
+| `TemporalFrameProvider` | `LayerRuntimeImpl` | — | no | `disposeBranch` | context restore (**reallocated**) · seek |
+| Feedback surface | the technique renderer, inside a runtime | — | no | renderer swap | source change · candidate release · context restore |
+| `GeneratorSource` | the bridge, attached to one runtime | layer id | no | source change · layer removed | target realloc forces redraw |
+| Calibration envelope | `calibrationStore` | pixel origin | **yes**, by origin | project change | project change |
+
+Nothing is owned by "the engine, generally".
+
+## Scope is part of the question
+
+The rule this phase exists to install:
+
+> A function that can be answered without knowing *which* thing is being asked
+> about is still ambiguous.
+
+| Question | Where it lives | Scope in the name |
+|---|---|---|
+| Does anything need a frame? | `layerHost.anyLayerNeedsContinuousRender()` | ANY |
+| Does anything carry feedback history? | `layerHost.anyLayerUsesFeedback()` | ANY |
+| Is anything showing a live device? | `layerHost.hasLiveSourceConsumers()` | ANY |
+| Does anything address frame history? | `layerHost.anyLayerUsesTemporalHistory()` | ANY |
+| What does this layer need? | `layerHost.requirementsFor(layerId)` | ONE |
+| What does the export need? | `layerHost.exportRequirements()` | EXPORT GRAPH |
+| How many layers show this device? | `layerHost.consumerCountFor(kind)` | ONE DEVICE KIND |
+| Does *this* layer use feedback? | `runtime.isFeedbackTechnique` | ITSELF |
+
+`branchesAnimating` was deleted rather than renamed: the loop asks the host
+directly, so the scope is visible at the call site instead of hidden in a
+helper's body.
+
+## What the split bought, structurally
+
+Two invariants stopped being guards and became facts:
+
+- **One publication per frame.** `LayerRuntimeImpl` has no `runtimeBus`
+  import, so there is exactly one `emitFrame` call in the tree and it is
+  `RenderEngine.publishComposition()`, after compositing.
+- **A host cannot answer a creative question.** `renderEngine.generatorActive`
+  is not wrong — it does not exist.
+
+## Regressions this refactor introduced, and how each was caught
+
+Recorded because they are the argument for the reference worktree.
+
+| Regression | Symptom | Caught by |
+|---|---|---|
+| Authority params kept in two places | Export prerolls got `undefined`; feedback subrange 4/12, motion 0/12 — while **repeat stayed 12/12**, because both runs were wrong identically | v0.6.0 comparison |
+| `handleContextRestored` invalidated instead of reallocating | Would raise `INVALID_OPERATION` on the first pass after a restore (CE1H measured 1282) | feedback reset-matrix gate |
+| Replica's FrameState technique sync deleted with its legacy block | A cross-technique morph would not switch the Output's technique | output-replica A→B→A test |
+
+The first is the important one. A self-referential baseline — comparing the
+candidate against its own previous behaviour — would have shown nothing,
+because the failure was invisible to every determinism check.
+
+## A bug that predated the refactor, fixed here
+
+A remount rebuilds every layer runtime, but the bridge's per-layer memo is
+keyed on SOURCE identity and short-circuits before attaching anything. The new
+runtime got no source and no technique, and the composition went black and
+stayed black. Confirmed present in v0.6.0 by running the same
+dispose/init/resync sequence against the v0.6.0 worktree, so it is a fix, not
+an artefact. The memo now records the runtime object it describes.

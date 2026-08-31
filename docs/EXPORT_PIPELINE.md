@@ -118,3 +118,41 @@ incoming MIDI is dropped at the engine entrance.
 Verified: an export run while macros were swept, Looks were clicked, seeks
 were requested and candidates were generated throughout produced a
 **byte-identical** file to the same export run in silence.
+
+## v0.6.1 — export requirements come from the SET
+
+What an export needs is aggregated across every layer that will render, never
+read off the selected technique:
+
+```ts
+layerHost.exportRequirements()
+  → { needsFeedbackPreroll, needsTemporalHistory, needsGenerator, ... }
+```
+
+`isFeedbackTechnique` on the composition is `anyLayerUsesFeedback()`. Asking
+the host answered "no" while layer 3 ran Feedback Zoom, so the preroll was
+skipped, `prerolled` was still set, the first real frame declared itself
+not-first, and every export inherited the previous one's history.
+
+**Regression fixture, permanent:** four layers where the stateful technique is
+on a layer that is *not* selected, for feedback, simulation and motion. Each
+must repeat byte-identically and match full-vs-subrange. All three are 12/12
+against the v0.6.0 reference.
+
+### Authority values have one owner
+
+Resolved per-layer parameters and opacities live on `LayerHost`. The engine
+keeps no copy.
+
+This mattered more than it sounds. During the v0.6.1 extraction the engine
+briefly kept a second `authorityLayerParams` field while the prerolls read the
+host's, so they were handed `undefined` and prerolled from live state. Repeat
+determinism stayed a perfect 12/12 — both runs were wrong identically — and
+only full-vs-subrange moved, to 4/12 and 0/12. It was found by comparing
+against a real v0.6.0 worktree, and by nothing else.
+
+### Live and export never share a clock
+
+A layer in export mode does not fall back to the live parameter transform,
+which reads wall time. Asserted structurally: `syncScene` guards on
+`this.paramTransform && !this.exportMode`.

@@ -273,12 +273,14 @@ describe('release gates (18G)', () => {
     // moved: a pack shader stores the same techniqueId / enabled / params a
     // native one does, and every v0.5 addition is a new id or an optional
     // field, so a project written before any of it parses unchanged.
-    // v0.6 is the first release since v0.2 where the FORMAT had to move: a
+    // v0.6.1 is a behaviour-preserving refactor: the app version moves, the
+    // schema deliberately does not.
+    // v0.6 was the first release since v0.2 where the FORMAT had to move: a
     // composition is a stack, and there is no way to express that in v3. The
     // migration is invisible and single-layer output is byte-identical to
     // v0.5.0, so the bump buys structure rather than breaking anything.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    expect(pkg.version).toBe('0.6.0');
+    expect(pkg.version).toBe('0.6.1');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(4);
   });

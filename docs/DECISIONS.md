@@ -2,6 +2,93 @@
 
 Meaningful deviations and choices not obvious from the spec.
 
+## ADR — Runtime ownership (v0.6.1)
+
+**Context.** v0.6 shipped eleven defects. Nine were one shape: a host-level
+predicate kept answering for itself after the work moved onto the layer
+branches. `generatorActive`, `liveSourceActive`, `isFeedbackTechnique`, visual
+demand, frame publication — each asked a question whose scope had silently
+changed. None threw. Each produced a deterministic wrong answer, so every gate
+stayed green: a render loop that slept through animating layers, an export
+that inherited the previous export's feedback history, an Output that showed
+whichever layer's message arrived last.
+
+**The cause was structural, not a run of carelessness.** `RenderEngine` was
+one class playing two roles — host and branch — with `isBranch` deciding.
+Every field existed on both, so a host instance carried a generator, a flow
+field, a temporal provider and a technique renderer it never used, and every
+predicate over them compiled, ran, and answered `false`.
+
+**Decision.** Split the roles into separate classes and give every runtime
+question a scope in its name.
+
+```
+LayerRuntimeImpl   one creative chain. Owns no canvas, loop, view or bus.
+LayerHost          the layer set. Answers questions ABOUT THE SET.
+RenderEngine       canvas, loop, view, compositor, one publication.
+```
+
+**Consequences.**
+
+- A host cannot answer a creative question, because it has no fields to answer
+  one from. `renderEngine.generatorActive` is not wrong — it does not exist.
+- Exactly one `runtimeBus.emitFrame` call exists in the tree. The runtime
+  class has no bus import, so "a layer never publishes" is structural rather
+  than a guard.
+- `LayerHost` takes its runtime factory as a constructor argument, so the
+  layer set is testable with fakes. Ten invariants that were source-text
+  assertions became behavioural tests.
+- `dt` is computed once per authority frame and reused. Smoothing is
+  layer-count invariant, asserted with a companion that fails if the compared
+  sequence is frozen.
+- Export requirements aggregate across every layer
+  (`layerHost.exportRequirements()`), never off the selected technique.
+
+**Rejected: keeping one class and only renaming the predicates.** It would
+have shrunk the file and left the shape intact — a host would still *have* the
+fields, and the next person to add a predicate would have the same
+opportunity to reach for them.
+
+**Rejected: a base class shared by host and runtime.** It re-creates the
+ambiguity it is meant to remove: shared state is exactly what let a host
+answer a branch question. The forty lines of plumbing both need are duplicated
+instead, deliberately.
+
+**Cost.** `RenderEngine` is 987 lines against a house rule of 800 — down from
+2044. The next cohesive seam is named in BACKLOG.md.
+
+## ADR — Visible work (v0.6.1)
+
+**Context.** Three times now, a system has passed every gate while doing
+nothing: optical flow absent from export, `ctx.timeSec` frozen at 2.699 for
+thirteen frames, and a v0.6 identity comparison that matched because both
+sides were black.
+
+**Decision — permanent testing doctrine.**
+
+> Determinism is necessary and not sufficient. A gate that a dormant system can
+> satisfy needs a companion that fails when nothing happens.
+
+In practice, three rules:
+
+1. **Every render equivalence fixture declares a content floor.** Non-black
+   count and variance are asserted alongside the hash. Two blank frames
+   agreeing is two failures, not a match.
+2. **Every time-responsive system has a liveness gate.** `t1 != t2` must
+   produce a different frame. Three distinct times, three distinct hashes.
+3. **Every route and every stateful system has an anti-noop gate.** Disabling
+   it must change the pixels.
+
+**And the corollary this phase added:** compare against a **real previous
+release**, checked out in a worktree — never against the candidate's own prior
+behaviour. v0.6.1 introduced a regression where the export prerolls received
+`undefined` parameters. Repeat determinism stayed a perfect 12/12, because
+both runs were wrong in the same way. Only the comparison against v0.6.0
+showed it, as full-vs-subrange dropping to 4/12 and 0/12.
+
+A self-referential baseline can validate black against black. It can also
+validate wrong against wrong.
+
 ## Tooling
 
 - **TypeScript 5.9, not 7.x**: TS 7 (native compiler preview) is too new for the

@@ -23,6 +23,14 @@ running state — feedback history, simulation state, optical flow, image
 analysis. Nothing is shared implicitly. Reordering the stack rebuilds nothing,
 because a layer is identified by its **id** and never by its position.
 
+Since v0.6.1 that is a class of its own, `LayerRuntimeImpl`, held by a
+`LayerHost` that owns the set. The composition — `RenderEngine` — keeps the
+canvas, the loop, the view and the compositor, and holds no creative state at
+all, so it cannot be asked a question about a source or a technique. Every
+question about the SET is named for its scope: `anyLayerUsesFeedback()`,
+`requirementsFor(layerId)`, `exportRequirements()`. See
+[RENDER_RUNTIME](RENDER_RUNTIME.md).
+
 ## The cap is four
 
 Measured, not guessed. At 1920×1080 with four heavy techniques, each with its
