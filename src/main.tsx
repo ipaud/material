@@ -17,6 +17,12 @@ import { getPatternCompileCount, getPatternDiagnostics } from './pattern/pattern
 import { useOutputStore } from './state/outputStore';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
 import { modulationRuntime } from './modulation/runtime';
+import * as takeActions from './performance/take/takeActions';
+import * as gestures from './performance/take/gestures';
+import * as takeEdit from './performance/take/edit';
+import * as takeEvaluate from './performance/take/evaluate';
+import { takeRecorder } from './performance/take/recorder';
+import { takePlayer } from './performance/take/player';
 import { useScopeStore } from './signals/visual/scopeStore';
 import * as modulationActions from './modulation/modulationActions';
 import * as layerActions from './projects/layerActions';
@@ -646,6 +652,8 @@ if (import.meta.env.DEV) {
       morphRuntime,
       lookActions,
       performanceActions,
+      /** v0.7: Performance Capture, so QA drives the same seams the UI does. */
+      take: { takeActions, takeRecorder, takePlayer, gestures, edit: takeEdit, evaluate: takeEvaluate },
       candidateRuntime,
       useCandidateStore,
       mutation,

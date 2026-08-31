@@ -678,6 +678,21 @@ export const takeBaselineSchema = z.object({
    * mapping.
    */
   frozen: z.record(z.string(), z.number().nullable()).default({}),
+  /**
+   * The creative state a Look recall REPLACES, captured lazily the first time
+   * the Take recalls one — and absent entirely from a Take that never does.
+   *
+   * Without it, seeking back before the first recall left the composition on
+   * the recalled Look, because that Look had overwritten params, modulations
+   * and triggers and nothing remembered what had been there. Measured: a Take
+   * whose recall sat at 1.76s still showed the Look at a seek to 0.2s.
+   *
+   * A LookCore is the largest thing a baseline stores, and it is stored only
+   * when the Take can actually destroy the state it describes.
+   */
+  lookCore: lookCoreSchema.nullable().default(null),
+  /** Which Look was active before, so the UI's dirty indicator agrees too. */
+  activeLookId: z.string().nullable().default(null),
 });
 export type TakeBaseline = z.infer<typeof takeBaselineSchema>;
 

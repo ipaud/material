@@ -5,6 +5,7 @@ import { setLayerOpacity, toggleLayerEnabled, updateLayer } from '@/projects/lay
 import { applyLook } from '@/projects/lookActions';
 import { freezeMapping, unfreezeMapping } from '@/modulation/modulationActions';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
+import { captureLookCore } from '@/performance/lookCore';
 import type { MorphCurve } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
@@ -33,6 +34,20 @@ import { takeRecorder } from './recorder';
 
 function now(): number {
   return playback.getTime();
+}
+
+/**
+ * Snapshot the creative state a Look recall is about to overwrite.
+ *
+ * Called before every gesture that can replace it. The recorder keeps only
+ * the first, so this is idempotent and costs a `captureLookCore` on the few
+ * frames a Look actually changes.
+ */
+function markLookBaseline(): void {
+  if (!takeRecorder.recording) return;
+  const { project } = useProjectStore.getState();
+  const core = captureLookCore(project);
+  if (core) takeRecorder.captureLookBaseline(core, project.activeLookId);
 }
 
 // ---- Continuous ------------------------------------------------------------
@@ -94,6 +109,7 @@ export function performSelectedParam(paramId: string, value: ParamValue): void {
 // ---- Discrete --------------------------------------------------------------
 
 export function performLookRecall(lookId: string): void {
+  markLookBaseline();
   takeRecorder.event({ kind: 'look.recall', lookId, morph: null, on: null, layerId: null, origin: 'user' }, now());
   applyLook(lookId);
 }
@@ -104,6 +120,7 @@ export function performMorph(
   curve: MorphCurve,
   startQuantize: Parameters<typeof morphRuntime.start>[1]['startQuantize'],
 ): boolean {
+  markLookBaseline();
   // While a Take is recording it becomes this morph's record; writing a
   // morphEvent as well would hand the export two virtual morphs for one
   // gesture.
@@ -188,6 +205,7 @@ export function performTriggerAction(
 ): void {
   if (!takeRecorder.recording) return;
   const { project } = useProjectStore.getState();
+  if (action === 'applyLook' || action === 'morphToLook') markLookBaseline();
   const lookId =
     lookSlot === null ? null : (project.pinnedLooks.find((l) => l.slot === lookSlot)?.id ?? null);
   if (action === 'applyLook' && lookId) {

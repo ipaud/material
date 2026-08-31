@@ -1,4 +1,10 @@
-import type { PerformanceTake, TakeBaseline, TakeEvent, TakeLane } from '@shared/schemas/project';
+import type {
+  LookCore,
+  PerformanceTake,
+  TakeBaseline,
+  TakeEvent,
+  TakeLane,
+} from '@shared/schemas/project';
 import { simplifyLane } from './model';
 import { uid } from '@/utils/id';
 
@@ -56,7 +62,7 @@ class TakeRecorder {
   private order = 0;
   private lanes = new Map<string, LaneBuffer>();
   private events: TakeEvent[] = [];
-  private baseline: TakeBaseline = { lanes: {}, layerEnabled: {}, frozen: {} };
+  private baseline: TakeBaseline = { lanes: {}, layerEnabled: {}, frozen: {}, lookCore: null, activeLookId: null };
 
   get recording(): boolean {
     return this.state === 'recording';
@@ -103,6 +109,8 @@ class TakeRecorder {
       lanes: { ...baseline.lanes },
       layerEnabled: { ...baseline.layerEnabled },
       frozen: { ...baseline.frozen },
+      lookCore: baseline.lookCore,
+      activeLookId: baseline.activeLookId,
     };
   }
 
@@ -165,6 +173,18 @@ class TakeRecorder {
     }
     lane.samples.push({ t, v: value });
     lane.pending = null;
+  }
+
+  /**
+   * Snapshot the creative state a Look recall is about to replace.
+   *
+   * Lazy and once, exactly like a continuous lane's resting value: the state
+   * that matters is the one immediately before the first recall, and a Take
+   * that never recalls anything pays nothing.
+   */
+  captureLookBaseline(core: LookCore, activeLookId: string | null): void {
+    if (this.state !== 'recording' || this.baseline.lookCore !== null) return;
+    this.baseline = { ...this.baseline, lookCore: core, activeLookId };
   }
 
   /** A discrete gesture happened. */

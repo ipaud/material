@@ -280,6 +280,28 @@ describe('the vertical slice: record, replay, seek', () => {
     expect(useProjectStore.getState().project.layers[0]!.enabled).toBe(false);
   });
 
+  it('restores the creative state a Look recall overwrote', () => {
+    const take = recordSlice();
+    // The recall at 0.5s replaced params, modulations and triggers. Seeking
+    // back before it has to put them back — nothing else remembers.
+    expect(take.baseline.lookCore).not.toBeNull();
+    expect(take.baseline.activeLookId).toBeNull();
+    takePlayer.start(take, 5);
+    expect(useProjectStore.getState().project.activeLookId).toBe('look_a');
+    takePlayer.seek(0.1);
+    expect(useProjectStore.getState().project.activeLookId).toBeNull();
+    takePlayer.seek(5);
+    expect(useProjectStore.getState().project.activeLookId).toBe('look_a');
+  });
+
+  it('a Take that never recalls a Look carries no creative snapshot', () => {
+    takeRecorder.begin(0, captureBaseline());
+    clock = 1;
+    sweep(1, 0, 2, 60, (v) => performLayerOpacity(layerId(), v));
+    const take = takeRecorder.stop(4, 'T')!;
+    expect(take.baseline.lookCore).toBeNull();
+  });
+
   it('starting from the beginning restores the baseline', () => {
     const take = recordSlice();
     // Leave the composition in the state the Take ended in.
@@ -362,7 +384,7 @@ describe('anti-recursion is structural, not conditional', () => {
             origin: 'user',
           },
         ],
-        baseline: { lanes: {}, layerEnabled: {}, frozen: {} },
+        baseline: { lanes: {}, layerEnabled: {}, frozen: {}, lookCore: null, activeLookId: null },
       },
       0,
     );

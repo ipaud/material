@@ -208,6 +208,7 @@ export function trimTake(take: PerformanceTake, from: number, to: number): Perfo
     .map((e) => ({ ...e, t: Number((e.t - start).toFixed(6)) }));
 
   const baseline: TakeBaseline = {
+    ...take.baseline,
     lanes: { ...take.baseline.lanes },
     layerEnabled: { ...take.baseline.layerEnabled },
     frozen: { ...take.baseline.frozen },

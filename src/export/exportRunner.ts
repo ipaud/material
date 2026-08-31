@@ -297,6 +297,10 @@ export function createFrameEvaluator(
   const take = project.takes.find((t) => t.id === project.activeTakeId) ?? null;
   const takePerformer: TakePerformer = {
     restoreBaseline: (baseline) => {
+      // The export's working copy starts from the DOCUMENT, which after a live
+      // session is whatever the last Look left behind. A Take that recalls
+      // Looks knows what the performance actually started from.
+      if (baseline.lookCore) applyCoreToWorking(baseline.lookCore);
       for (const m of working.modulations) {
         const frozen = baseline.frozen[m.id];
         if (frozen !== undefined) m.frozenValue = frozen;

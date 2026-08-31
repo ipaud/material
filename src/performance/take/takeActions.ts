@@ -34,7 +34,9 @@ export function captureBaseline(project = useProjectStore.getState().project): T
   for (const layer of project.layers) layerEnabled[layer.id] = layer.enabled;
   const frozen: Record<string, number | null> = {};
   for (const m of project.modulations) frozen[m.id] = m.frozenValue;
-  return { lanes: {}, layerEnabled, frozen };
+  // lookCore is captured lazily, the first time the Take actually recalls a
+  // Look — a Take that never does should not carry a copy of the composition.
+  return { lanes: {}, layerEnabled, frozen, lookCore: null, activeLookId: null };
 }
 
 /** Loop state suspended for the duration of a recording — see beginRecording. */
@@ -143,8 +145,49 @@ export function playTake(takeId?: string): boolean {
   return true;
 }
 
+/**
+ * The performer pressed STOP.
+ *
+ * The composition stays where the Take left it (§117), which for the discrete
+ * side is automatic — a recalled Look and a muted layer are already in the
+ * document. The continuous side is not: lanes drive an overlay that never
+ * writes, so releasing it alone would snap every fader back to its stored
+ * value the instant you stopped.
+ *
+ * So a deliberate stop COMMITS the resolved values, as one undo entry. That is
+ * not playback dirtying the project — it is the performer saying "keep the
+ * faders here and let me take over", and taking over from a value that just
+ * jumped somewhere else is the thing that makes a Take unusable live. The
+ * internal release (`takePlayer.stop()`, used when another Take is selected or
+ * a recording begins) commits nothing.
+ */
 export function stopTake(): void {
+  const resolved = takePlayer.resolvedAt(playback.getTime());
   takePlayer.stop();
+  if (!resolved) return;
+  if (resolved.opacity.size === 0 && resolved.macros.size === 0 && resolved.params.size === 0) {
+    return;
+  }
+  useProjectStore.getState().apply((p) => ({
+    ...p,
+    layers: p.layers.map((l) => {
+      const opacity = resolved.opacity.get(l.id);
+      const params = resolved.params.get(l.id);
+      if (opacity === undefined && !params) return l;
+      return {
+        ...l,
+        opacity: opacity ?? l.opacity,
+        technique:
+          params && l.technique
+            ? { ...l.technique, params: { ...l.technique.params, ...params } }
+            : l.technique,
+      };
+    }),
+    macros: p.macros.map((m) => {
+      const v = resolved.macros.get(m.id);
+      return v === undefined ? m : { ...m, value: v };
+    }),
+  }));
 }
 
 export function toggleTakePlayback(): void {

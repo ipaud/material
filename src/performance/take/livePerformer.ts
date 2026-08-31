@@ -4,6 +4,7 @@ import { updateLayer } from '@/projects/layerActions';
 import { applyLook } from '@/projects/lookActions';
 import { freezeMapping, unfreezeMapping, updateMapping } from '@/modulation/modulationActions';
 import { morphRuntime } from '@/performance/morphRuntime';
+import { projectWithLookCore } from '@/performance/lookCore';
 import type { TakeMorphSpec, TakePerformer } from './evaluate';
 
 /**
@@ -27,6 +28,14 @@ function silently(fn: () => void): void {
 export const livePerformer: TakePerformer = {
   restoreBaseline(baseline: TakeBaseline): void {
     silently(() => {
+      // The creative state a recall replaced, put back first — otherwise a
+      // seek to before the Take's first Look recall leaves that Look on
+      // screen, because nothing else remembers what it overwrote.
+      if (baseline.lookCore) {
+        useProjectStore
+          .getState()
+          .apply((p) => projectWithLookCore(p, baseline.lookCore!, baseline.activeLookId));
+      }
       for (const [layerId, enabled] of Object.entries(baseline.layerEnabled)) {
         const layer = useProjectStore.getState().project.layers.find((l) => l.id === layerId);
         if (layer && layer.enabled !== enabled) updateLayer(layerId, { enabled });

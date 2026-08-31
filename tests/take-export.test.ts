@@ -25,7 +25,7 @@ function take(patch: Partial<PerformanceTake> = {}): PerformanceTake {
     durationSec: 20,
     lanes: [],
     events: [],
-    baseline: { lanes: {}, layerEnabled: {}, frozen: {} },
+    baseline: { lanes: {}, layerEnabled: {}, frozen: {}, lookCore: null, activeLookId: null },
     ...patch,
   };
 }
@@ -288,7 +288,7 @@ describe('macros and secondary layers', () => {
 describe('layer visibility is its own authority channel', () => {
   it('a layer.enable event is reported to the export loop', () => {
     const t = take({
-      baseline: { lanes: {}, layerEnabled: { [LAYER_B]: true }, frozen: {} },
+      baseline: { lanes: {}, layerEnabled: { [LAYER_B]: true }, frozen: {}, lookCore: null, activeLookId: null },
       events: [
         {
           id: 'e1',
