@@ -65,14 +65,14 @@ describe('v0.6E — the Output shows the composition, and still evaluates nothin
     // In an export and in the replica the value has already been resolved
     // elsewhere. Checking the live sink first made the Output ignore the
     // opacity it had just been sent.
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const fn = engine.slice(engine.indexOf('private effectiveOpacity('));
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const fn = host.slice(host.indexOf('private effectiveOpacityAt('));
     const body = fn.slice(0, 700);
-    expect(body.indexOf('authorityLayerOpacity')).toBeLessThan(body.indexOf('layerStateSink'));
+    expect(body.indexOf('authorityOpacity')).toBeLessThan(body.indexOf('opacitySink'));
     // The ordinary preview path reaches for them too — that is how the replica
     // renders, since it has no transform of its own.
-    const comp = engine.slice(engine.indexOf('private renderComposition('));
-    expect(comp.slice(0, 700)).toContain('override ?? this.authorityLayerParams');
+    const comp = host.slice(host.indexOf('  composite('));
+    expect(comp.slice(0, 700)).toContain('override ?? this.authorityParams');
   });
 
   it('a replica that predates layers is left on its single-source path', () => {

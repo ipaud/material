@@ -136,9 +136,11 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
     const engine = read('src', 'rendering', 'RenderEngine.ts');
     expect(engine).toContain('setLayerParamTransform');
     expect(engine).toContain('setVisualDemandByLayer');
-    // A layer nobody routes from must release its reduction targets.
-    const apply = engine.slice(engine.indexOf('private applyBranchVisualDemand()'));
-    expect(apply.slice(0, 700)).toContain('EMPTY_VISUAL_DEMAND');
+    // MIGRATED v0.6.1: "a layer nobody routes from is told to analyse
+    // nothing" is now a behavioural test in tests/layer-host.test.ts.
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const apply = host.slice(host.indexOf('private applyVisualDemand()'));
+    expect(apply.slice(0, 700)).toContain('EMPTY_DEMAND');
     const bridge = read('src', 'rendering', 'engineBridge.ts');
     expect(bridge).toContain('modulationRuntime.transformFor(layerId, base, t)');
     expect(bridge).toContain('modulationRuntime.setLayerVisualStats(layerId, stats');
@@ -190,9 +192,12 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
     // skipped the feedback preroll while still setting `prerolled`, so the
     // first real frame declared itself not-first and the surface was never
     // reset: every export inherited the previous one's history.
+    // MIGRATED v0.6.1: covered behaviourally by tests/layer-host.test.ts
+    // "anyLayerUsesFeedback is true for a NON-selected layer". The engine must
+    // route the question to the set rather than answer it itself.
     const engine = read('src', 'rendering', 'RenderEngine.ts');
     const getter = engine.slice(engine.indexOf('get isFeedbackTechnique()'));
-    expect(getter.slice(0, 400)).toContain('this.branches.some((b) => b.engine.isFeedbackTechnique)');
+    expect(getter.slice(0, 400)).toContain('this.layerHost.anyLayerUsesFeedback()');
   });
 
   it('the Output still receives resolved values and no signals', () => {

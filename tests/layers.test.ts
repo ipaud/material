@@ -231,13 +231,16 @@ describe('structural — layers reuse the branch, they do not fork it (§7)', ()
   });
 
   it('branch identity is the layer ID, so reordering rebuilds nothing', () => {
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const sync = engine.slice(engine.indexOf('syncLayers(states'));
-    expect(sync).toContain('this.branches.find((b) => b.id === state.id)');
-    // Reuse is decided by id; the only index computed is which layer is
-    // SELECTED, which is editing focus and changes no runtime.
+    // MIGRATED v0.6.1: the behaviour is asserted for real in
+    // tests/layer-host.test.ts ("keys runtimes by layer id, so reordering
+    // rebuilds nothing"). What remains here is the structural half — reuse is
+    // decided by id, and the only index computed is which layer is SELECTED,
+    // which is editing focus and changes no runtime.
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const sync = host.slice(host.indexOf('sync(states: readonly LayerRenderState[])'));
+    expect(sync.slice(0, 1400)).toContain('this.slots.find((s) => s.id === state.id)');
     expect(sync.slice(0, 1400)).not.toContain('states[');
-    expect(sync.slice(0, 1400)).not.toContain('this.branches[i]');
+    expect(sync.slice(0, 1400)).not.toContain('this.slots[i]');
   });
 
   it('the compositor holds exactly two accumulators, whatever the layer count', () => {
@@ -300,15 +303,18 @@ describe('structural — layers reuse the branch, they do not fork it (§7)', ()
     // WebGLRenderer on the same canvas, and a branch still holding the old one
     // draws into framebuffers the host cannot read: every layer goes black,
     // deterministically and with no error. Caught only by looking at pixels.
+    // MIGRATED v0.6.1: adoption is LayerHost's explicit job and is tested
+    // behaviourally in tests/layer-host.test.ts. What stays here is that the
+    // engine actually asks for it on init and tears down on dispose.
     const src = read('src', 'rendering', 'RenderEngine.ts');
-    const init = src.slice(src.indexOf('init(canvas: HTMLCanvasElement)'), src.indexOf('// ---- v0.6'));
-    expect(init).toContain('const adopting = this.branches.length > 0');
-    expect(init).toContain('b.engine.initBranch(this.renderer)');
-    // Targets allocated by the previous renderer are unreadable by the new one.
-    expect(init).toContain('b.target = null');
-    // dispose() must take the branches down with it.
+    const init = src.slice(src.indexOf('init(canvas: HTMLCanvasElement)'));
+    expect(init.slice(0, 1600)).toContain('this.layerHost.adoptRenderer(this.renderer)');
     const dispose = src.slice(src.indexOf('  dispose(): void {'));
-    expect(dispose.slice(0, 900)).toContain('b.engine.disposeBranch()');
+    expect(dispose.slice(0, 900)).toContain('this.layerHost.disposeAll()');
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const adopt = host.slice(host.indexOf('adoptRenderer(renderer'));
+    // A target allocated by the previous renderer is unreadable by the new one.
+    expect(adopt.slice(0, 600)).toContain('slot.target = null');
   });
 
   it('bindTarget sets no viewport and no pixel ratio', () => {
@@ -338,22 +344,23 @@ describe('structural — layers reuse the branch, they do not fork it (§7)', ()
     // moved onto the branches, so the host's own flags read false forever and
     // it went back to sleep after each invalidation: 19 rendered frames per
     // second where rAF was running at 120, with nothing in the UI to show it.
+    // MIGRATED v0.6.1: the three flags are covered behaviourally in
+    // tests/layer-host.test.ts "anyLayerNeedsContinuousRender covers live,
+    // feedback and simulation". What stays here is that the LOOP asks.
     const src = read('src', 'rendering', 'RenderEngine.ts');
     const loop = src.slice(src.indexOf('private loop = ()'));
-    expect(loop).toContain('!this.branchesAnimating');
-    const gate = src.slice(src.indexOf('private get branchesAnimating()'));
-    for (const flag of ['liveSourceActive', 'feedbackActive', 'generatorActive']) {
-      expect(gate.slice(0, 400)).toContain(`e.${flag}`);
-    }
+    expect(loop.slice(0, 1200)).toContain('!this.layerHost.anyLayerNeedsContinuousRender()');
   });
 
   it('one opaque Normal layer bypasses the compositor in preview', () => {
     // The common case must not pay for a layer target, a background clear, a
     // blend pass and a blit. Export already had this path; preview did not.
     const src = read('src', 'rendering', 'RenderEngine.ts');
-    expect(src).toContain('renderLayerToCanvas');
-    const preview = src.slice(src.indexOf('if (this.branches.length > 0) {', src.indexOf('private renderFrame')));
-    expect(preview.slice(0, 1600)).toContain('this.singleOpaqueLayer()');
-    expect(preview.slice(0, 1600)).toContain('slot.engine.renderLayerToCanvas(renderer)');
+    const preview = src.slice(src.indexOf('if (!this.layerHost.isEmpty) {', src.indexOf('private renderFrame')));
+    expect(preview.slice(0, 1600)).toContain('this.layerHost.renderSingleOpaqueToCanvas(renderer)');
+    // And the rule itself, where it now lives.
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const fn = host.slice(host.indexOf('private singleOpaqueIndex()'));
+    expect(fn.slice(0, 600)).toContain("state.blendMode !== 'normal'");
   });
 });

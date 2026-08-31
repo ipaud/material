@@ -118,9 +118,9 @@ describe('v0.6C — enabled, opacity and solo are three different things', () =>
     // from nothing instead of resuming.
     const ls = [layer({ id: 'a', opacity: 0 })];
     expect(renderedLayers(ls).map((l) => l.id)).toEqual(['a']);
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const visible = engine.slice(engine.indexOf('private visibleLayers()'));
-    expect(visible.slice(0, 600)).toContain('Opacity 0 still RENDERS');
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const at = host.indexOf('private visibleIndices()');
+    expect(host.slice(at - 400, at + 400)).toContain('Opacity 0 still RENDERS');
   });
 
   it('solo overrides enabled without touching it', () => {
@@ -192,15 +192,17 @@ describe('v0.6C — blend', () => {
   it('the fast path checks RESOLVED opacity, not the stored value', () => {
     // A layer faded by a signal must go through the compositor even though the
     // project still says 1.
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const fn = engine.slice(engine.indexOf('private singleOpaqueLayer()'));
-    expect(fn.slice(0, 600)).toContain('this.effectiveOpacity(only) < 1');
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const fn = host.slice(host.indexOf('private singleOpaqueIndex()'));
+    expect(fn.slice(0, 600)).toContain('this.effectiveOpacityAt(only) < 1');
   });
 
   it('export resolves layer opacity from authority, never from the live sink', () => {
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const fn = engine.slice(engine.indexOf('private effectiveOpacity('));
-    expect(fn.slice(0, 500)).toContain('this.authorityLayerOpacity');
+    // MIGRATED v0.6.1: "an authority opacity wins over the live sink" is now
+    // a behavioural test in tests/layer-host.test.ts.
+    const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
+    const fn = host.slice(host.indexOf('private effectiveOpacityAt('));
+    expect(fn.slice(0, 500)).toContain('this.authorityOpacity');
     const runner = read('src', 'export', 'exportRunner.ts');
     expect(runner).toContain('engine.setAuthorityLayerOpacity(');
   });
