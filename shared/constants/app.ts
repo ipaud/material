@@ -4,8 +4,13 @@ export const PROJECT_EXTENSION = 'material';
  * v4 (v0.6): the single creative branch became `layers[]`. See migrateV3toV4 —
  * the change could not be additive, because v3 has exactly one place to say
  * what renders.
+ *
+ * v5 (v0.7): Takes. The shape IS additive and a v4 file needs nothing but the
+ * stamp — see migrateV4toV5. The version moved anyway so that a v0.7 project
+ * carrying a recorded performance is REFUSED by v0.6.1 instead of silently
+ * loading with the performance stripped out by the schema.
  */
-export const PROJECT_FORMAT_VERSION = 4;
+export const PROJECT_FORMAT_VERSION = 5;
 
 export const SUPPORTED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v'] as const;

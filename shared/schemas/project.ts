@@ -570,6 +570,134 @@ export const layerSchema = z.object({
 });
 export type Layer = z.infer<typeof layerSchema>;
 
+
+// ---------------------------------------------------------------------------
+// v0.7 — PERFORMANCE CAPTURE
+// ---------------------------------------------------------------------------
+
+/**
+ * A Take records what the performer PLAYED, not what the engine resolved.
+ *
+ * Two data shapes, because human control has two shapes:
+ *
+ *   CONTINUOUS  a hand on a fader  → a lane of (t, v) samples, interpolated
+ *   DISCRETE    a hand on a button → an event at an instant, stepped
+ *
+ * What is deliberately NOT here: Signals, Audio analysis, Pattern output,
+ * calibration, and every resolved parameter. Those are GENERATED control —
+ * they re-evaluate during replay and export, so a Take stays a performance
+ * rather than a 200-parameters-per-frame recording of one. See
+ * docs/AUTOMATION.md and the ADR in docs/DECISIONS.md.
+ */
+
+/**
+ * Scoped control target. Layered projects make an unscoped param id
+ * meaningless, and an index would break the moment a layer is reordered.
+ *
+ *   layer:<layerId>:opacity     0..1
+ *   macro:<macroId>             0..1
+ *   param:<layerId>:<paramId>   the parameter's own domain
+ *
+ * Parsed by `parseControlTarget` in src/performance/take/model.ts; the schema
+ * keeps it a string so an unknown target from a newer build loads as an
+ * unresolved lane instead of failing the whole project.
+ */
+export const takeLaneSchema = z.object({
+  target: z.string(),
+  /** Strictly increasing in `t`; `t` is seconds RELATIVE to the Take start. */
+  samples: z
+    .array(z.object({ t: z.number().nonnegative(), v: z.number() }))
+    .default([]),
+});
+export type TakeLane = z.infer<typeof takeLaneSchema>;
+
+export const takeEventKindSchema = z.enum([
+  'look.recall',
+  'morph.start',
+  'freeze.set',
+  'layer.enable',
+]);
+export type TakeEventKind = z.infer<typeof takeEventKindSchema>;
+
+/**
+ * Discrete performance intent.
+ *
+ * `order` breaks ties at an identical `t`: two events recorded in the same
+ * frame must replay in the order they were played, and JS sort stability is
+ * not a contract worth betting determinism on. It is monotonic within a Take,
+ * never an array index — editing must not renumber what came before.
+ *
+ * Freeze and layer-enable store an explicit BOOLEAN STATE, never a toggle:
+ * a toggle replayed from a different starting state inverts the whole
+ * performance from that point on.
+ */
+export const takeEventSchema = z.object({
+  id: z.string(),
+  /** Seconds relative to the Take start. */
+  t: z.number().nonnegative(),
+  order: z.number().int().nonnegative(),
+  kind: takeEventKindSchema,
+  /** look.recall / morph.start */
+  lookId: z.string().nullable().default(null),
+  /** morph.start — the invocation, not the interpolated result. */
+  morph: z
+    .object({
+      durationMode: z.enum(['seconds', 'beats', 'bars']),
+      durationValue: z.number().positive(),
+      curve: morphCurveSchema,
+    })
+    .nullable()
+    .default(null),
+  /** freeze.set / layer.enable */
+  on: z.boolean().nullable().default(null),
+  /** layer.enable */
+  layerId: z.string().nullable().default(null),
+  /** Diagnostics only: which hand played it. Never a replay input. */
+  origin: z.enum(['user', 'midi']).default('user'),
+});
+export type TakeEvent = z.infer<typeof takeEventSchema>;
+
+/**
+ * The state a Take starts from.
+ *
+ * Without it, replay means "whatever the project happens to be right now
+ * plus these gestures" — the same Take would render differently after any
+ * edit, and a subrange export starting mid-Take could not reconstruct the
+ * frames before it. Only what the Take actually touches is stored, so a
+ * baseline is a handful of numbers rather than a second copy of the project.
+ */
+export const takeBaselineSchema = z.object({
+  /** Control target → its value the instant before the Take first moved it. */
+  lanes: z.record(z.string(), z.number()).default({}),
+  /** Layer id → enabled state at Take start (only layers the Take toggles). */
+  layerEnabled: z.record(z.string(), z.boolean()).default({}),
+  /**
+   * Mapping id → frozen value at Take start (null = not frozen). Stored for
+   * EVERY mapping, not just frozen ones: restoring "unfrozen" is as much a
+   * restoration as restoring a held value, and the record is one number per
+   * mapping.
+   */
+  frozen: z.record(z.string(), z.number().nullable()).default({}),
+});
+export type TakeBaseline = z.infer<typeof takeBaselineSchema>;
+
+export const performanceTakeSchema = z.object({
+  id: z.string(),
+  name: z.string().max(40),
+  createdAt: z.string(),
+  /** Composition time the recording began — where the Take sits on the song. */
+  startSec: z.number().nonnegative().default(0),
+  /**
+   * Recorded length, from the actual STOP — not derived from the last event.
+   * A performer who holds still for the last eight bars recorded that.
+   */
+  durationSec: z.number().nonnegative().default(0),
+  lanes: z.array(takeLaneSchema).default([]),
+  events: z.array(takeEventSchema).default([]),
+  baseline: takeBaselineSchema,
+});
+export type PerformanceTake = z.infer<typeof performanceTakeSchema>;
+
 export const projectSchema = z.object({
   version: z.literal(PROJECT_FORMAT_VERSION),
   name: z.string(),
@@ -621,6 +749,16 @@ export const projectSchema = z.object({
     }),
   macros: z.array(macroSchema).default([]),
   performancePads: z.array(performancePadSchema).default([]),
+  /**
+   * v0.7 — recorded performances. Additive and defaulted, so the shape alone
+   * would have loaded inside v4; the version still moved to 5, because a v0.7
+   * project saved with Takes and reopened in v0.6.1 would have had them
+   * silently stripped by the schema. A refused version is a fixable message;
+   * a dropped performance is not.
+   */
+  takes: z.array(performanceTakeSchema).default([]),
+  /** Take the transport replays / the panel shows. Not playback position. */
+  activeTakeId: z.string().nullable().default(null),
   /** Global quantization for performance actions (look apply, morph, pads). */
   performanceQuantize: quantizeModeSchema.default('bar'),
   explore: z.object({
@@ -749,6 +887,8 @@ export function createEmptyProject(name = 'Untitled'): Project {
     patternSources: [],
     macros: [],
     performancePads: [],
+    takes: [],
+    activeTakeId: null,
     performanceQuantize: 'bar' as const,
     explore: { lockedParams: [], lastSeed: null },
   };
@@ -801,6 +941,19 @@ function migrateV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, version: 3 };
 }
 
+/**
+ * v4 → v5: Takes.
+ *
+ * A stamp, like v2 → v3, and for a mirror-image reason. `takes` and
+ * `activeTakeId` are defaulted, so a v4 document already satisfies the v5
+ * shape and nothing needs moving. The number exists to make the reverse
+ * direction fail loudly: without it, v0.6.1 would open a v0.7 project,
+ * strip the recorded performance as an unknown key, and save that back.
+ */
+function migrateV4toV5(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, version: 5 };
+}
+
 /** v1 → v2: musical-clock fields appear, everything else is unchanged. */
 function migrateV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
   const timeline = (raw.timeline ?? {}) as Record<string, unknown>;
@@ -833,6 +986,9 @@ export function parseProject(raw: unknown): Project {
   }
   if (candidate.version === 3) {
     candidate = migrateV3toV4(candidate);
+  }
+  if (candidate.version === 4) {
+    candidate = migrateV4toV5(candidate);
   }
   if (candidate.version !== PROJECT_FORMAT_VERSION) {
     throw new Error(`Unsupported project version: ${String(candidate.version)}`);
