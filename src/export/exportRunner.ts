@@ -1,4 +1,5 @@
 import { selectedLayerOf } from '@shared/schemas/project';
+import { mappingsByTarget, sourceLayerOf } from '@/modulation/layerRouting';
 import { engine } from '@/rendering/RenderEngine';
 import { playback } from '@/playback/PlaybackController';
 import { useProjectStore } from '@/state/projectStore';
@@ -350,6 +351,73 @@ export function createFrameEvaluator(
 }
 
 /**
+ * v0.6B — the layers the main evaluator does not cover.
+ *
+ * `createFrameEvaluator` resolves the PRIMARY layer, because that is where
+ * morphs, Look replay and triggers apply. Every other layer still has its own
+ * technique and its own mappings, and without this they would render with
+ * their stored base parameters: a cross-layer route would drive the picture in
+ * preview and vanish from the render, deterministically and silently.
+ *
+ * Each secondary layer gets its own SmoothingState, keyed by layer, so two
+ * layers driven by the same signal do not share a filter.
+ */
+export function createSecondaryLayerEvaluator(
+  project: Project,
+  primaryLayerId: string,
+  fps: number,
+  visualFor: (layerId: string) => Record<string, number>,
+) {
+  const analysis = useAudioStore.getState().analysis;
+  const byTarget = mappingsByTarget(project);
+  const entries = project.layers
+    .filter((l) => l.id !== primaryLayerId && l.technique?.enabled !== false && l.technique)
+    .map((l) => ({
+      layerId: l.id,
+      technique: l.technique!,
+      mappings: byTarget.get(l.id) ?? [],
+      signalSource: new Map(
+        (byTarget.get(l.id) ?? []).map((m) => [m.id, sourceLayerOf(project, m)]),
+      ),
+      smoothing: new SmoothingState(),
+    }));
+  const ctx: SourceContext = {
+    analysis,
+    durationSec: usePlaybackStore.getState().durationSec,
+    bpm: project.timeline.bpm,
+    beatOffsetSec: project.timeline.beatOffsetSec,
+    beatsPerBar: project.timeline.beatsPerBar,
+    patterns: resolvePatternHandles(project.patternSources),
+    projectSeed: project.explore.lastSeed ?? 1,
+  };
+  const dt = 1 / fps;
+  return (timeSec: number): Map<string, ParamRecord> => {
+    const out = new Map<string, ParamRecord>();
+    for (const e of entries) {
+      const definition = getTechnique(e.technique.techniqueId);
+      if (!definition) continue;
+      const visual = { ...visualFor(e.layerId) };
+      for (const from of new Set(e.signalSource.values())) {
+        if (from !== e.layerId) Object.assign(visual, visualFor(from));
+      }
+      const sources = evalSources(timeSec, { ...ctx, visual });
+      out.set(
+        e.layerId,
+        applyModulations(
+          applyMacros({ ...e.technique.params }, project.macros, definition),
+          e.mappings,
+          sources,
+          definition,
+          e.smoothing,
+          dt,
+        ),
+      );
+    }
+    return out;
+  };
+}
+
+/**
  * Export-side technique renderer selection (pre-v0.3 hotfix).
  *
  * The evaluator's working copy switches techniqueId when a morph crosses a
@@ -556,6 +624,8 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       project0.sources.find((s) => s.id === project0.composition.sourceId) ?? null,
     );
     let lastVisualSec = -1;
+    let lastLayerVisualSec = -1;
+    let layerVisualsLive = false;
     const advanceVisual = (timeSec: number): void => {
       if (exportDemand.size === 0) return;
       const stats = engine.visualSignalStats;
@@ -567,8 +637,47 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       publishVisualSignals(engine.visualSignalStats, exportDemand, (id, raw) =>
         exportCalibration.value(exportOrigin, id, raw),
       );
+    // v0.6B — each layer's own pixels, calibrated to that layer's own origin.
+    // Two layers on one source share an origin key, so they share one envelope
+    // and a Look stays playable across both.
+    const layerOrigins = new Map(
+      project0.layers.map((l) => [
+        l.id,
+        pixelOriginKey(project0.sources.find((s) => s.id === l.sourceId) ?? null),
+      ]),
+    );
+    const visualFor = (layerId: string): Record<string, number> => {
+      // Until the canonical walk starts feeding it, a layer's analysis still
+      // holds whatever the PREVIEW left there. Publishing that would make the
+      // smoothing walk depend on what the user happened to be looking at, so
+      // the honest report is absence — mappings are skipped, not driven to
+      // min, exactly as for a signal with nothing behind it.
+      if (!layerVisualsLive) return {};
+      const branch = engine.branchFor(layerId);
+      if (!branch) return visualSnapshot();
+      return publishVisualSignals(branch.visualSignalStats, exportDemand, (id, raw) =>
+        exportCalibration.value(layerOrigins.get(layerId) ?? exportOrigin, id, raw),
+      );
+    };
+    const advanceLayerVisuals = (timeSec: number): void => {
+      if (exportDemand.size === 0) return;
+      layerVisualsLive = true;
+      const dt = lastLayerVisualSec >= 0 ? Math.min(Math.abs(timeSec - lastLayerVisualSec), 1) : 1 / request.fps;
+      lastLayerVisualSec = timeSec;
+      for (const l of project0.layers) {
+        const branch = engine.branchFor(l.id);
+        if (!branch) continue;
+        exportCalibration.advance(layerOrigins.get(l.id) ?? null, branch.visualSignalStats, dt);
+      }
+    };
 
     const evaluate = createFrameEvaluator(0, request.fps, visualSnapshot);
+    const evaluateLayers = createSecondaryLayerEvaluator(
+      project0,
+      selectedLayerOf(project0).id,
+      request.fps,
+      visualFor,
+    );
     const startFrame = Math.round(request.startSec * request.fps);
     let primeTemporal = true;
     let prerolled = false;
@@ -601,7 +710,15 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       for (let f = 0; f < startFrame; f++) {
         if (useExportStore.getState().cancelRequested) break;
         const frame = evaluate(f); // advances smoothing + triggers
+        // The secondary layers own smoothing state too. Walking only the
+        // primary left every other layer entering the export with no history,
+        // so a subrange disagreed with a full export and two runs of the same
+        // subrange disagreed with each other — the exact CE1H failure, one
+        // layer along.
+        const prerollLayers = new Map(evaluateLayers(frame.timeSec));
         if (!walkGpu || f < walkFrom) continue;
+        prerollLayers.set(selectedLayerOf(project0).id, frame.params);
+        engine.setExportLayerParams(prerollLayers);
         rendererSync.sync(frame.techniqueId, frame.params);
         engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
         engine.prepareFlowForExport(
@@ -615,6 +732,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         if (f >= visualFrom) {
           engine.updateVisualStatsForExport(`export:${f}`);
           advanceVisual(frame.timeSec);
+          advanceLayerVisuals(frame.timeSec);
         }
         if (engine.isFeedbackTechnique) {
           engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
@@ -641,6 +759,9 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // pair both read source pixels, so the source must already exist at the
       // export resolution or a subrange's first frame would sample a
       // differently-sized source than the full export's same global frame.
+      const layerParams = new Map(evaluateLayers(timeSec));
+      layerParams.set(selectedLayerOf(project0).id, params);
+      engine.setExportLayerParams(layerParams);
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       // CE1H: optical flow is a source-derived pair and must advance per
@@ -659,6 +780,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // full export does. The value is consumed by the NEXT frame's evaluate().
       engine.updateVisualStatsForExport(`export:${startFrame + i}`);
       advanceVisual(timeSec);
+      advanceLayerVisuals(timeSec);
       // CE1G: render the A side into the snapshot with A's own renderer,
       // then hand the renderer back to B for the frame proper.
       if (transition) {

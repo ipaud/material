@@ -156,8 +156,10 @@ class CaptureManager {
     }
     if (this.runtime !== runtime) return; // stopped while connecting
 
-    engine.setSource(runtime.texture());
-    engine.setLiveSourceActive(true);
+    // v0.6B: one acquisition, every layer that shows it. The manager owns the
+    // device and nothing else — which layers display it is the bridge's
+    // business, and it is what makes ONE camera feed several layers.
+    engine.setLiveSource('capture', runtime.texture());
     void window.material.setLiveness('live-source', true);
     useCaptureStore.setState({
       status: 'live',
@@ -191,8 +193,7 @@ class CaptureManager {
     if (status === 'device-lost') {
       // Captured window closed / display unplugged: neutral source, both
       // gates revoked, one clean status. Never auto-capture something else.
-      engine.setSource(null);
-      engine.setLiveSourceActive(false);
+      engine.setLiveSource('capture', null);
       void window.material.setLiveness('live-source', false);
       void window.material.setCaptureIntent(null);
       useCaptureStore.setState({
@@ -212,8 +213,7 @@ class CaptureManager {
     const wasLive = this.runtime.status === 'live';
     this.runtime.dispose();
     this.runtime = null;
-    engine.setSource(null);
-    engine.setLiveSourceActive(false);
+    engine.setLiveSource('capture', null);
     if (wasLive) void window.material.setLiveness('live-source', false);
     void window.material.setCaptureIntent(null);
   }

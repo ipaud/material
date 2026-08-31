@@ -1,4 +1,5 @@
 import type { NumberParamDef } from '@/techniques/types';
+import { mappingsByTarget, sourceLayerOf } from '@/modulation/layerRouting';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
@@ -290,19 +291,20 @@ function syncFromProject(): void {
     if (!project.layers.some((l) => l.id === layerId)) disposeLayerBridge(layerId);
   }
 
-  // A live device is attached for the layer that owns it. Sharing one physical
-  // capture between layers is v0.6B's problem; here the rule is simply that
-  // the managers are told about at most one layer's camera and one's capture.
-  const cameraLayer = project.layers.find((l) => {
+  // v0.6B — a live device is acquired ONCE and shown by every layer pointed at
+  // it. The manager owns the device; the engine owns the distribution; this
+  // decides only which layers are showing which kind.
+  const liveKinds = new Map<string, 'camera' | 'capture'>();
+  for (const l of project.layers) {
     const src = project.sources.find((x) => x.id === l.sourceId);
-    return src?.kind === 'camera';
-  });
-  const captureLayer = project.layers.find((l) => {
-    const src = project.sources.find((x) => x.id === l.sourceId);
-    return src?.kind === 'screen' || src?.kind === 'window';
-  });
+    if (src?.kind === 'camera') liveKinds.set(l.id, 'camera');
+    else if (src?.kind === 'screen' || src?.kind === 'window') liveKinds.set(l.id, 'capture');
+  }
+  const cameraLayer = project.layers.find((l) => liveKinds.get(l.id) === 'camera');
+  const captureLayer = project.layers.find((l) => liveKinds.get(l.id) === 'capture');
   if (!cameraLayer) cameraManager.detach();
   if (!captureLayer) captureManager.detach();
+  engine.setLiveLayerKinds(liveKinds);
 
   for (const layer of project.layers) {
     syncLayerSource(project, layer, cameraLayer?.id ?? null, captureLayer?.id ?? null);
@@ -407,6 +409,21 @@ function syncFromUi(): void {
 function configureModulation(): void {
   const { project } = useProjectStore.getState();
   const instance = selectedLayerOf(project).technique;
+  // v0.6B: every layer gets its own slice — the mappings pointed at it, and
+  // for each of those, the layer whose signals it reads.
+  const byTarget = mappingsByTarget(project);
+  modulationRuntime.configureLayers(
+    project.layers.map((l) => {
+      const mappings = byTarget.get(l.id) ?? [];
+      return {
+        layerId: l.id,
+        techniqueId: l.technique?.enabled === false ? null : (l.technique?.techniqueId ?? null),
+        mappings,
+        signalSource: new Map(mappings.map((m) => [m.id, sourceLayerOf(project, m)])),
+      };
+    }),
+    selectedLayerOf(project).id,
+  );
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: useAudioStore.getState().analysis,
     durationSec: usePlaybackStore.getState().durationSec,
@@ -429,13 +446,19 @@ function configureModulation(): void {
   // Seed the engine immediately so a project change does not wait for the next
   // rendered frame to release or acquire analysis targets.
   engine.setVisualDemand(visualDemand(project.modulations, useScopeStore.getState().watching));
+  engine.setVisualDemandByLayer(modulationRuntime.demandByLayer());
+  // Calibration is scoped to the PIXEL ORIGIN, so two layers showing the same
+  // camera share one envelope and a Look stays playable across both.
+  const originCtx = {
+    activeCameraDeviceId: useCameraStore.getState().devices[0]?.deviceId ?? null,
+    chosenWindowId: useCaptureStore.getState().chosenWindowId,
+  };
+  for (const l of project.layers) {
+    const src = project.sources.find((x) => x.id === l.sourceId) ?? null;
+    modulationRuntime.setLayerVisualOrigin(l.id, pixelOriginKey(src, originCtx));
+  }
   const active = project.sources.find((s) => s.id === project.composition.sourceId) ?? null;
-  modulationRuntime.setVisualOrigin(
-    pixelOriginKey(active, {
-      activeCameraDeviceId: useCameraStore.getState().devices[0]?.deviceId ?? null,
-      chosenWindowId: useCaptureStore.getState().chosenWindowId,
-    }),
-  );
+  modulationRuntime.setVisualOrigin(pixelOriginKey(active, originCtx));
   modulationRuntime.configureMacros(project.macros);
   configureTriggers(project.triggers, {
     bpm: project.timeline.bpm,
@@ -478,6 +501,14 @@ export function startEngineBridge(): () => void {
     }
   });
   engine.setParamTransform((base, t) => modulationRuntime.transform(base, t));
+  // v0.6B: each branch resolves its OWN parameters, from the mappings pointed
+  // at it and the layer each of those reads its signals from.
+  engine.setLayerParamTransform(
+    (layerId) => (base, t) => modulationRuntime.transformFor(layerId, base, t),
+  );
+  engine.setLayerVisualSink((layerId, stats) =>
+    modulationRuntime.setLayerVisualStats(layerId, stats, performance.now() / 1000),
+  );
   // The engine owns the GPU reduction; the runtime owns calibration. This is
   // the only wire between them, so neither imports the other.
   // Calibration advances on WALL time, not transport time: the preview
@@ -487,7 +518,12 @@ export function startEngineBridge(): () => void {
   // elapsed and every visual signal stayed `warming` forever. Export does not
   // use this path — it owns a separate store stepped by frame time.
   engine.setVisualSink((stats) => modulationRuntime.setVisualStats(stats, performance.now() / 1000));
-  modulationRuntime.setDemandSink((ids) => engine.setVisualDemand(ids));
+  modulationRuntime.setDemandSink((ids) => {
+    engine.setVisualDemand(ids);
+    // The per-layer split has to follow: an overlay changes what the primary
+    // layer needs analysed, and the flat set alone no longer reaches the GPU.
+    engine.setVisualDemandByLayer(modulationRuntime.demandByLayer());
+  });
   syncFromProject();
   syncFromUi();
   return () => {

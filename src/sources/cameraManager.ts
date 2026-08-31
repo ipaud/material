@@ -104,8 +104,10 @@ class CameraManager {
     }
     if (this.runtime !== runtime) return; // stopped while connecting
 
-    engine.setSource(runtime.texture());
-    engine.setLiveSourceActive(true);
+    // v0.6B: one acquisition, every layer that shows it. The manager owns the
+    // device and nothing else — which layers display it is the bridge's
+    // business, and it is what makes ONE camera feed several layers.
+    engine.setLiveSource('camera', runtime.texture());
     void window.material.setLiveness('live-source', true);
     useCameraStore.setState({
       status: 'live',
@@ -162,8 +164,7 @@ class CameraManager {
     if (status === 'device-lost') {
       // Unplugged while live: neutral source, liveness released, one clean
       // status — the user decides when to reconnect.
-      engine.setSource(null);
-      engine.setLiveSourceActive(false);
+      engine.setLiveSource('camera', null);
       void window.material.setLiveness('live-source', false);
       void window.material.setCameraIntent(false);
       useCameraStore.setState({ status: 'device-lost', width: null, height: null, frameRate: null });
@@ -177,8 +178,7 @@ class CameraManager {
     const wasLive = this.runtime.status === 'live';
     this.runtime.dispose();
     this.runtime = null;
-    engine.setSource(null);
-    engine.setLiveSourceActive(false);
+    engine.setLiveSource('camera', null);
     if (wasLive) void window.material.setLiveness('live-source', false);
     void window.material.setCameraIntent(false);
     this.deviceListener?.();

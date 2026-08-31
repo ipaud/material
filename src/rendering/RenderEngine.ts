@@ -81,6 +81,22 @@ export class RenderEngine {
     this.invalidate();
   }
 
+  /**
+   * v0.6B — how a branch resolves ITS parameters. Held as a factory so a layer
+   * added later is wired the same way as one that existed at startup, without
+   * the bridge having to re-push after every add.
+   */
+  private layerParamTransform:
+    | ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord)
+    | null = null;
+
+  setLayerParamTransform(
+    make: ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord) | null,
+  ): void {
+    this.layerParamTransform = make;
+    for (const b of this.branches) b.engine.setParamTransform(make ? make(b.id) : null);
+  }
+
   private dirty = true;
   private liveSourceActive = false;
   private rafId = 0;
@@ -142,6 +158,42 @@ export class RenderEngine {
     return this.branches[this.selectedLayerIndex]?.engine ?? null;
   }
 
+  /**
+   * v0.6B — ONE acquisition, every layer that shows it.
+   *
+   * A camera or a screen capture is a physical device: it is acquired once, no
+   * matter how many layers display it. The manager that owns the device
+   * publishes its texture here; the bridge has already said which layers are
+   * showing that kind, and every one of them gets the same texture object. Two
+   * layers on one camera therefore cost one `getUserMedia`, one decode and —
+   * because they share a pixel origin — one calibration envelope.
+   */
+  private liveTextures = new Map<'camera' | 'capture', THREE.Texture | null>();
+  private liveLayerKinds = new Map<string, 'camera' | 'capture'>();
+
+  setLiveSource(kind: 'camera' | 'capture', texture: THREE.Texture | null): void {
+    this.liveTextures.set(kind, texture);
+    this.distributeLiveSources();
+  }
+
+  /** Which layers display a live device, decided by the bridge from project
+   * state. Replaces the map wholesale so a removed layer stops being fed. */
+  setLiveLayerKinds(kinds: ReadonlyMap<string, 'camera' | 'capture'>): void {
+    this.liveLayerKinds = new Map(kinds);
+    this.distributeLiveSources();
+  }
+
+  private distributeLiveSources(): void {
+    for (const b of this.branches) {
+      const kind = this.liveLayerKinds.get(b.id);
+      if (!kind) continue;
+      const texture = this.liveTextures.get(kind) ?? null;
+      b.engine.setSource(texture);
+      b.engine.setLiveSourceActive(texture !== null);
+    }
+    this.invalidate();
+  }
+
   /** Branch for a layer id, for the bridge to configure directly. */
   branchFor(layerId: string): RenderEngine | null {
     return this.branches.find((b) => b.id === layerId)?.engine ?? null;
@@ -187,6 +239,7 @@ export class RenderEngine {
       }
       const engine = new RenderEngine();
       if (renderer) engine.initBranch(renderer);
+      if (this.layerParamTransform) engine.setParamTransform(this.layerParamTransform(state.id));
       next.push({ id: state.id, engine, target: null });
     }
     for (const previous of this.branches) {
@@ -206,6 +259,7 @@ export class RenderEngine {
       if (this.exportMode) b.engine.beginExportMode();
     }
     this.applyBranchVisualDemand();
+    this.distributeLiveSources();
     this.invalidate();
   }
 
@@ -930,20 +984,52 @@ export class RenderEngine {
     this.invalidate();
   }
 
-  /** Point analysis at the selected branch and route its stats to our sink. */
+  /**
+   * v0.6B — each layer analyses only what something actually reads from it.
+   *
+   * Authority pushes a per-layer demand map: a layer nobody routes from
+   * analyses nothing and releases its reduction targets. Until a map arrives
+   * (or for a project with no routes at all) the selected layer carries the
+   * whole demand, which is what a visual signal meant before layers.
+   */
+  private layerVisualDemand: ReadonlyMap<string, ReadonlySet<VisualSignalId>> | null = null;
+
+  setVisualDemandByLayer(byLayer: ReadonlyMap<string, ReadonlySet<VisualSignalId>>): void {
+    this.layerVisualDemand = byLayer;
+    this.applyBranchVisualDemand();
+    this.invalidate();
+  }
+
   private applyBranchVisualDemand(): void {
     if (this.branches.length === 0) return;
+    const byLayer = this.layerVisualDemand;
     const active = this.activeBranch;
     for (const b of this.branches) {
-      const mine = b.engine === active;
-      b.engine.setVisualSink(mine ? (stats) => this.onBranchVisual(stats) : null);
-      b.engine.setVisualDemand(mine ? this.visualDemand : EMPTY_VISUAL_DEMAND);
+      const demand = byLayer
+        ? (byLayer.get(b.id) ?? EMPTY_VISUAL_DEMAND)
+        : b.engine === active
+          ? this.visualDemand
+          : EMPTY_VISUAL_DEMAND;
+      const id = b.id;
+      b.engine.setVisualSink(
+        demand.size > 0 ? (stats) => this.onBranchVisual(id, stats) : null,
+      );
+      b.engine.setVisualDemand(demand);
     }
   }
 
-  private onBranchVisual(stats: RawVisualStats | null): void {
-    this.latestVisual = stats;
-    this.visualSink?.(stats);
+  private onBranchVisual(layerId: string, stats: RawVisualStats | null): void {
+    if (this.activeBranch === this.branchFor(layerId)) this.latestVisual = stats;
+    this.layerVisualSink?.(layerId, stats);
+  }
+
+  /** Where per-layer analysis goes. Authority wires this from the bridge. */
+  private layerVisualSink: ((layerId: string, stats: RawVisualStats | null) => void) | null = null;
+
+  setLayerVisualSink(
+    fn: ((layerId: string, stats: RawVisualStats | null) => void) | null,
+  ): void {
+    this.layerVisualSink = fn;
   }
 
   get visualSignalStats(): RawVisualStats | null {
@@ -1046,6 +1132,11 @@ export class RenderEngine {
     );
   }
 
+  /** Temporal history anywhere in the stack, for the same reason. */
+  get isTemporalActiveAnywhere(): boolean {
+    return this.isTemporalActive || this.branches.some((b) => b.engine.isTemporalActive);
+  }
+
   /** CE1B: drop feedback state — source identity change, context restore,
    * Candidate release. Next frame primes from the current image. */
   resetFeedback(): void {
@@ -1093,8 +1184,20 @@ export class RenderEngine {
 
   /** True when the installed technique keeps a feedback surface — i.e. its
    * export state depends on every frame before it (CE1H §37). */
+  /**
+   * Does anything in this composition carry feedback history?
+   *
+   * The host holds no technique in layer mode, so asking only about itself
+   * answered "no" while a layer was running Feedback Zoom. The export then
+   * skipped the feedback preroll but still set `prerolled`, which made the
+   * first real frame declare itself NOT the first — so the surface was never
+   * reset and every export inherited the previous one's history. Two runs of
+   * the same export stopped matching, while the evaluator stayed identical to
+   * six decimals.
+   */
   get isFeedbackTechnique(): boolean {
-    return (this.techniqueRenderer as { feedback?: boolean } | null)?.feedback === true;
+    if ((this.techniqueRenderer as { feedback?: boolean } | null)?.feedback === true) return true;
+    return this.branches.some((b) => b.engine.isFeedbackTechnique);
   }
 
   get isLiveTemporalMode(): boolean {
@@ -1152,6 +1255,9 @@ export class RenderEngine {
   endExportMode(): void {
     for (const b of this.branches) b.engine.endExportMode();
     this.exportMode = false;
+    // Resolved export values must not survive into the preview, or a layer
+    // keeps rendering the last exported frame’s parameters.
+    this.exportLayerParams = undefined;
     this.temporal?.invalidate();
     this.invalidate();
   }
@@ -1468,7 +1574,15 @@ void main() { fragColor = texture(uTex, vUv); }`,
    */
   private exportLayerParams: ReadonlyMap<string, ParamRecord> | undefined;
 
+  /** QA capture: every resolved per-layer set an export published, in order.
+   * Comparing two runs of the same export tells an evaluator divergence apart
+   * from a render divergence, which is otherwise guesswork. */
+  exportParamLog: Record<string, ParamRecord>[] = [];
+
   setExportLayerParams(params: ReadonlyMap<string, ParamRecord> | undefined): void {
+    if (params && this.exportParamLog.length < 4096) {
+      this.exportParamLog.push(Object.fromEntries([...params].map(([k, v]) => [k, { ...v }])));
+    }
     this.exportLayerParams = params;
   }
 
@@ -1515,9 +1629,13 @@ void main() { fragColor = texture(uTex, vUv); }`,
     if (this.techniqueRenderer) {
       this.techniqueRenderer.object3d.visible = showProcessed;
       if (showProcessed && this.materialState) {
+        // In export, resolved values come from authority and from nowhere
+        // else. Falling through to the live transform let a branch sync its
+        // scene from the PREVIEW runtime mid-render — which reads wall time —
+        // and two runs of the same export stopped matching.
         const params =
           paramsOverride ??
-          (this.paramTransform
+          (this.paramTransform && !this.exportMode
             ? this.paramTransform(this.techniqueParams, this.timeSec)
             : this.techniqueParams);
         // RuntimeBus seam (18A): the live pass publishes its evaluated frame.
@@ -1700,10 +1818,16 @@ void main() { fragColor = texture(uTex, vUv); }`,
           // which is the evaluator's resolved values. Route it to the layer it
           // belongs to, or modulation would silently vanish from renders of
           // every project written before v0.6.
+          // The export runner resolves the SECONDARY layers and hands them
+          // over as a map; the primary arrives as `paramsOverride`, because
+          // that is the one the morph, Look and trigger replay applies to.
+          // Both have to reach the branches: taking the map alone dropped the
+          // primary's modulation, and taking the override alone dropped every
+          // route into another layer.
           let byLayer = this.exportLayerParams;
-          if (!byLayer && paramsOverride) {
+          if (paramsOverride) {
             const id = this.branches[this.selectedLayerIndex]?.id ?? this.branches[0]?.id;
-            if (id) byLayer = new Map([[id, paramsOverride]]);
+            if (id) byLayer = new Map([...(byLayer ?? []), [id, paramsOverride]]);
           }
           renderer.setRenderTarget(target);
           const direct = !transition && this.renderDirectLayer(renderer, byLayer);

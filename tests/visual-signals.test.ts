@@ -373,7 +373,11 @@ describe('demand follows the OVERLAY, not just the project (§E, §125)', () => 
 
   it('the bridge forwards it and still owns scope demand', () => {
     const bridge = src('src', 'rendering', 'engineBridge.ts');
-    expect(bridge).toContain('modulationRuntime.setDemandSink((ids) => engine.setVisualDemand(ids))');
+    // Read the wire, not one formatting of it: v0.6B added the per-layer split
+    // alongside the flat set, so the callback is no longer a one-liner.
+    const sink = bridge.slice(bridge.indexOf('modulationRuntime.setDemandSink('));
+    expect(sink.slice(0, 400)).toContain('engine.setVisualDemand(ids)');
+    expect(sink.slice(0, 400)).toContain('engine.setVisualDemandByLayer(');
     expect(bridge).toContain('modulationRuntime.setScopeDemand(');
   });
 

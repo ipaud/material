@@ -142,7 +142,10 @@ describe('structural gates (§5, §16, §86-87)', () => {
     // Slice the DEFINITION, not a range between two arbitrary occurrences:
     // v0.6 added a call to setComposition() above this method, which silently
     // inverted the old index pair into an empty string.
-    const setSourceStart = engine.indexOf('setSource(texture');
+    // Anchor on the METHOD, not any call of it: v0.6B added
+    // b.engine.setSource(texture) above the definition and the bare substring
+    // started matching that instead.
+    const setSourceStart = engine.indexOf('setSource(texture: THREE.Texture | null)');
     const setSource = engine.slice(setSourceStart, setSourceStart + 900);
     expect(setSource.includes('resetFeedback()')).toBe(true);
     // The HANDLER, not the addEventListener call that mentions its name —
