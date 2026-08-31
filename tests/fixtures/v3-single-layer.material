@@ -1,0 +1,100 @@
+{
+  "version": 3,
+  "name": "Legacy",
+  "sources": [
+    {
+      "id": "g1",
+      "kind": "generator",
+      "generator": "waves",
+      "params": {
+        "frequency": 10,
+        "count": 3,
+        "speed": 1.2,
+        "spread": 0.5,
+        "contrast": 2
+      },
+      "seed": 5
+    }
+  ],
+  "composition": {
+    "sourceId": "g1",
+    "audioSourceId": null,
+    "width": 640,
+    "height": 360,
+    "background": "#000000"
+  },
+  "techniques": [
+    {
+      "id": "tech_1",
+      "techniqueId": "mosaic",
+      "enabled": true,
+      "params": {
+        "columns": 40,
+        "rows": 24,
+        "scale": 1.0,
+        "spacing": 0.1
+      }
+    }
+  ],
+  "material": {
+    "materialId": "square",
+    "colorMode": "source",
+    "params": {},
+    "assetPath": null
+  },
+  "modulations": [
+    {
+      "id": "m1",
+      "enabled": true,
+      "source": "image.luminance",
+      "target": "scale",
+      "amount": 1,
+      "min": 0,
+      "max": 1,
+      "invert": false,
+      "smoothing": 0,
+      "curve": "linear",
+      "frozenValue": null
+    }
+  ],
+  "timeline": {
+    "bpm": 120,
+    "beatOffsetSec": 0,
+    "beatsPerBar": 4,
+    "markers": [],
+    "inSec": 0,
+    "outSec": 10,
+    "loop": false
+  },
+  "explore": {
+    "lockedParams": [],
+    "lastSeed": 7
+  },
+  "pinnedLooks": [
+    {
+      "id": "look_old",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "label": "Old",
+      "note": "",
+      "slot": 1,
+      "seed": 7,
+      "thumbnail": null,
+      "techniques": [
+        {
+          "id": "t9",
+          "techniqueId": "echo",
+          "enabled": true,
+          "params": {}
+        }
+      ],
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      },
+      "modulations": [],
+      "triggers": []
+    }
+  ]
+}
