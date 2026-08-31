@@ -10,6 +10,8 @@ import { takePlayer } from '@/performance/take/player';
 import { takeRecorder } from '@/performance/take/recorder';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { resolveAgainstProject, resolveTakeAt } from '@/performance/take/evaluate';
+import { editTake, selectTake } from '@/performance/take/takeActions';
+import { deleteEvent } from '@/performance/take/edit';
 
 /**
  * v0.7 — THE flagship regression (§96, §159).
@@ -242,5 +244,83 @@ describe('the signature Take as an export program', () => {
     const evaluate = createFrameEvaluator(0, 30);
     for (let f = 0; f <= 12 * 30; f++) evaluate(f);
     expect(evaluate.layerEnabled().get('sig_l3')).toBe(false);
+  });
+});
+
+describe('persistence and project semantics', () => {
+  it('a recorded Take survives save, quit and reload byte-for-byte', () => {
+    // The full disk round trip: serialise the project as the app writes it,
+    // parse it as the app reads it, and compare the Take.
+    const project = load();
+    const onDisk = JSON.stringify({ ...project, takes: project.takes }, null, 2);
+    const reloaded = parseProject(JSON.parse(onDisk) as Record<string, unknown>);
+    expect(reloaded.takes[0]).toEqual(project.takes[0]);
+    expect(reloaded.activeTakeId).toBe(project.activeTakeId);
+  });
+
+  it('replays identically before and after a reload', () => {
+    const a = load().takes[0]!;
+    const b = parseProject(
+      JSON.parse(JSON.stringify(load())) as Record<string, unknown>,
+    ).takes[0]!;
+    for (const t of [0, 1.3, 4, 6.5, 8.25, 11.9]) {
+      const ra = resolveTakeAt(a, t);
+      const rb = resolveTakeAt(b, t);
+      expect([...rb.opacity]).toEqual([...ra.opacity]);
+      expect([...rb.macros]).toEqual([...ra.macros]);
+      expect([...rb.params]).toEqual([...ra.params]);
+    }
+  });
+
+  it('selecting a Take does not dirty the project; editing one does', () => {
+    const project = load();
+    useProjectStore.setState({ project: { ...project, activeTakeId: null }, dirty: false, past: [] });
+    selectTake(project.takes[0]!.id);
+    expect(useProjectStore.getState().project.activeTakeId).toBe(project.takes[0]!.id);
+    expect(useProjectStore.getState().dirty).toBe(false);
+
+    editTake(project.takes[0]!.id, (t) => deleteEvent(t, 'sig_e2'));
+    expect(useProjectStore.getState().dirty).toBe(true);
+    expect(useProjectStore.getState().past).toHaveLength(1);
+    expect(useProjectStore.getState().project.takes[0]!.events).toHaveLength(4);
+  });
+
+  it('an old project gains an empty Take list and nothing else', () => {
+    const v4 = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'tests/fixtures/v3-single-layer.material'), 'utf8'),
+    ) as Record<string, unknown>;
+    const parsed = parseProject(v4);
+    expect(parsed.takes).toEqual([]);
+    expect(parsed.activeTakeId).toBeNull();
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
+  });
+
+  it('the Output evaluates no Take', () => {
+    // Structural: Output stays passive. It receives resolved state over the
+    // channel and has no way to interpret a performance of its own.
+    for (const file of [
+      'src/output/outputBridge.ts',
+      'src/output-window/replica.ts',
+      'src/output-window/outputLayer.ts',
+      'shared/outputChannel.ts',
+    ]) {
+      expect(readFileSync(resolve(process.cwd(), file), 'utf8'), file).not.toMatch(
+        /performance\/take/,
+      );
+    }
+  });
+
+  it('recording adds nothing to the idle path', () => {
+    // Every capture entry point must return before doing work when the
+    // recorder is off, and the runtime must skip the Take substitution when
+    // nothing is playing. Structural, because the cost of getting this wrong
+    // is a per-frame allocation nobody would notice in a test.
+    const recorder = readFileSync(resolve(process.cwd(), 'src/performance/take/recorder.ts'), 'utf8');
+    expect(recorder).toMatch(/if \(this\.state !== 'recording'\) return;/);
+    const runtime = readFileSync(resolve(process.cwd(), 'src/modulation/runtime.ts'), 'utf8');
+    expect(runtime).toMatch(/const over = this\.takeState\?\.params\.get\(layerId\);\s*\n\s*if \(!over\) return base;/);
+    expect(runtime).toMatch(/if \(!over \|\| over\.size === 0\) return this\.macros;/);
+    const player = readFileSync(resolve(process.cwd(), 'src/performance/take/player.ts'), 'utf8');
+    expect(player).toMatch(/if \(!this\.playing \|\| !this\.take\) return;/);
   });
 });
