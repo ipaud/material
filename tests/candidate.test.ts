@@ -46,14 +46,12 @@ function perfProject(patch: Partial<Project> = {}): Project {
   const p = createEmptyProject('CandidateTest');
   return {
     ...p,
-    techniques: [
-      {
+    layers: [{ ...createEmptyProject().layers[0]!, technique: {
         id: 'tech-1',
         techniqueId: 'mosaic',
         enabled: true,
         params: { columns: 48, rows: 27, scale: 1, threshold: 0.1, depth: 100 },
-      },
-    ],
+      } }],
     modulations: [mod()],
     timeline: { ...p.timeline, bpm: 120 },
     ...patch,
@@ -435,7 +433,7 @@ describe('candidate exclusions (§19, §36)', () => {
     candidateRuntime.generate();
     candidateRuntime.setPreview(true);
     const evaluate = createFrameEvaluator(0, 24);
-    const documentScale = useProjectStore.getState().project.techniques[0]!.params.scale;
+    const documentScale = useProjectStore.getState().project.layers[0]!.technique!.params.scale;
     expect(evaluate(0).params.scale).toBe(documentScale);
     expect(evaluate(10).params.scale).toBe(documentScale);
     candidateRuntime.setPreview(false);

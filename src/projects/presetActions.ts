@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { reportError, useUiStore } from '@/state/uiStore';
 import { withTechniqueEnsured } from '@/projects/projectActions';
@@ -3542,23 +3543,30 @@ export function applyPreset(preset: Preset): void {
     const base = withTechniqueEnsured(p);
     return {
       ...base,
-      techniques: base.techniques.map((t, i) =>
-        i === 0
+      // v0.6: a preset applies to the SELECTED layer only. Applying it to
+      // every layer would make one click rewrite a whole composition.
+      layers: base.layers.map((l) =>
+        l.id === (base.selectedLayerId ?? base.layers[0]?.id)
           ? {
-              ...t,
-              techniqueId: preset.techniqueId,
-              // CE1A: presets apply over the technique's DEFAULTS, never over
-              // whatever params the previous state left behind — a curated
-              // preset must look the same from any starting point. (User
-              // presets are unaffected: they capture the full param record.)
-              params: {
-                ...(getTechnique(preset.techniqueId)
-                  ? defaultParams(getTechnique(preset.techniqueId)!)
-                  : t.params),
-                ...preset.params,
+              ...l,
+              technique: {
+                id: l.technique?.id ?? uid('tech'),
+                techniqueId: preset.techniqueId,
+                enabled: true,
+                // CE1A: presets apply over the technique's DEFAULTS, never over
+                // whatever params the previous state left behind — a curated
+                // preset must look the same from any starting point. (User
+                // presets are unaffected: they capture the full param record.)
+                params: {
+                  ...(getTechnique(preset.techniqueId)
+                    ? defaultParams(getTechnique(preset.techniqueId)!)
+                    : (l.technique?.params ?? {})),
+                  ...preset.params,
+                },
               },
+              material: preset.material,
             }
-          : t,
+          : l,
       ),
       material: preset.material,
       modulations: preset.modulations,
@@ -3569,7 +3577,7 @@ export function applyPreset(preset: Preset): void {
 
 export async function saveCurrentAsPreset(name: string): Promise<Preset | null> {
   const { project } = useProjectStore.getState();
-  const technique = project.techniques.find((t) => t.enabled);
+  const technique = selectedLayerOf(project).technique;
   if (!technique) {
     useUiStore.getState().pushToast('info', 'Nothing to save as a preset');
     return null;

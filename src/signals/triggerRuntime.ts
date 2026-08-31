@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { TriggerScheduler, type ActionTarget } from './scheduler';
 import type { TriggerContext } from './triggerSources';
 import type { TriggerMapping } from '@shared/schemas/project';
@@ -70,15 +71,23 @@ const liveTarget: ActionTarget = {
   },
   resetParam: (paramId) => {
     useProjectStore.getState().apply((p) => {
-      const active = p.techniques.find((t) => t.enabled);
+      const active = selectedLayerOf(p).technique;
       if (!active) return p;
       const definition = getTechnique(active.techniqueId);
       const def = definition ? allParams(definition).find((d) => d.id === paramId) : null;
       if (!def) return p;
       return {
         ...p,
-        techniques: p.techniques.map((t) =>
-          t.id === active.id ? { ...t, params: { ...t.params, [paramId]: def.default } } : t,
+        layers: p.layers.map((l) =>
+          l.technique && l.technique.id === active.id
+            ? {
+                ...l,
+                technique: {
+                  ...l.technique,
+                  params: { ...l.technique.params, [paramId]: def.default },
+                },
+              }
+            : l,
         ),
       };
     });

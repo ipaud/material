@@ -31,7 +31,13 @@ function project(patch: Partial<Project> = {}): Project {
   const p = createEmptyProject('Abuse');
   return {
     ...p,
-    techniques: [{ id: 't', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } }],
+    // v0.6: what renders lives on a layer.
+    layers: [
+      {
+        ...p.layers[0]!,
+        technique: { id: 't', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      },
+    ],
     timeline: { ...p.timeline, bpm: 120 },
     ...patch,
   };
@@ -56,7 +62,7 @@ describe('high-rate input', () => {
   test('a 5000-message CC storm applies without crashing', async () => {
     const fake = await boot(project({ midiMappings: [ccMapping({})] }));
     for (let i = 0; i < 5000; i++) fake.emitRaw('dev-1', [0xb0, 21, i % 128]);
-    const scale = useProjectStore.getState().project.techniques[0]!.params.scale;
+    const scale = useProjectStore.getState().project.layers[0]!.technique!.params.scale;
     expect(Number.isFinite(scale)).toBe(true);
     midiEngine.stop();
   });
@@ -93,7 +99,7 @@ describe('high-rate input', () => {
     for (let step = 0; step < 200; step++) {
       for (let i = 0; i < 8; i++) fake.emitRaw('dev-1', [0xb0, 20 + i, (step * 7 + i) % 128]);
     }
-    const params = useProjectStore.getState().project.techniques[0]!.params;
+    const params = useProjectStore.getState().project.layers[0]!.technique!.params;
     expect(Number.isFinite(params.scale as number)).toBe(true);
     expect(Number.isFinite(params.spacing as number)).toBe(true);
     midiEngine.stop();
@@ -134,14 +140,14 @@ describe('high-rate input', () => {
 describe('input during protected states', () => {
   test('CC during an export never reaches the document', async () => {
     const fake = await boot(project({ midiMappings: [ccMapping({})] }));
-    const before = useProjectStore.getState().project.techniques[0]!.params.scale;
+    const before = useProjectStore.getState().project.layers[0]!.technique!.params.scale;
     useExportStore.getState().begin(100);
     for (let i = 0; i < 500; i++) fake.emitRaw('dev-1', [0xb0, 21, i % 128]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(before);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(before);
     useExportStore.getState().finish('done');
     // And normal control resumes afterwards.
     fake.emitRaw('dev-1', [0xb0, 21, 127]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).not.toBe(before);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).not.toBe(before);
     midiEngine.stop();
   });
 
@@ -151,9 +157,9 @@ describe('input during protected states', () => {
       min: 0, max: 1, invert: false, smoothing: 0, curve: 'linear' as const, frozenValue: 0.6,
     };
     const fake = await boot(project({ modulations: [frozen], midiMappings: [ccMapping({})] }));
-    const before = useProjectStore.getState().project.techniques[0]!.params.scale;
+    const before = useProjectStore.getState().project.layers[0]!.technique!.params.scale;
     for (let i = 0; i < 200; i++) fake.emitRaw('dev-1', [0xb0, 21, i % 128]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(before);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(before);
     expect(useMidiStore.getState().status['mm-1']).toBe('frozen');
     midiEngine.stop();
   });

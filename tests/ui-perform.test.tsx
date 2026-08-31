@@ -149,7 +149,7 @@ describe('LooksStrip', () => {
       ...p,
       pinnedLooks: [look(1, 'CLEAN')],
       activeLookId: 'look_1',
-      techniques: [{ id: 'live', techniqueId: 'mosaic', enabled: true, params: { columns: 999 } }],
+      layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'live', techniqueId: 'mosaic', enabled: true, params: { columns: 999 } } }],
       explore: { lockedParams: [], lastSeed: 100 },
     }));
     render(<LooksStrip />);

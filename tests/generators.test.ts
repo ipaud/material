@@ -93,7 +93,8 @@ describe('source-parameter modulation namespace', () => {
 
 describe('schema: generator sources are additive inside v3', () => {
   it('does not bump the project format', () => {
-    expect(PROJECT_FORMAT_VERSION).toBe(3);
+    // Generators were additive inside v3; the v4 bump belongs to v0.6 layers.
+    expect(PROJECT_FORMAT_VERSION).toBe(4);
   });
 
   it('generator refs round-trip with params and seed', () => {
@@ -118,7 +119,7 @@ describe('schema: generator sources are additive inside v3', () => {
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
     const migrated = parseProject(v2);
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.sources.every(isFileSource)).toBe(true);
   });
 });

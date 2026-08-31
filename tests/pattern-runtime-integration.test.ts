@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { modulationRuntime } from '@/modulation/runtime';
 import { evalSources, type SourceContext } from '@/modulation/sources';
@@ -79,9 +80,7 @@ function baseProject(over: Partial<Project> = {}): Project {
   const p = createEmptyProject('p5-runtime');
   return {
     ...p,
-    techniques: [
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-    ],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...p.timeline, bpm: BPM },
     patternSources: [pattern()],
     modulations: [map('m-a', patternSourceKey('pat-a'), 'scale', 0.5)],
@@ -91,7 +90,7 @@ function baseProject(over: Partial<Project> = {}): Project {
 }
 
 function configureLive(project: Project): void {
-  const instance = project.techniques.find((t) => t.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: null,
     durationSec: 600,
@@ -112,10 +111,10 @@ function live(t: number): Record<string, unknown> {
   const overlayTechnique =
     candidateRuntime.resolveOverlay()?.techniqueId ??
     morphRuntime.resolveOverlay(t)?.techniqueId ??
-    project.techniques.find((tq) => tq.enabled)?.techniqueId ??
+    selectedLayerOf(project).technique?.techniqueId ??
     'mosaic';
   const definition = getTechnique(overlayTechnique)!;
-  const instance = project.techniques.find((tq) => tq.enabled);
+  const instance = selectedLayerOf(project).technique ?? undefined;
   return modulationRuntime.transform(
     { ...defaultParams(definition), ...(instance?.params ?? {}) },
     t,
@@ -189,7 +188,7 @@ describe('candidate audition', () => {
     const released = live(1.1);
     expect('strips' in released).toBe(false);
     expect(released.scale).not.toBe(defaultParams(mosaic).scale);
-    expect(project.techniques[0]!.techniqueId).toBe('mosaic');
+    expect(project.layers[0]!.technique!.techniqueId).toBe('mosaic');
   });
 });
 
@@ -257,7 +256,7 @@ describe('macro and MIDI coexistence', () => {
     // MIDI pickup writes technique params (base layer).
     useProjectStore.getState().apply((p) => ({
       ...p,
-      techniques: p.techniques.map((t) => ({ ...t, params: { ...t.params, scale: 0.4 } })),
+      layers: p.layers.map((l) => (l.technique ? { ...l, technique: { ...l.technique, params: { ...l.technique.params, scale: 0.4 } } } : l)),
     }));
     const fromMidi = live(0.6).scale as number;
     expect(fromMidi).toBeCloseTo(fromDefault - 0.6, 10); // base moved 1 → 0.4

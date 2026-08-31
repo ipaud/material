@@ -265,7 +265,9 @@ describe('structural — no feature had to learn about shaders (§67, §81)', ()
     const renderer = read('src', 'shaders', 'CustomShaderRenderer.ts');
     expect(renderer).toContain('if (this.compiledHash === this.shader.hash) return;');
     const bridge = read('src', 'rendering', 'engineBridge.ts');
-    // The renderer is rebuilt on technique IDENTITY change, never on params.
-    expect(bridge).toContain('if (techniqueId !== activeTechniqueId)');
+    // The renderer is rebuilt on technique IDENTITY change, never on params —
+    // per layer since v0.6, so the comparison is against that layer's own
+    // previous id rather than a module-wide one.
+    expect(bridge).toContain('if (techniqueId !== state.techniqueId)');
   });
 });

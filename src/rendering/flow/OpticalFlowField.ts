@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '../disposeScene';
 
 /**
@@ -219,7 +220,7 @@ export class OpticalFlowField {
       // No manual setViewport: setRenderTarget already applies the RT's
       // full viewport WITHOUT pixelRatio; setViewport would ×2 it and
       // confine every pass to the lower-left quadrant (the CE1D bug).
-      renderer.setRenderTarget(target);
+      bindTarget(renderer, target);
       renderer.setScissorTest(false);
       renderer.render(scene, this.camera);
       renderer.setRenderTarget(prev);
@@ -240,7 +241,7 @@ export class OpticalFlowField {
       draw(packedOld, this.lumaScene);
       const prev = renderer.getRenderTarget();
       for (const t of [this.rawFlow!, this.smoothFlow!]) {
-        renderer.setRenderTarget(t);
+        bindTarget(renderer, t);
         renderer.setClearColor(0x000000, 1);
         renderer.clear();
       }

@@ -241,7 +241,7 @@ describe('schema v3 — live sources', () => {
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
     const migrated = parseProject(v2);
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.patternSources).toHaveLength(3);
     expect(migrated.pinnedLooks).toHaveLength(1);
     expect(migrated.sources.every(isFileSource)).toBe(true);
@@ -249,7 +249,7 @@ describe('schema v3 — live sources', () => {
     const v1 = JSON.parse(JSON.stringify(createEmptyProject('v1'))) as Record<string, unknown>;
     v1.version = 1;
     v1.timeline = { inSec: null, outSec: null, loop: true, bpm: null, beatOffsetSec: 0 };
-    expect(parseProject(v1).version).toBe(3);
+    expect(parseProject(v1).version).toBe(4);
   });
 
   it('never persists runtime camera state', () => {

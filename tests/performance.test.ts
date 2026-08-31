@@ -33,7 +33,12 @@ function perfProject(patch: Partial<Project> = {}): Project {
   const p = createEmptyProject('PerfTest');
   return {
     ...p,
-    techniques: [{ id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } }],
+    layers: [
+      {
+        ...p.layers[0]!,
+        technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      },
+    ],
     timeline: { ...p.timeline, bpm: 120 },
     ...patch,
   };
@@ -153,7 +158,7 @@ describe('quantized performance actions', () => {
     useProjectStore.getState().loadProject('', perfProject({ pinnedLooks: [look], performanceQuantize: 'off' }));
     liveScheduler.reset(0.3);
     expect(applyLookQuantized(1)).toBe(true);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(0.5);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(0.5);
   });
 
   test('quantize BAR queues on the ONE scheduler; visible; executes at boundary', () => {

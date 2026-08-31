@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import type { LookCore, PinnedLook, Project } from '@shared/schemas/project';
 import { uid } from '@/utils/id';
 
@@ -9,14 +10,19 @@ import { uid } from '@/utils/id';
  */
 
 export function captureLookCore(project: Project): LookCore | null {
-  const active = project.techniques.find((t) => t.enabled);
+  // v0.6: a Look is the SELECTED LAYER's creative state. That preserves what a
+  // Look has always meant — one branch's technique, material, mappings and
+  // seed — while the composition around it stays where it is. Recalling a
+  // whole multi-layer composition is a different job; see docs/PERFORM.md.
+  const layer = selectedLayerOf(project);
+  const active = layer.technique;
   if (!active) return null;
   return {
     techniqueId: active.techniqueId,
     params: { ...active.params },
     material: {
-      ...project.material,
-      params: { ...project.material.params },
+      ...layer.material,
+      params: { ...layer.material.params },
     },
     modulations: project.modulations.map((m) => ({ ...m })),
     triggers: project.triggers.map((t) => ({ ...t })),
@@ -46,11 +52,23 @@ export function projectWithLookCore(
   core: LookCore,
   activeLookId: string | null,
 ): Project {
+  const target = selectedLayerOf(project);
   return {
     ...project,
-    techniques: [
-      { id: uid('tech'), techniqueId: core.techniqueId, enabled: true, params: { ...core.params } },
-    ],
+    layers: project.layers.map((l) =>
+      l.id === target.id
+        ? {
+            ...l,
+            technique: {
+              id: uid('tech'),
+              techniqueId: core.techniqueId,
+              enabled: true,
+              params: { ...core.params },
+            },
+            material: { ...core.material, params: { ...core.material.params } },
+          }
+        : l,
+    ),
     material: { ...core.material, params: { ...core.material.params } },
     modulations: core.modulations.map((m) => ({ ...m })),
     triggers: core.triggers.map((t) => ({ ...t })),

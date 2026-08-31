@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { MOD_SOURCES } from '@/modulation/sources';
@@ -67,7 +68,7 @@ function SourceMeter({ source }: { source: string }) {
 
 export function ModulationSection() {
   const mappings = useProjectStore((s) => s.project.modulations);
-  const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
+  const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const patternSources = useProjectStore((s) => s.project.patternSources);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -318,7 +319,7 @@ export function ModulationSection() {
  */
 function ValueBreakdown({ mapping }: { mapping: ModulationMapping }) {
   const ref = useRef<HTMLDivElement>(null);
-  const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
+  const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
 
   useEffect(() => {
     if (!technique) return;

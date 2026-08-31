@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -73,9 +74,7 @@ function projectWith(over: Partial<Project> = {}): Project {
   const p = createEmptyProject('p6');
   return {
     ...p,
-    techniques: [
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-    ],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...p.timeline, bpm: 96, beatOffsetSec: 0.375 },
     patternSources: [patternSource()],
     modulations: [mapping()],
@@ -87,7 +86,7 @@ function projectWith(over: Partial<Project> = {}): Project {
 /** Live final params — the production path (bridge configure + transform). */
 function live(t: number): Record<string, unknown> {
   const project = useProjectStore.getState().project;
-  const instance = project.techniques.find((tq) => tq.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: null,
     durationSec: 600,
@@ -133,9 +132,10 @@ describe('project format version', () => {
   it('pattern sources are an additive field — v3 exists for LIVE sources, not patterns', () => {
     // v3 was introduced by 18D for live source refs; patterns still never
     // forced a bump and still parse from v2 files via migration.
-    expect(PROJECT_FORMAT_VERSION).toBe(3);
+    // Patterns were additive inside v3. v4 is the layers change, not this one.
+    expect(PROJECT_FORMAT_VERSION).toBe(4);
     const parsed = parseProject(JSON.parse(JSON.stringify(projectWith())));
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
   });
 
   it('a v2 project written before patterns existed still opens', () => {
@@ -155,7 +155,7 @@ describe('project format version', () => {
     delete v1.macros;
     v1.timeline = { inSec: null, outSec: null, loop: true, bpm: null, beatOffsetSec: 0 };
     const parsed = parseProject(v1);
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.patternSources).toEqual([]);
     expect(parsed.timeline.beatsPerBar).toBe(4);
   });
@@ -549,7 +549,7 @@ function evalPatternValues(
   handles: ReturnType<typeof resolvePatternHandles>,
   t: number,
 ): Set<string> {
-  const instance = project.techniques.find((tq) => tq.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: null,
     durationSec: 600,

@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import { Viewport } from '@/viewport/Viewport';
@@ -20,7 +21,7 @@ interface Props {
  */
 export function ExploreWorkspace({ isDragOver }: Props) {
   const hasSystem = useProjectStore(
-    (s) => s.project.composition.sourceId !== null && s.project.techniques.some((t) => t.enabled),
+    (s) => selectedLayerOf(s.project).sourceId !== null && selectedLayerOf(s.project).technique !== null,
   );
 
   if (!hasSystem) {

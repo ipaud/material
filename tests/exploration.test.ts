@@ -125,8 +125,17 @@ describe('exploration', () => {
     let project = createEmptyProject();
     project = {
       ...project,
-      techniques: [
-        { id: 't1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaicDefinition) },
+      // v0.6: Explore mutates the SELECTED layer's technique.
+      layers: [
+        {
+          ...project.layers[0]!,
+          technique: {
+            id: 't1',
+            techniqueId: 'mosaic',
+            enabled: true,
+            params: defaultParams(mosaicDefinition),
+          },
+        },
       ],
       modulations: [mapping],
     };
@@ -137,7 +146,7 @@ describe('exploration', () => {
       parentSeed: null,
     };
     const next = applyVariationToProject(project, variation);
-    expect(next.techniques[0]?.params.columns).toBe(99);
+    expect(next.layers[0]?.technique?.params.columns).toBe(99);
     expect(next.modulations[0]?.amount).toBe(-0.5);
     expect(next.explore.lastSeed).toBe(777);
     // Source/target untouched.

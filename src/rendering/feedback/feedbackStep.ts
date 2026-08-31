@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '../disposeScene';
 import type { FeedbackSurface } from './FeedbackSurface';
 
@@ -237,7 +238,7 @@ export class FeedbackStep {
     // setRenderTarget applies the RT's full viewport WITHOUT pixelRatio; a
     // manual setViewport would ×ratio it and confine the pass to the
     // lower-left quadrant (the CE1D-2 root-cause bug).
-    renderer.setRenderTarget(surface.write);
+    bindTarget(renderer, surface.write);
     renderer.setScissorTest(false);
     renderer.render(this.scene, this.camera);
     renderer.setRenderTarget(prevTarget);

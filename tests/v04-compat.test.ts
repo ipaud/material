@@ -23,7 +23,7 @@ describe('project compatibility (§136)', () => {
     for (const f of files) {
       const parsed = parseProject(fixture(f));
       expect(parsed, `${f} failed to parse`).not.toBeNull();
-      expect(parsed!.version).toBe(3);
+      expect(parsed!.version).toBe(4);
     }
   });
 
@@ -52,7 +52,7 @@ describe('project compatibility (§136)', () => {
     // And the closed form, so this cannot drift silently.
     const shaped = 0.1 + (0.9 - 0.1) * 0.6;
     expect(a.scale).toBeCloseTo(1 + 0.7 * shaped * 3, 10);
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
   });
 
   it('a project carrying the new fields round-trips them', () => {

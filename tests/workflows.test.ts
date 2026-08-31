@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { listTechniques, getTechnique } from '@/techniques/registry';
 import { allParams, defaultParams } from '@/techniques/types';
@@ -23,7 +24,7 @@ function projectWith(techniqueId: string): Project {
   const def = getTechnique(techniqueId)!;
   return {
     ...p,
-    techniques: [{ id: 't1', techniqueId, enabled: true, params: defaultParams(def) }],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 't1', techniqueId, enabled: true, params: defaultParams(def) } }],
   };
 }
 
@@ -121,7 +122,7 @@ describe('Candidate never corrupts Current (§20-22)', () => {
     const candidate = candidateRuntime.generate();
     expect(candidate).not.toBeNull();
     candidateRuntime.apply();
-    const now = useProjectStore.getState().project.techniques[0];
+    const now = selectedLayerOf(useProjectStore.getState().project).technique;
     expect(now?.techniqueId).toBe('feedback-zoom');
   });
 
@@ -148,8 +149,8 @@ describe('Looks carry configuration only (§23)', () => {
       expect(json).not.toMatch(/texture|renderTarget|surface|stepIndex|atlas|webgl/i);
       expect(core.techniqueId).toBe(id);
       const restored = projectWithLookCore(project, core, null);
-      expect(restored.techniques[0]?.techniqueId).toBe(id);
-      expect(restored.techniques[0]?.params).toEqual(project.techniques[0]?.params);
+      expect(restored.layers[0]?.technique?.techniqueId).toBe(id);
+      expect(restored.layers[0]?.technique?.params).toEqual(project.layers[0]?.technique?.params);
     });
   }
 
@@ -164,7 +165,7 @@ describe('Looks carry configuration only (§23)', () => {
       slot: 1,
       seed: core.seed,
       thumbnail: null,
-      techniques: project.techniques,
+      techniques: selectedLayerOf(project).technique ? [selectedLayerOf(project).technique!] : [],
       material: core.material,
       modulations: core.modulations,
       triggers: core.triggers,
@@ -227,8 +228,8 @@ describe('source parameter hygiene (§15, §51)', () => {
     for (const id of FAMILIES) {
       const project = projectWith(id);
       const parsed = projectSchema.parse(JSON.parse(JSON.stringify(project)));
-      expect(parsed.techniques[0]?.techniqueId).toBe(id);
-      expect(parsed.techniques[0]?.params).toEqual(project.techniques[0]?.params);
+      expect(parsed.layers[0]?.technique?.techniqueId).toBe(id);
+      expect(parsed.layers[0]?.technique?.params).toEqual(project.layers[0]?.technique?.params);
     }
   });
 });

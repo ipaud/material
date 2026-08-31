@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '../disposeScene';
 
 /**
@@ -255,7 +256,7 @@ export class TransitionCompositor {
     }
     const prev = renderer.getRenderTarget();
     // No manual setViewport after setRenderTarget (CE1D-2 regression).
-    renderer.setRenderTarget(this.snapshot);
+    bindTarget(renderer, this.snapshot);
     renderer.setScissorTest(false);
     drawA();
     renderer.setRenderTarget(prev);

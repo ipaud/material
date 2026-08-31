@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { engine } from '@/rendering/RenderEngine';
 import { playback } from '@/playback/PlaybackController';
 import { useProjectStore } from '@/state/projectStore';
@@ -108,8 +109,8 @@ export function createFrameEvaluator(
     looks: PinnedLook[];
     lookIndex: number;
   } = {
-    techniqueId: project.techniques.find((t) => t.enabled)?.techniqueId ?? null,
-    params: { ...(project.techniques.find((t) => t.enabled)?.params ?? {}) },
+    techniqueId: selectedLayerOf(project).technique?.techniqueId ?? null,
+    params: { ...(selectedLayerOf(project).technique?.params ?? {}) },
     material: project.material,
     modulations: project.modulations.map((m) => ({ ...m })),
     triggers: project.triggers.map((t) => ({ ...t })),
@@ -500,7 +501,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
   playback.pause();
   engine.beginExportMode();
   const video = playback.currentVideo;
-  const liveInstance = project.techniques.find((t) => t.enabled) ?? null;
+  const liveInstance = selectedLayerOf(project).technique;
   const rendererSync = createExportRendererSync(engine, liveInstance?.techniqueId ?? null);
 
   store.begin(totalFrames);

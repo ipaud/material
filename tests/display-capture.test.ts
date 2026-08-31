@@ -199,7 +199,9 @@ describe('schema v3 — screen/window are additive variants', () => {
   };
 
   it('18E did NOT bump the format version', () => {
-    expect(PROJECT_FORMAT_VERSION).toBe(3);
+    // 18E was additive inside v3. v0.6 bumped to v4 for layers, which is a
+    // different reason — screen/window still add no version of their own.
+    expect(PROJECT_FORMAT_VERSION).toBe(4);
   });
 
   it('screen refs round-trip; displayId nullable', () => {
@@ -253,7 +255,7 @@ describe('schema v3 — screen/window are additive variants', () => {
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
     const migrated = parseProject(v2);
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.sources.every(isFileSource)).toBe(true);
   });
 });

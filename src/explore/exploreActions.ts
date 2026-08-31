@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { engine } from '@/rendering/RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useExploreStore } from '@/state/exploreStore';
@@ -47,7 +48,7 @@ export function toggleLock(lockId: string): void {
 
 function activeTechnique() {
   const { project } = useProjectStore.getState();
-  const instance = project.techniques.find((t) => t.enabled);
+  const instance = selectedLayerOf(project).technique;
   if (!instance) return null;
   const definition = getTechnique(instance.techniqueId);
   return definition ? { instance, definition } : null;
@@ -154,7 +155,7 @@ export function pinSelectedVariation(): void {
       slot: null,
       seed: variation.seed,
       thumbnail: null,
-      techniques: applied.techniques,
+      techniques: selectedLayerOf(applied).technique ? [selectedLayerOf(applied).technique!] : [],
       material: applied.material,
       modulations: applied.modulations,
       triggers: applied.triggers,

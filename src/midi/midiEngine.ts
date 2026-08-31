@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { create } from 'zustand';
 import { useProjectStore } from '@/state/projectStore';
 import { useExportStore } from '@/state/exportStore';
@@ -352,7 +353,7 @@ class MidiEngine {
 
   private handleCc(event: Extract<MidiEvent, { type: 'cc' }>): void {
     const { project } = useProjectStore.getState();
-    const technique = project.techniques.find((t) => t.enabled);
+    const technique = selectedLayerOf(project).technique ?? undefined;
     if (!technique) return;
     const definition = getTechnique(technique.techniqueId);
     if (!definition) return;
@@ -481,9 +482,11 @@ class MidiEngine {
     this.selfWrite = true;
     store.apply((p) => ({
       ...p,
-      techniques: p.techniques.map((t) =>
-        t.id === techniqueInstanceId ? { ...t, params: { ...t.params, [paramId]: value } } : t,
-      ),
+      layers: p.layers.map((l) =>
+        l.technique && l.technique.id === techniqueInstanceId
+          ? { ...l, technique: { ...l.technique, params: { ...l.technique.params, [paramId]: value } } }
+          : l,
+        ),
     }));
     this.selfWrite = false;
     this.armGestureCommit();
@@ -530,7 +533,7 @@ class MidiEngine {
    * matches the software value drop back to WAITING FOR PICKUP (§18).
    */
   private watchStore(): void {
-    let lastTechniques = useProjectStore.getState().project.techniques;
+    let lastTechniques = useProjectStore.getState().project.layers;
     let lastMacros = useProjectStore.getState().project.macros;
     let lastMappings = useProjectStore.getState().project.midiMappings;
     this.unsubscribeStore = useProjectStore.subscribe((state) => {
@@ -538,9 +541,9 @@ class MidiEngine {
         lastMappings = state.project.midiMappings;
         this.rebindAll();
       }
-      const techniquesChanged = state.project.techniques !== lastTechniques;
+      const techniquesChanged = state.project.layers !== lastTechniques;
       const macrosChanged = state.project.macros !== lastMacros;
-      lastTechniques = state.project.techniques;
+      lastTechniques = state.project.layers;
       lastMacros = state.project.macros;
       if (this.selfWrite || (!techniquesChanged && !macrosChanged)) return;
       this.reevaluatePickup();
@@ -549,7 +552,7 @@ class MidiEngine {
 
   private reevaluatePickup(): void {
     const { project } = useProjectStore.getState();
-    const technique = project.techniques.find((t) => t.enabled);
+    const technique = selectedLayerOf(project).technique ?? undefined;
     if (!technique) return;
     const definition = getTechnique(technique.techniqueId);
     if (!definition) return;

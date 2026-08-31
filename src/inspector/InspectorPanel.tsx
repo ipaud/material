@@ -1,5 +1,7 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useCallback, useEffect, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
+import { withSelectedTechnique, type TechniqueInstance } from '@shared/schemas/project';
 import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
@@ -68,7 +70,7 @@ function ShaderStatus({ techniqueId }: { techniqueId: string | null }): React.Re
 }
 
 export function InspectorPanel() {
-  const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
+  const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const material = useProjectStore((s) => s.project.material);
   const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
   const liveSource = useProjectStore((s) => {
@@ -83,14 +85,12 @@ export function InspectorPanel() {
   const setParam = useCallback(
     (paramId: string, value: ParamValue) => {
       apply((p) => {
-        const active = p.techniques.find((t) => t.enabled);
+        const active = selectedLayerOf(p).technique;
         if (!active) return p;
-        return {
-          ...p,
-          techniques: p.techniques.map((t) =>
-            t.id === active.id ? { ...t, params: { ...t.params, [paramId]: value } } : t,
-          ),
-        };
+        // v0.6: edits land on the SELECTED layer's technique.
+        return withSelectedTechnique(p, (t: TechniqueInstance | null) =>
+          t ? { ...t, params: { ...t.params, [paramId]: value } } : t,
+        );
       });
     },
     [apply],
@@ -160,19 +160,22 @@ export function InspectorPanel() {
                     onChange={(e) => {
                       const next = getTechnique(e.target.value);
                       if (!next) return;
-                      apply((p) => ({
-                        ...p,
-                        techniques: [
+                      apply((p) =>
+                        withSelectedTechnique(
                           {
+                            ...p,
+                            // Mappings target technique params; a switch
+                            // invalidates them.
+                            modulations: [],
+                          },
+                          () => ({
                             id: uid('tech'),
                             techniqueId: next.id,
                             enabled: true,
                             params: defaultParams(next),
-                          },
-                        ],
-                        // Mappings target technique params; a switch invalidates them.
-                        modulations: [],
-                      }));
+                          }),
+                        ),
+                      );
                     }}
                   >
                     {listTechniques().map((t) => (

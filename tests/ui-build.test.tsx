@@ -38,9 +38,11 @@ function withTechnique(techniqueId: string) {
   if (!definition) throw new Error(`missing technique ${techniqueId}`);
   return (p: ReturnType<typeof createEmptyProject>) => ({
     ...p,
-    techniques: [
-      { id: uid('tech'), techniqueId, enabled: true, params: defaultParams(definition) },
-    ],
+    layers: p.layers.map((l, i) =>
+      i === 0
+        ? { ...l, technique: { id: uid('tech'), techniqueId, enabled: true, params: defaultParams(definition) } }
+        : l,
+    ),
   });
 }
 
@@ -124,10 +126,11 @@ describe('SystemPath', () => {
       const withTech = withTechnique('mosaic')(withSource()(p));
       return {
         ...withTech,
-        techniques: withTech.techniques.map((t) => ({
-          ...t,
-          params: { ...t.params, tileMode: 'tile' },
-        })),
+        layers: withTech.layers.map((l) =>
+          l.technique
+            ? { ...l, technique: { ...l.technique, params: { ...l.technique.params, tileMode: 'tile' } } }
+            : l,
+        ),
       };
     });
     render(<SystemPath />);

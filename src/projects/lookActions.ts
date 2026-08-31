@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { isDarkThumbnail, renderThumbnail } from '@/performance/thumbnail';
 import { blockedByExport } from '@/export/exportGuard';
 import { useProjectStore } from '@/state/projectStore';
@@ -8,7 +9,7 @@ import type { PinnedLook, Project } from '@shared/schemas/project';
 
 /** Deterministic look thumbnail via the existing offscreen render path. */
 function renderLookThumbnail(project: Project): string | null {
-  return renderThumbnail(project, project.techniques.find((t) => t.enabled)?.params ?? {}).dataUrl;
+  return renderThumbnail(project, selectedLayerOf(project).technique?.params ?? {}).dataUrl;
 }
 
 /** Re-render a look's thumbnail from the CURRENT frame (§14). */
@@ -54,8 +55,9 @@ export function pinCurrentLook(): PinnedLook | null {
     slot,
     seed: core.seed,
     thumbnail: renderLookThumbnail(project),
-    techniques: project.techniques,
-    material: project.material,
+    // The Look records the selected layer's branch, matching captureLookCore.
+    techniques: selectedLayerOf(project).technique ? [selectedLayerOf(project).technique!] : [],
+    material: selectedLayerOf(project).material,
     modulations: project.modulations,
     triggers: project.triggers,
   };
@@ -115,8 +117,8 @@ export function updateLook(lookId: string): void {
       l.id === lookId
         ? {
             ...l,
-            techniques: p.techniques,
-            material: p.material,
+            techniques: selectedLayerOf(p).technique ? [selectedLayerOf(p).technique!] : [],
+            material: selectedLayerOf(p).material,
             modulations: p.modulations,
             triggers: p.triggers,
             seed: core.seed,

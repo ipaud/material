@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '@/rendering/disposeScene';
 import type { ParamRecord } from '@shared/schemas/project';
 import type { TechniqueContext, TechniqueRenderer } from '../types';
@@ -256,7 +257,7 @@ export class FeedbackRenderer implements TechniqueRenderer {
     const draw = (target: THREE.WebGLRenderTarget, _vw: number, _vh: number) => {
       const prev = renderer.getRenderTarget();
       // No setPixelRatio: render-target viewports are raw pixels in Three.
-      renderer.setRenderTarget(target); // full-RT viewport, no ratio (CE1D-2)
+      bindTarget(renderer, target);
       renderer.setScissorTest(false);
       renderer.render(this.bloomScene!, this.bloomCamera);
       renderer.setRenderTarget(prev);

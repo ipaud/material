@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { TemporalFrameProvider } from '@/rendering/temporal/TemporalFrameProvider';
 import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
@@ -122,7 +123,7 @@ export class TechniquePreviewRenderer {
         renderer: this.renderer,
       });
 
-      this.renderer.setRenderTarget(this.target);
+      bindTarget(this.renderer, this.target);
       this.renderer.setClearColor('#08090a', 1);
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);

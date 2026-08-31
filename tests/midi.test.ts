@@ -44,9 +44,14 @@ function baseProject(patch: Partial<Project> = {}): Project {
   const p = createEmptyProject('MidiTest');
   return {
     ...p,
-    techniques: [
-      // scale param on the mosaic technique: min 0.1 max 2 (real def).
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+    // v0.6: the technique lives on a LAYER. `techniques[]` still parses for
+    // pre-v0.6 Looks and presets, but nothing reads it to render.
+    layers: [
+      {
+        ...p.layers[0]!,
+        // scale param on the mosaic technique: min 0.1 max 2 (real def).
+        technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      },
     ],
     ...patch,
   };
@@ -171,13 +176,13 @@ describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
     // scale=1 in def range [min,max] — knob far below → no jump.
     fake.emitRaw('dev-1', [0xb0, 21, 10]);
     const p1 = useProjectStore.getState().project;
-    expect(p1.techniques[0]!.params.scale).toBe(1);
+    expect(p1.layers[0]!.technique!.params.scale).toBe(1);
     expect(midiEngine.getPickupState('mm-1')).toBe('waiting');
     // Sweep upward across the current normalized value → engages.
     for (let v = 20; v <= 127; v += 10) fake.emitRaw('dev-1', [0xb0, 21, v]);
     expect(midiEngine.getPickupState('mm-1')).toBe('live');
     const p2 = useProjectStore.getState().project;
-    expect(p2.techniques[0]!.params.scale).not.toBe(1);
+    expect(p2.layers[0]!.technique!.params.scale).not.toBe(1);
     midiEngine.stop();
   });
 
@@ -193,13 +198,13 @@ describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
   test('channel filter: wrong channel ignored; omni accepts all', async () => {
     const fake = await bootEngine(baseProject({ midiMappings: [ccMapping({ channel: 0, pickupMode: 'jump' })] }));
     fake.emitRaw('dev-1', [0xb1, 21, 127]); // channel 1
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(1);
     midiEngine.stop();
     const fake2 = await bootEngine(
       baseProject({ midiMappings: [ccMapping({ channel: null, pickupMode: 'jump' })] }),
     );
     fake2.emitRaw('dev-1', [0xb5, 21, 127]); // any channel
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).not.toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).not.toBe(1);
     midiEngine.stop();
   });
 
@@ -211,12 +216,12 @@ describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
     useProjectStore.getState().commitTransient();
     useProjectStore.getState().apply((p) => ({
       ...p,
-      techniques: [{ ...p.techniques[0]!, params: { scale: 0.2 } }],
+      layers: [{ ...p.layers[0]!, technique: { ...p.layers[0]!.technique!, params: { scale: 0.2 } } }],
     }));
     expect(midiEngine.getPickupState('mm-1')).toBe('waiting');
     // Knob must cross the NEW value before controlling again.
     fake.emitRaw('dev-1', [0xb0, 21, 120]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(0.2);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(0.2);
     midiEngine.stop();
   });
 
@@ -241,7 +246,7 @@ describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
       }),
     );
     fake.emitRaw('dev-1', [0xb0, 21, 127]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(1);
     expect(useMidiStore.getState().status['mm-1']).toBe('frozen');
     midiEngine.stop();
   });
@@ -251,7 +256,7 @@ describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
       baseProject({ midiMappings: [ccMapping({ enabled: false, pickupMode: 'jump' })] }),
     );
     fake.emitRaw('dev-1', [0xb0, 21, 127]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(1);
     midiEngine.stop();
   });
 
@@ -368,7 +373,7 @@ describe('engine: notes → trigger engine', () => {
       }),
     );
     fake.emitRaw('dev-1', [0x90, 37, 110]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(0.5);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(0.5);
     expect(useProjectStore.getState().project.activeLookId).toBe('look-a');
     midiEngine.stop();
   });
@@ -429,11 +434,11 @@ describe('engine: quantized MIDI note + morph interaction', () => {
     );
     // Pending — not applied yet; note the mapping is NOT in the configured
     // trigger list (regression: pending must carry the mapping object).
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(1);
     sched.advanceTo(1.9, [], ctx);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(1);
     sched.advanceTo(2.01, [], ctx);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(0.25);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(0.25);
     midiEngine.stop();
   });
 
@@ -464,12 +469,12 @@ describe('engine: quantized MIDI note + morph interaction', () => {
       0,
     );
     fake.emitRaw('dev-1', [0xb0, 21, 127]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(1);
     expect(useMidiStore.getState().status['mm-1']).toBe('morph');
     morphRuntime.abortSilently();
     // Morph gone → same knob movement applies again.
     fake.emitRaw('dev-1', [0xb0, 21, 127]);
-    expect(useProjectStore.getState().project.techniques[0]!.params.scale).not.toBe(1);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).not.toBe(1);
     midiEngine.stop();
   });
 });

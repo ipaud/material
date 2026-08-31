@@ -1,3 +1,4 @@
+import { withSelectedSource } from '@shared/schemas/project';
 import { LooksPanel } from './LooksPanel';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
@@ -57,13 +58,13 @@ export function LibraryPanel() {
         return { ...p, composition: { ...p.composition, audioSourceId: id } };
       }
       if (kind === 'generator') {
-        // A generator is just a source: point the composition at it.
-        return { ...p, composition: { ...p.composition, sourceId: id } };
+        // A generator is just a source: point the selected layer at it.
+        return withSelectedSource(p, id);
       }
       if (kind === 'camera' || kind === 'screen' || kind === 'window') {
-        // Selecting a live source only points the composition at it —
+        // Selecting a live source only points the selected layer at it —
         // capture starts exclusively from the explicit START action.
-        return { ...p, composition: { ...p.composition, sourceId: id } };
+        return withSelectedSource(p, id);
       }
       if (kind === 'svg' && source.kind === 'svg') {
         // SVGs are materials, not composition sources.
@@ -71,11 +72,11 @@ export function LibraryPanel() {
       }
       if ((kind === 'image' || kind === 'video') && isFileSource(source)) {
         const meta = source.metadata;
+        const withSource = withSelectedSource(p, id);
         return {
-          ...p,
+          ...withSource,
           composition: {
-            ...p.composition,
-            sourceId: id,
+            ...withSource.composition,
             width: meta?.width ?? p.composition.width,
             height: meta?.height ?? p.composition.height,
           },
@@ -98,11 +99,9 @@ export function LibraryPanel() {
       if (p.sources.some((s) => s.kind === 'camera')) return p;
       const id = uid('cam');
       // Same as file import: a first source must land on a working system.
-      return withTechniqueEnsured({
-        ...p,
-        sources: [...p.sources, { id, kind: 'camera' as const, deviceId: null }],
-        composition: { ...p.composition, sourceId: id },
-      });
+      return withTechniqueEnsured(
+        withSelectedSource({ ...p, sources: [...p.sources, { id, kind: 'camera' as const, deviceId: null }] }, id),
+      );
     });
   };
   const hasCamera = sources.some((s) => s.kind === 'camera');
@@ -112,14 +111,18 @@ export function LibraryPanel() {
   const addGenerator = () => {
     apply((p) => {
       const id = uid('gen');
-      return withTechniqueEnsured({
-        ...p,
-        sources: [
-          ...p.sources,
-          { id, kind: 'generator' as const, generator: 'noise', params: generatorDefaults('noise'), seed: 1 },
-        ],
-        composition: { ...p.composition, sourceId: id },
-      });
+      return withTechniqueEnsured(
+        withSelectedSource(
+          {
+            ...p,
+            sources: [
+              ...p.sources,
+              { id, kind: 'generator' as const, generator: 'noise', params: generatorDefaults('noise'), seed: 1 },
+            ],
+          },
+          id,
+        ),
+      );
     });
   };
 
@@ -131,11 +134,7 @@ export function LibraryPanel() {
         kind === 'screen'
           ? { id, kind: 'screen' as const, displayId: null }
           : { id, kind: 'window' as const, titleHint: null };
-      return withTechniqueEnsured({
-        ...p,
-        sources: [...p.sources, ref],
-        composition: { ...p.composition, sourceId: id },
-      });
+      return withTechniqueEnsured(withSelectedSource({ ...p, sources: [...p.sources, ref] }, id));
     });
   };
 

@@ -139,9 +139,15 @@ describe('structural gates (§5, §16, §86-87)', () => {
 
   it('reset matrix is wired: source change, context restore, candidate release', () => {
     const engine = code('src', 'rendering', 'RenderEngine.ts');
-    const setSource = engine.slice(engine.indexOf('setSource(texture'), engine.indexOf('setComposition('));
+    // Slice the DEFINITION, not a range between two arbitrary occurrences:
+    // v0.6 added a call to setComposition() above this method, which silently
+    // inverted the old index pair into an empty string.
+    const setSourceStart = engine.indexOf('setSource(texture');
+    const setSource = engine.slice(setSourceStart, setSourceStart + 900);
     expect(setSource.includes('resetFeedback()')).toBe(true);
-    const restored = engine.slice(engine.indexOf('onContextRestored'));
+    // The HANDLER, not the addEventListener call that mentions its name —
+    // v0.6 inserted code between the two and the old index found the wrong one.
+    const restored = engine.slice(engine.indexOf('private onContextRestored'));
     // CE1H §57: a restore must REALLOCATE, not just mark stale — every
     // target from the lost context is a dead GL handle.
     expect(restored.slice(0, 900).includes('resetFeedback()')).toBe(true);
@@ -182,8 +188,12 @@ describe('structural gates (§5, §16, §86-87)', () => {
     expect(engine.includes('feedbackPrepass?.(renderer, performance.now() / 1000)')).toBe(true);
     // feedbackActive is false in exportMode, and the loop gates on it.
     expect(engine.includes('!this.exportMode')).toBe(true);
-    expect(
-      engine.includes('!this.dirty && !this.liveSourceActive && !this.feedbackActive'),
-    ).toBe(true);
+    // Read the loop's gate rather than one formatted line of it: v0.6 added a
+    // fourth condition for the layers and rewrapped the expression.
+    const loop = engine.slice(engine.indexOf('private loop = ()'));
+    const gate = loop.slice(0, loop.indexOf('this.dirty = false'));
+    for (const flag of ['!this.dirty', '!this.liveSourceActive', '!this.feedbackActive']) {
+      expect(gate.includes(flag), `loop gates on ${flag}`).toBe(true);
+    }
   });
 });

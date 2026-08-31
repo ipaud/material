@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import React from 'react';
 import type * as THREE from 'three';
 import { TemporalFrameProvider } from './rendering/temporal/TemporalFrameProvider';
@@ -18,6 +19,9 @@ import { importMediaPaths, openProjectFromPath } from './projects/projectActions
 import { modulationRuntime } from './modulation/runtime';
 import { useScopeStore } from './signals/visual/scopeStore';
 import * as modulationActions from './modulation/modulationActions';
+import * as layerActions from './projects/layerActions';
+import { getTechnique, listTechniques } from './techniques/registry';
+import { GeneratorSource } from './sources/generators/GeneratorSource';
 import { playback } from './playback/PlaybackController';
 import { createFrameEvaluator, runAnimationExport } from './export/exportRunner';
 import { useExportStore } from './state/exportStore';
@@ -43,6 +47,7 @@ import * as simDiag from './rendering/simulation/simDiagnostics';
 import * as transDiag from './rendering/transition/transitionDiagnostics';
 import * as statsDiag from './rendering/analysis/statsDiagnostics';
 import * as shaderDiag from './shaders/shaderDiagnostics';
+import * as layerDiag from './rendering/layers/layerDiagnostics';
 import { loadBuiltinPacks } from './shaders/builtinPack';
 import * as packRegistry from './shaders/packRegistry';
 import { refreshInstalledPacks } from './shaders/packManager';
@@ -102,6 +107,16 @@ if (import.meta.env.DEV) {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
         return e.renderer ? shaderDiag.benchShaderCompile(e.renderer, packRegistry.allShaders()) : null;
       },
+      /** v0.6A: what each branch actually draws, and what the composite is.
+       * The companion to layerGoldens, which passes on empty layers. */
+      layerProbe(size?: number) {
+        return layerDiag.probeLayers(engine as never, size);
+      },
+      /** v0.6A: compositor goldens — order, opacity, blend math. */
+      layerGoldens() {
+        const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
+        return e.renderer ? layerDiag.runLayerGoldens(e.renderer) : null;
+      },
       /** CE1G: transition goldens (endpoints, coverage, determinism). */
       transitionGoldens() {
         const e = engine as unknown as { renderer: THREE.WebGLRenderer | null };
@@ -118,7 +133,7 @@ if (import.meta.env.DEV) {
           generator: { texture(): THREE.Texture | null } | null;
         };
         if (!e.renderer) return null;
-        const params = useProjectStore.getState().project.techniques[0]?.params ?? {};
+        const params = selectedLayerOf(useProjectStore.getState().project).technique?.params ?? {};
         const hash = (buf: Uint8Array) => {
           let x = 2166136261;
           for (let i = 0; i < buf.length; i += 13) x = Math.imul(x ^ buf[i]!, 16777619);
@@ -257,7 +272,7 @@ if (import.meta.env.DEV) {
           applyPreset(preset);
           // Let the bridge install the preset's technique renderer.
           await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          const params = useProjectStore.getState().project.techniques[0]?.params ?? {};
+          const params = selectedLayerOf(useProjectStore.getState().project).technique?.params ?? {};
           engine.beginExportMode();
           engine.setExportPreviousTime(Math.max(atSec - 1 / 12, 0));
           engine.prepareGeneratorForExport(atSec, cw, ch);
@@ -616,6 +631,9 @@ if (import.meta.env.DEV) {
       modulationRuntime,
       modulationActions,
       packRegistry,
+      techniqueRegistry: { getTechnique, listTechniques },
+      GeneratorSourceClass: GeneratorSource,
+      layerActions,
       scopeStore: useScopeStore,
       playback,
       createFrameEvaluator,

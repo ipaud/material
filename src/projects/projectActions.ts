@@ -5,18 +5,25 @@ import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
 import type { MediaMetadata } from '@shared/schemas/media';
 import { isFileSource, isLiveSource, type Project } from '@shared/schemas/project';
+import { selectedLayerOf, withSelectedSource, withSelectedTechnique } from '@shared/schemas/project';
 
 /** Ensure the project has an enabled technique chain (defaults to Mosaic). */
+/**
+ * v0.6: make sure the SELECTED LAYER has a technique. A layer without one
+ * renders its source untouched, which is a valid state — this exists for the
+ * paths that need something to apply a preset or a param edit to.
+ */
 export function withTechniqueEnsured(p: Project): Project {
-  if (p.techniques.length > 0) return p;
+  const layer = selectedLayerOf(p);
+  if (layer.technique) return p;
   const mosaic = getTechnique('mosaic');
   if (!mosaic) return p;
-  return {
-    ...p,
-    techniques: [
-      { id: uid('tech'), techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-    ],
-  };
+  return withSelectedTechnique(p, () => ({
+    id: uid('tech'),
+    techniqueId: 'mosaic',
+    enabled: true,
+    params: defaultParams(mosaic),
+  }));
 }
 
 export async function saveProject(forceDialog = false): Promise<void> {
@@ -108,20 +115,24 @@ export async function importMediaPaths(paths: string[]): Promise<void> {
       // Skip duplicates by path.
       if (p.sources.some((s) => isFileSource(s) && s.path === path)) return p;
       const sources = [...p.sources, { id: sourceId, kind: metadata.kind, path, metadata }];
-      let composition = p.composition;
-      // First visual source becomes the active composition source.
+      let next: Project = { ...p, sources };
+      // The first visual source lands on the selected layer, not just on the
+      // composition — a layer with no source of its own renders nothing.
       if (!p.composition.sourceId && (metadata.kind === 'image' || metadata.kind === 'video')) {
-        composition = {
-          ...composition,
-          sourceId,
-          width: metadata.width ?? composition.width,
-          height: metadata.height ?? composition.height,
+        next = withSelectedSource(next, sourceId);
+        next = {
+          ...next,
+          composition: {
+            ...next.composition,
+            width: metadata.width ?? next.composition.width,
+            height: metadata.height ?? next.composition.height,
+          },
         };
       }
       if (!p.composition.audioSourceId && metadata.kind === 'audio') {
-        composition = { ...composition, audioSourceId: sourceId };
+        next = { ...next, composition: { ...next.composition, audioSourceId: sourceId } };
       }
-      return withTechniqueEnsured({ ...p, sources, composition });
+      return withTechniqueEnsured(next);
     });
   }
 }

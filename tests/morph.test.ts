@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { describe, expect, test } from 'vitest';
 import { createEmptyProject } from '@shared/schemas/project';
 import type {
@@ -69,9 +70,7 @@ function projectWith(patch: Partial<Project>): Project {
   return {
     ...p,
     // createEmptyProject ships no technique; captureLookCore needs one enabled.
-    techniques: [
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1, columns: 32 } },
-    ],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1, columns: 32 } } }],
     ...patch,
   };
 }
@@ -108,16 +107,16 @@ describe('look core capture / apply', () => {
       seed: captured.seed,
       thumbnail: null,
       createdAt: new Date(0).toISOString(),
-      techniques: p.techniques,
+      techniques: selectedLayerOf(p).technique ? [selectedLayerOf(p).technique!] : [],
       material: p.material,
       modulations: p.modulations,
       triggers: p.triggers,
     };
     expect(isLookDirty(p, look)).toBe(false);
-    const tech = p.techniques[0]!;
+    const tech = selectedLayerOf(p).technique!;
     const changed: Project = {
       ...p,
-      techniques: [{ ...tech, params: { ...tech.params, columns: 99 } }],
+      layers: [{ ...p.layers[0]!, technique: { ...tech, params: { ...tech.params, columns: 99 } } }],
     };
     expect(isLookDirty(changed, look)).toBe(true);
   });
@@ -132,7 +131,7 @@ describe('look core capture / apply', () => {
       seed: 1,
       thumbnail: null,
       createdAt: new Date(0).toISOString(),
-      techniques: p.techniques,
+      techniques: selectedLayerOf(p).technique ? [selectedLayerOf(p).technique!] : [],
       material: p.material,
       modulations: [],
       triggers: [],

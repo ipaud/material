@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -371,9 +372,7 @@ function projectWith(over: Partial<Project> = {}): Project {
   const p = createEmptyProject('p7');
   return {
     ...p,
-    techniques: [
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-    ],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...p.timeline, bpm: 96, beatOffsetSec: 0.375 },
     patternSources: [patternSource()],
     modulations: [mapping()],
@@ -384,7 +383,7 @@ function projectWith(over: Partial<Project> = {}): Project {
 
 function live(t: number): Record<string, unknown> {
   const project = useProjectStore.getState().project;
-  const instance = project.techniques.find((tq) => tq.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: null,
     durationSec: 600,

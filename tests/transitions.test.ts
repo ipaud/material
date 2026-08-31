@@ -56,7 +56,7 @@ function project(): Project {
   const p = createEmptyProject('transitions');
   return {
     ...p,
-    techniques: [{ id: 't1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) }],
+    layers: [{ ...p.layers[0]!, technique: { id: 't1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...p.timeline, bpm: 120 },
     pinnedLooks: [look('same', 'mosaic', p), look('cross', 'echo', p)],
   };

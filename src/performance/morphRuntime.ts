@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { playback } from '@/playback/PlaybackController';
@@ -241,14 +242,19 @@ class MorphRuntime {
       const identity = side < 0 ? this.active.source : this.active.target;
       useProjectStore.getState().applySilent((proj) => ({
         ...proj,
-        techniques: [
-          {
-            id: proj.techniques[0]?.id ?? uid('tech'),
-            techniqueId: identity.techniqueId,
-            enabled: true,
-            params: proj.techniques[0]?.params ?? identity.params,
-          },
-        ],
+        layers: proj.layers.map((l) =>
+          l.id === selectedLayerOf(proj).id
+            ? {
+                ...l,
+                technique: {
+                  id: l.technique?.id ?? uid('tech'),
+                  techniqueId: identity.techniqueId,
+                  enabled: true,
+                  params: l.technique?.params ?? identity.params,
+                },
+              }
+            : l,
+        ),
         material: {
           ...identity.material,
           params: proj.material.params,

@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { midiEngine, useMidiStore, type MappingStatus } from '@/midi/midiEngine';
@@ -105,7 +106,7 @@ function mappingSourceLabel(m: MidiMapping): string {
 
 function mappingTargetLabel(m: MidiMapping): string {
   if (m.targetType === 'param') {
-    const technique = useProjectStore.getState().project.techniques.find((t) => t.enabled);
+    const technique = selectedLayerOf(useProjectStore.getState().project).technique;
     const definition = technique ? getTechnique(technique.techniqueId) : null;
     const def = definition ? allParams(definition).find((p) => p.id === m.targetParam) : null;
     return def?.label ?? m.targetParam ?? '?';

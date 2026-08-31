@@ -208,7 +208,6 @@ export async function installShaderPackFrom(sourceDir: string): Promise<ImportRe
     };
   }
 
-  const destination = path.join(packsRoot(), pack.id);
   // The pack id decides the folder, and the id is a validated slug — but
   // resolve and check anyway, because a directory name is a filesystem path
   // and this one is derived from a file we did not write.

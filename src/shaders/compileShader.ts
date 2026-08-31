@@ -1,5 +1,5 @@
 import type { ShaderParamDef } from '@shared/schemas/shaderPack';
-import { composeFragment, preludeLineCount, staticShaderIssues } from './contract';
+import { composeFragment, staticShaderIssues } from './contract';
 
 /**
  * v0.5A — compiling pack GLSL without letting a typo take the app down.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { GLSL_LUMINANCE } from '@/rendering/shaders/chunks';
 import { disposeSceneGeometry } from '@/rendering/disposeScene';
 import type { RawVisualStats } from '@/signals/visual/types';
@@ -301,7 +302,7 @@ export class ImageStatsReducer {
     const prev = renderer.getRenderTarget();
     // No setViewport after setRenderTarget — it multiplies by pixelRatio and
     // would confine the pass to a quadrant (the CE1D-2 trap).
-    renderer.setRenderTarget(target);
+    bindTarget(renderer, target);
     renderer.setScissorTest(false);
     renderer.render(scene, this.camera);
     renderer.setRenderTarget(prev);

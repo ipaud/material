@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -53,9 +54,7 @@ function loadProject(over: Partial<Project> = {}): Project {
   const base = createEmptyProject('P8');
   const project: Project = {
     ...base,
-    techniques: [
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-    ],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...base.timeline, bpm: 96 },
     explore: { lockedParams: [], lastSeed: 12345 },
     ...over,
@@ -72,7 +71,7 @@ const source = () => store().project.patternSources[0]!;
 /** Live resolved params through the real runtime (what FrameState carries). */
 function live(t: number): Record<string, unknown> {
   const project = store().project;
-  const instance = project.techniques.find((tq) => tq.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: null,
     durationSec: 600,

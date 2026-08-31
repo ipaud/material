@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '@/rendering/disposeScene';
 import type { ParamRecord } from '@shared/schemas/project';
 import type {
@@ -98,9 +99,10 @@ export class GeneratorSource implements SourceRuntime, TemporalSource {
   private renderer: THREE.WebGLRenderer | null = null;
   private lastParams: ParamRecord = {};
 
-  private ensure(renderer: THREE.WebGLRenderer, width: number, height: number): void {
+  /** @returns true when the target was (re)allocated and holds no pixels yet. */
+  private ensure(renderer: THREE.WebGLRenderer, width: number, height: number): boolean {
     this.renderer = renderer;
-    if (this.target && this.w === width && this.h === height && this.material) return;
+    if (this.target && this.w === width && this.h === height && this.material) return false;
     this.w = width;
     this.h = height;
     this.target?.dispose();
@@ -136,6 +138,7 @@ export class GeneratorSource implements SourceRuntime, TemporalSource {
     if (this.material) {
       this.material.uniforms.uAspect!.value = width / Math.max(height, 1);
     }
+    return true;
   }
 
   private ensureSim(params: ParamRecord): SimulationRunner {
@@ -210,12 +213,17 @@ void main() {
     width?: number,
     height?: number,
   ): void {
-    this.ensure(renderer, width ?? this.w, height ?? this.h);
+    // A reallocated target is EMPTY. The redraw cache is keyed on params and
+    // time, neither of which changes when only the size does, so without this
+    // the early-return below hands back a blank texture that nothing ever
+    // fills — the whole composition goes black and stays deterministic while
+    // doing it.
+    const reallocated = this.ensure(renderer, width ?? this.w, height ?? this.h);
     this.lastParams = params;
     const target = this.target;
     if (!target) return;
     const key = JSON.stringify(params);
-    if (!force && key === this.lastParamsKey && timeSec === this.lastRenderTime) return;
+    if (!force && !reallocated && key === this.lastParamsKey && timeSec === this.lastRenderTime) return;
     this.lastParamsKey = key;
     this.lastRenderTime = timeSec;
 
@@ -228,9 +236,7 @@ void main() {
         const u = this.material!.uniforms[`p${i}`];
         if (u) u.value = numOf(params[id], 0);
       });
-      // No setViewport after setRenderTarget (CE1D-2 regression).
-      renderer.setRenderTarget(target);
-      renderer.setScissorTest(false);
+      bindTarget(renderer, target);
       renderer.render(this.scene, this.camera);
     } else {
       const runner = this.ensureSim(params);
@@ -238,8 +244,7 @@ void main() {
       // Simulation generators keep CE1E semantics: canonical stepping.
       runner.advanceExact(renderer, Math.max(timeSec, 0));
       this.simView!.uniforms.uState!.value = runner.texture;
-      renderer.setRenderTarget(target);
-      renderer.setScissorTest(false);
+      bindTarget(renderer, target);
       renderer.render(this.simScene!, this.camera);
     }
     renderer.setRenderTarget(prev);

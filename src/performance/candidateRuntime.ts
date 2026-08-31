@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { create } from 'zustand';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
@@ -103,7 +104,9 @@ class CandidateRuntime {
   get blockedReason(): string | null {
     if (morphRuntime.current) return 'MUTATE unavailable during Morph';
     const { project } = useProjectStore.getState();
-    if (!project.techniques.some((t) => t.enabled)) return 'No technique to mutate';
+    // v0.6: MUTATE acts on the SELECTED layer, so that is the one that has to
+    // have something to mutate.
+    if (!selectedLayerOf(project).technique) return 'No technique to mutate';
     return null;
   }
 

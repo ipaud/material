@@ -111,7 +111,7 @@ function projectWith(
   const project = createEmptyProject('p4');
   return {
     ...project,
-    techniques: [{ id: 'tech_1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) }],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech_1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...project.timeline, bpm: 60 },
     patternSources: patterns,
     modulations: mappings,

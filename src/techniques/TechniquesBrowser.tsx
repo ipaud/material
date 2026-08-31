@@ -1,6 +1,8 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
+import { withSelectedTechnique } from '@shared/schemas/project';
 import { getTechnique } from './registry';
 import { defaultParams } from './types';
 import { PREVIEW_PARAMS, TechniquePreviewRenderer } from './preview/previewRenderer';
@@ -61,7 +63,7 @@ export function TechniquesBrowser() {
   const [filter, setFilter] = useState<(typeof CATEGORIES)[number]>('ALL');
   const [generating, setGenerating] = useState(true);
   const apply = useProjectStore((s) => s.apply);
-  const activeId = useProjectStore((s) => s.project.techniques.find((t) => t.enabled)?.techniqueId);
+  const activeId = useProjectStore((s) => selectedLayerOf(s.project).technique?.techniqueId);
   const closeTechniques = useUiStore((s) => s.toggleTechniques);
   const pushToast = useUiStore((s) => s.pushToast);
 
@@ -95,19 +97,21 @@ export function TechniquesBrowser() {
   const applyTechnique = (card: Card) => {
     const definition = getTechnique(card.techniqueId);
     if (!definition) return;
-    apply((p) => ({
-      ...p,
-      techniques: [
+    apply((p) =>
+      withSelectedTechnique(
         {
+          ...p,
+          // Mappings target technique params, so a technique swap invalidates them.
+          modulations: [],
+        },
+        () => ({
           id: uid('tech'),
           techniqueId: card.techniqueId,
           enabled: true,
           params: { ...defaultParams(definition), ...(PREVIEW_PARAMS[card.id] ?? {}) },
-        },
-      ],
-      // Mappings target technique params, so a technique swap invalidates them.
-      modulations: [],
-    }));
+        }),
+      ),
+    );
     closeTechniques();
     pushToast('info', `${card.name} applied`);
   };

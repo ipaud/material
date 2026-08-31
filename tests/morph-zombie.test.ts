@@ -15,7 +15,7 @@ function project(): Project {
     material: p.material, modulations: [], triggers: [],
   };
   return { ...p,
-    techniques: [{ id: 't1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) }],
+    layers: [{ ...p.layers[0]!, technique: { id: 't1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...p.timeline, bpm: 120 }, pinnedLooks: [look] };
 }
 beforeEach(() => { morphRuntime.abortSilently(); useProjectStore.setState({ project: project(), past: [], future: [] }); });

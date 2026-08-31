@@ -84,8 +84,8 @@ function v1Look(): Record<string, unknown> {
 describe('v1 → v2 migration', () => {
   test('a plain v1 project opens and keeps its visual state', () => {
     const migrated = parseProject(v1Project());
-    expect(migrated.version).toBe(3); // v1 → v2 → v3 (18D live sources)
-    expect(migrated.techniques[0]!.params).toEqual({ columns: 32, rows: 18, scale: 1.2 });
+    expect(migrated.version).toBe(4); // v1 → v2 → v3 (live sources) → v4 (layers)
+    expect(migrated.layers[0]!.technique!.params).toEqual({ columns: 32, rows: 18, scale: 1.2 });
     expect(migrated.material.materialId).toBe('square');
     expect(migrated.modulations[0]).toMatchObject({ source: 'bass', target: 'scale', amount: 0.6 });
     expect(migrated.composition.sourceId).toBe('src-1');
@@ -153,7 +153,7 @@ describe('v1 → v2 migration', () => {
         ],
       }),
     );
-    expect(migrated.techniques[0]!.params).toMatchObject({
+    expect(migrated.layers[0]!.technique!.params).toMatchObject({
       tileMode: 'tile',
       offsetMode: 'radial',
       maxOffsetSec: 1.5,
@@ -217,9 +217,7 @@ describe('v2 round-trip', () => {
   test('a full v0.2 project survives serialization unchanged', () => {
     const project = {
       ...createEmptyProject('Round Trip'),
-      techniques: [
-        { id: 't', techniqueId: 'mosaic', enabled: true, params: { columns: 20, scale: 1.4 } },
-      ],
+      layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 't', techniqueId: 'mosaic', enabled: true, params: { columns: 20, scale: 1.4 } } }],
       timeline: {
         ...createEmptyProject().timeline,
         bpm: 78.03,
@@ -289,7 +287,7 @@ describe('projects predating Creative Expansion (§77)', () => {
   test('a v3 project written before CE1G replays its morphs as Smooth', () => {
     // A recorded morph with no transition must not suddenly acquire a wipe.
     const parsed = parseProject(preExpansion());
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.morphEvents[0]!.transition.style).toBe('smooth');
     expect(parsed.morphEvents[0]!.transition.softness).toBe(0.15);
   });

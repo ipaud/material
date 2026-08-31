@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '../disposeScene';
 import {
   SimulationClock,
@@ -127,7 +128,7 @@ export class SimulationRunner {
     // CE1D-2 regression: no manual setViewport after setRenderTarget — the
     // RT's own viewport applies WITHOUT pixelRatio; setViewport would ×ratio
     // it and confine the pass to a quadrant.
-    renderer.setRenderTarget(this.surface.write);
+    bindTarget(renderer, this.surface.write);
     renderer.setScissorTest(false);
     renderer.render(scene, this.camera);
     renderer.setRenderTarget(prev);

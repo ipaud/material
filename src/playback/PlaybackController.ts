@@ -26,6 +26,11 @@ class PlaybackController {
     return audioEngine.isLoaded;
   }
 
+  /** v0.6: several layers may hold videos; only the first drives the clock. */
+  get hasVideo(): boolean {
+    return this.video !== null;
+  }
+
   attachVideo(video: HTMLVideoElement): void {
     this.video = video;
     video.loop = false; // looping handled by the controller

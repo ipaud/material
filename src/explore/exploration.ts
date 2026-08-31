@@ -1,3 +1,4 @@
+import { selectedLayerOf, withSelectedTechnique } from '@shared/schemas/project';
 import { mulberry32, deriveSeed } from '@/utils/prng';
 import { allParams, type NumberParamDef, type TechniqueDefinition } from '@/techniques/types';
 import type { ModulationMapping, ParamRecord, ParamValue, Project } from '@shared/schemas/project';
@@ -179,12 +180,14 @@ export function mutatePopulation(
 
 /** Merge a variation into the project (single undoable change). */
 export function applyVariationToProject(project: Project, variation: Variation): Project {
-  const active = project.techniques.find((t) => t.enabled);
+  // v0.6: Explore mutates the SELECTED layer. Mutating every layer at once
+  // would make one roll rewrite the whole composition, which is not an
+  // audition — it is a different project.
+  const active = selectedLayerOf(project).technique;
   if (!active) return project;
   return {
-    ...project,
-    techniques: project.techniques.map((t) =>
-      t.id === active.id ? { ...t, params: { ...t.params, ...variation.patch.params } } : t,
+    ...withSelectedTechnique(project, (t) =>
+      t ? { ...t, params: { ...t.params, ...variation.patch.params } } : null,
     ),
     modulations: project.modulations.map((m) => {
       const mod = variation.patch.modulations[m.id];

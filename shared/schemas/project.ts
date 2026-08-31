@@ -141,6 +141,21 @@ export const modulationMappingSchema = z.object({
    */
   inMin: z.number().optional(),
   inMax: z.number().optional(),
+  /**
+   * v0.6 — which LAYER this mapping drives. Absent means the layer that owns
+   * it, which is every mapping written before layers existed.
+   */
+  targetLayerId: z.string().optional(),
+  /**
+   * v0.6 — which layer's SIGNALS feed it. Absent means the target layer's own
+   * source, which is the intuitive default: `image.luminance` inside a layer
+   * means that layer's luminance.
+   *
+   * Set, it is a cross-layer route: one layer's motion driving another's
+   * parameter. Stored as a layer ID and never an index, so reordering the
+   * composition cannot silently repoint a route at a different layer.
+   */
+  sourceLayerId: z.string().optional(),
 });
 /**
  * The v0.4C fields are OPTIONAL rather than defaulted, so ABSENT and `'add'`
@@ -462,11 +477,64 @@ export const compositionSchema = z.object({
 });
 export type Composition = z.infer<typeof compositionSchema>;
 
+/**
+ * v0.6 — how many visual branches may be active at once.
+ *
+ * A cap, not a limitation waiting to be lifted. Four keeps the GPU budget
+ * predictable, the layer strip readable at a glance and the Output mirror
+ * honest; past that MATERIAL stops being an instrument you can play and starts
+ * being a compositor you operate. The number was chosen from measurement, not
+ * from what an array makes easy — see docs/LAYERS.md.
+ */
+export const MAX_LAYERS = 4;
+
+export const blendModeSchema = z.enum([
+  'normal',
+  'add',
+  'screen',
+  'multiply',
+  'difference',
+  'lighten',
+  'darken',
+]);
+export type BlendMode = z.infer<typeof blendModeSchema>;
+
+/**
+ * One complete visual branch: a source, a technique, and how it sits in the
+ * composition. Everything here is CONFIG — no runtime, no textures, no GPU
+ * state ever reaches a project file.
+ */
+export const layerSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().max(48).default(''),
+  enabled: z.boolean().default(true),
+  opacity: z.number().min(0).max(1).default(1),
+  blendMode: blendModeSchema.default('normal'),
+  /** Which of `sources[]` this layer draws from. */
+  sourceId: z.string().nullable().default(null),
+  /** Exactly one technique instance per layer — a layer is a branch, not a
+   * stack. Effect chains inside a layer are deliberately out of scope. */
+  technique: techniqueInstanceSchema.nullable().default(null),
+  material: materialStateSchema,
+});
+export type Layer = z.infer<typeof layerSchema>;
+
 export const projectSchema = z.object({
   version: z.literal(PROJECT_FORMAT_VERSION),
   name: z.string(),
   sources: z.array(sourceRefSchema),
   composition: compositionSchema,
+  /**
+   * v0.6 — the composition, bottom first. `layers[0]` is the background and
+   * each later layer composites over the result so far.
+   *
+   * v3's single `techniques[]` / `material` / `composition.sourceId` became
+   * exactly one layer during migration, which is why a v3 project renders
+   * identically after loading.
+   */
+  layers: z.array(layerSchema).min(1).max(MAX_LAYERS),
+  /** The layer the inspector, Explore and presets act on. */
+  selectedLayerId: z.string().nullable().default(null),
   techniques: z.array(techniqueInstanceSchema),
   material: materialStateSchema,
   modulations: z.array(modulationMappingSchema),
@@ -511,10 +579,75 @@ export const projectSchema = z.object({
 });
 export type Project = z.infer<typeof projectSchema>;
 
+/** The id every migrated v3 project's single layer receives. Deterministic on
+ * purpose: two machines migrating the same file must agree, or a route stored
+ * against that id would resolve differently. */
+export const MIGRATED_LAYER_ID = 'layer_1';
+
+/**
+ * The technique of the layer being edited.
+ *
+ * v0.6 made `layers[].technique` the ONLY source of truth for what renders.
+ * `techniques[]` still exists on the schema because Looks, presets and morph
+ * snapshots written before v0.6 carry that shape and must keep parsing — but
+ * nothing reads it to render, and nothing should write it expecting an effect.
+ */
+export function selectedTechniqueOf(project: Project): TechniqueInstance | null {
+  return selectedLayerOf(project).technique;
+}
+
+export function selectedLayerOf(project: Project): Layer {
+  return project.layers.find((l) => l.id === project.selectedLayerId) ?? (project.layers[0] as Layer);
+}
+
+/** Apply a change to the SELECTED layer's technique, leaving others alone. */
+export function withSelectedTechnique(
+  project: Project,
+  fn: (technique: TechniqueInstance | null) => TechniqueInstance | null,
+): Project {
+  const target = selectedLayerOf(project);
+  return {
+    ...project,
+    layers: project.layers.map((l) => (l.id === target.id ? { ...l, technique: fn(l.technique) } : l)),
+  };
+}
+
+/**
+ * Point the SELECTED layer at a source.
+ *
+ * v0.6 moved source ownership onto the layer, but `composition.sourceId` is
+ * still the project-wide anchor migration reads and the frame size derives
+ * from, so both move together. A layer with `sourceId: null` renders nothing —
+ * it does not silently fall back to the composition.
+ */
+export function withSelectedSource(project: Project, sourceId: string): Project {
+  const target = selectedLayerOf(project);
+  return {
+    ...project,
+    layers: project.layers.map((l) => (l.id === target.id ? { ...l, sourceId } : l)),
+    composition: { ...project.composition, sourceId },
+  };
+}
+
+export function emptyLayer(id: string, name = ''): Layer {
+  return {
+    id,
+    name,
+    enabled: true,
+    opacity: 1,
+    blendMode: 'normal',
+    sourceId: null,
+    technique: null,
+    material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
+  };
+}
+
 export function createEmptyProject(name = 'Untitled'): Project {
   return {
     version: PROJECT_FORMAT_VERSION,
     name,
+    layers: [emptyLayer(MIGRATED_LAYER_ID)],
+    selectedLayerId: MIGRATED_LAYER_ID,
     sources: [],
     composition: {
       sourceId: null,
@@ -546,6 +679,43 @@ export function createEmptyProject(name = 'Untitled'): Project {
     performanceQuantize: 'bar' as const,
     explore: { lockedParams: [], lastSeed: null },
   };
+}
+
+/**
+ * v3 → v4: a single creative branch becomes `layers[]`.
+ *
+ * The first genuinely structural change to the project model since v1. It
+ * cannot be additive: v3 stores ONE source id, ONE technique array and ONE
+ * material at the top level, and there is no way to express a second branch
+ * without moving them. Keeping v3 by bolting a parallel `layers` field beside
+ * the old one would have left two sources of truth for what renders — the
+ * exact ambiguity a version number exists to prevent.
+ *
+ * The migration is mechanical and lossless: everything that described the one
+ * branch becomes layer 1, at full opacity in Normal blend, so a v3 project
+ * renders exactly as it did. The top-level fields are LEFT IN PLACE and still
+ * parse, because Looks, presets and morph snapshots taken before v0.6 carry
+ * the same shape and must keep loading.
+ */
+function migrateV3toV4(raw: Record<string, unknown>): Record<string, unknown> {
+  const composition = (raw.composition ?? {}) as Record<string, unknown>;
+  const techniques = Array.isArray(raw.techniques) ? raw.techniques : [];
+  const layer = {
+    id: MIGRATED_LAYER_ID,
+    name: '',
+    enabled: true,
+    opacity: 1,
+    blendMode: 'normal',
+    sourceId: composition.sourceId ?? null,
+    technique: techniques[0] ?? null,
+    material: raw.material ?? {
+      materialId: 'square',
+      colorMode: 'source',
+      params: {},
+      assetPath: null,
+    },
+  };
+  return { ...raw, version: 4, layers: [layer], selectedLayerId: MIGRATED_LAYER_ID };
 }
 
 /**
@@ -587,6 +757,9 @@ export function parseProject(raw: unknown): Project {
   }
   if (candidate.version === 2) {
     candidate = migrateV2toV3(candidate);
+  }
+  if (candidate.version === 3) {
+    candidate = migrateV3toV4(candidate);
   }
   if (candidate.version !== PROJECT_FORMAT_VERSION) {
     throw new Error(`Unsupported project version: ${String(candidate.version)}`);

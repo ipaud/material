@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
@@ -29,7 +30,7 @@ interface Segment {
 export function SystemPath() {
   const sources = useProjectStore((s) => s.project.sources);
   const composition = useProjectStore((s) => s.project.composition);
-  const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
+  const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const material = useProjectStore((s) => s.project.material);
   const modulations = useProjectStore((s) => s.project.modulations);
   const triggers = useProjectStore((s) => s.project.triggers);

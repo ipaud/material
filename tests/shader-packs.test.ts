@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync,
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readFileSync } from 'node:fs';
+import type * as PackModuleNS from '@electron/filesystem/shaderPacks';
 
 /**
  * v0.5B — pack loading and, mostly, pack REFUSING.
@@ -17,7 +18,9 @@ const root = mkdtempSync(join(tmpdir(), 'material-packs-'));
 const userData = join(root, 'userData');
 mkdirSync(userData, { recursive: true });
 
-let packs: typeof import('@electron/filesystem/shaderPacks');
+// The module is imported lazily inside beforeAll (after Electron is stubbed),
+// so its type comes from a type-only import rather than an inline one.
+let packs: typeof PackModuleNS;
 
 beforeAll(async () => {
   // Stub Electron before the module under test is imported.
@@ -278,17 +281,28 @@ describe('a project that references a pack (§135, §136)', () => {
     const base = JSON.parse(
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
+    // A v2 fixture: migration puts its single branch on layer 1, so the
+    // custom technique id is set there.
+    const migrated = parseProject(base);
     const parsed = parseProject({
-      ...base,
-      techniques: [
-        { id: 't1', techniqueId: 'custom:com.example.pack:demo', enabled: true, params: { amount: 0.42 } },
+      ...migrated,
+      layers: [
+        {
+          ...migrated.layers[0]!,
+          technique: {
+            id: 't1',
+            techniqueId: 'custom:com.example.pack:demo',
+            enabled: true,
+            params: { amount: 0.42 },
+          },
+        },
       ],
     });
     expect(parsed).not.toBeNull();
-    expect(parsed!.version).toBe(3);
-    expect(parsed!.techniques[0]!.techniqueId).toBe('custom:com.example.pack:demo');
+    expect(parsed.version).toBe(4);
+    expect(parsed.layers[0]!.technique!.techniqueId).toBe('custom:com.example.pack:demo');
     // The values survive whether or not the pack is installed.
-    expect(parsed!.techniques[0]!.params.amount).toBe(0.42);
+    expect(parsed.layers[0]!.technique!.params.amount).toBe(0.42);
   });
 
   it('no absolute path from the authoring machine is written into a project', () => {

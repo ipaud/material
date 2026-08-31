@@ -16,7 +16,7 @@ import { calibrationStore } from '@/signals/visual/calibrationStore';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { captureManager, useCaptureStore } from '@/sources/captureManager';
-import { isLiveSource } from '@shared/schemas/project';
+import { isLiveSource, selectedLayerOf, type Project } from '@shared/schemas/project';
 import { GeneratorSource } from '@/sources/generators/GeneratorSource';
 import { getGenerator as getGeneratorDef, type GeneratorKind } from '@/sources/generators/definitions';
 import { configureTriggers } from '@/signals/triggerRuntime';
@@ -27,22 +27,237 @@ import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { TemporalSource } from './temporal/TemporalFrameProvider';
 import type { TechniqueRenderer } from '@/techniques/types';
 
-let loadedSourcePath: string | null = null;
-let activeSourceRuntime: SourceRuntime | null = null;
+/**
+ * v0.6 — everything the bridge tracks is now PER LAYER.
+ *
+ * These used to be module singletons because there was one branch. Keying them
+ * by layer id is what makes a source or technique change in one layer leave
+ * every other layer untouched: the reconciler only ever compares a layer's new
+ * key against its own previous one.
+ */
+interface LayerBridgeState {
+  sourceKey: string | null;
+  runtime: SourceRuntime | null;
+  temporalSource: TemporalSource | null;
+  techniqueId: string | null;
+  renderer: TechniqueRenderer | null;
+  loadGeneration: number;
+}
+
+const layerBridge = new Map<string, LayerBridgeState>();
+
+function bridgeState(layerId: string): LayerBridgeState {
+  let state = layerBridge.get(layerId);
+  if (!state) {
+    state = {
+      sourceKey: null,
+      runtime: null,
+      temporalSource: null,
+      techniqueId: null,
+      renderer: null,
+      loadGeneration: 0,
+    };
+    layerBridge.set(layerId, state);
+  }
+  return state;
+}
+
+function disposeLayerBridge(layerId: string): void {
+  const state = layerBridge.get(layerId);
+  if (!state) return;
+  state.runtime?.dispose();
+  layerBridge.delete(layerId);
+}
+
 let loadedAudioPath: string | null = null;
-let loadGeneration = 0;
 let loadedMaterialAsset: string | null = null;
 let materialGeneration = 0;
-let activeTechniqueId: string | null = null;
-let activeRenderer: TechniqueRenderer | null = null;
-let activeTemporalSource: TemporalSource | null = null;
 
 /** Re-attach the temporal source after it (or the technique) changed. */
 function syncTemporalSource(): void {
-  engine.setTemporalSource(activeTemporalSource);
+  for (const [layerId, state] of layerBridge) {
+    engine.branchFor(layerId)?.setTemporalSource(state.temporalSource);
+  }
 }
 
 let lastProjectGeneration = -1;
+
+
+/** Stable identity for what a layer's source actually IS. Two layers naming
+ * the same source produce the same key, which is what v0.6B needs in order to
+ * share acquisition and analysis. */
+function sourceKeyOf(source: ReturnType<typeof findSource>): string | null {
+  if (!source) return null;
+  switch (source.kind) {
+    case 'generator':
+      return `generator:${source.id}:${source.generator}:${source.seed}`;
+    case 'camera':
+      return `camera:${source.id}`;
+    case 'screen':
+      return `screen:${source.id}:${source.displayId ?? 'any'}`;
+    case 'window':
+      return `window:${source.id}`;
+    default:
+      return `${source.kind}:${source.path}`;
+  }
+}
+
+function findSource(project: Project, sourceId: string | null) {
+  return (
+    project.sources.find(
+      (s) =>
+        s.id === sourceId &&
+        (s.kind === 'image' || s.kind === 'video' || isLiveSource(s) || s.kind === 'generator'),
+    ) ?? null
+  );
+}
+
+/**
+ * Load (or release) one layer's source.
+ *
+ * The whole function is scoped to `layer.id`: it compares this layer's source
+ * key against this layer's previous one and touches this layer's branch. A
+ * source change in one layer therefore cannot reset another — the guarantee
+ * that makes layers usable as independent instruments.
+ */
+function syncLayerSource(
+  project: Project,
+  layer: Project['layers'][number],
+  cameraLayerId: string | null,
+  captureLayerId: string | null,
+): void {
+  const branch = engine.branchFor(layer.id);
+  if (!branch) return;
+  const state = bridgeState(layer.id);
+  const source = findSource(project, layer.sourceId);
+  const key = sourceKeyOf(source);
+  if (key === state.sourceKey) {
+    // Unchanged. Generator params still flow every frame (below).
+    if (source?.kind === 'generator') applyGeneratorParams(branch, source);
+    return;
+  }
+
+  state.sourceKey = key;
+  const generation = ++state.loadGeneration;
+  state.runtime?.dispose();
+  state.runtime = null;
+  state.temporalSource = null;
+  branch.setTemporalSource(null);
+  if (source?.kind !== 'generator') branch.setGeneratorSource(null);
+
+  if (!source) {
+    branch.setSource(null);
+    return;
+  }
+  if (source.kind === 'generator') {
+    const runtime = new GeneratorSource(source.generator as GeneratorKind, source.seed);
+    state.runtime = runtime;
+    branch.setGeneratorSource(runtime);
+    branch.setSource(runtime.texture());
+    state.temporalSource = runtime.temporalSource();
+    branch.setTemporalSource(state.temporalSource);
+    applyGeneratorParams(branch, source);
+    return;
+  }
+  if (source.kind === 'screen' || source.kind === 'window') {
+    if (layer.id === captureLayerId) {
+      captureManager.attach(
+        source.id,
+        source.kind,
+        source.kind === 'screen' ? source.displayId : null,
+      );
+    }
+    return;
+  }
+  if (source.kind === 'camera') {
+    if (layer.id === cameraLayerId) cameraManager.attach(source.id, source.deviceId ?? null);
+    return;
+  }
+  if (source.kind === 'image') {
+    const runtime = new FileImageSource(source.path);
+    state.runtime = runtime;
+    void runtime.load().then(
+      () => {
+        if (generation !== state.loadGeneration) {
+          runtime.dispose();
+          return;
+        }
+        branch.setSource(runtime.texture());
+        state.temporalSource = runtime.temporalSource();
+        branch.setTemporalSource(state.temporalSource);
+      },
+      (err: unknown) => {
+        if (generation === state.loadGeneration) {
+          reportError('Load source', err);
+          branch.setSource(null);
+        }
+      },
+    );
+    return;
+  }
+  const runtime = new FileVideoSource(source.path);
+  state.runtime = runtime;
+  void runtime.load().then(
+    () => {
+      if (generation !== state.loadGeneration) {
+        runtime.dispose();
+        return;
+      }
+      // The transport follows the FIRST video layer: there is one composition
+      // clock, and two videos driving it would fight over it.
+      if (!playback.hasVideo) {
+        playback.attachVideo(runtime.video);
+        playback.seek(0);
+      }
+      branch.setSource(runtime.texture());
+      state.temporalSource = runtime.temporalSource();
+      branch.setTemporalSource(state.temporalSource);
+    },
+    (err: unknown) => {
+      if (generation === state.loadGeneration) {
+        const message = err instanceof Error ? err.message : String(err);
+        reportError(message.includes('missing') ? 'Media offline' : 'Load video', err);
+        branch.setSource(null);
+      }
+    },
+  );
+}
+
+function applyGeneratorParams(
+  branch: NonNullable<ReturnType<typeof engine.branchFor>>,
+  source: { params: Record<string, string | number | boolean>; generator: string },
+): void {
+  branch.setSourceParams(source.params);
+  const genDef = getGeneratorDef(source.generator);
+  const numeric = (genDef?.params ?? []).filter((p): p is NumberParamDef => p.type === 'number');
+  branch.setSourceParamTransform((base, t) => modulationRuntime.transformSource(base, t, numeric));
+}
+
+/** Mount (or replace) one layer's technique renderer. */
+function syncLayerTechnique(project: Project, layer: Project['layers'][number]): void {
+  const branch = engine.branchFor(layer.id);
+  if (!branch) return;
+  const state = bridgeState(layer.id);
+  const instance = layer.technique?.enabled === false ? null : layer.technique;
+  const techniqueId = instance?.techniqueId ?? null;
+  if (techniqueId !== state.techniqueId) {
+    state.techniqueId = techniqueId;
+    if (techniqueId) {
+      const definition = getTechnique(techniqueId);
+      state.renderer = definition ? definition.createRenderer() : null;
+      branch.setTechniqueRenderer(state.renderer);
+      if (!definition) reportError('Technique', new Error(`Unknown technique: ${techniqueId}`));
+    } else {
+      state.renderer = null;
+      branch.setTechniqueRenderer(null);
+    }
+  }
+  if (instance) branch.setTechniqueParams(instance.params);
+  branch.setMaterialState(layer.material);
+  const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
+  branch.setTemporalEnabled(needsTemporal);
+  if (needsTemporal) branch.setTemporalSource(state.temporalSource);
+}
 
 function syncFromProject(): void {
   const { project, projectGeneration } = useProjectStore.getState();
@@ -59,103 +274,39 @@ function syncFromProject(): void {
 
   engine.setComposition(composition.width, composition.height, composition.background);
 
-  // Source texture: still image, video, or the live camera (18D).
-  const source = project.sources.find(
-    (s) =>
-      s.id === composition.sourceId &&
-      (s.kind === 'image' || s.kind === 'video' || isLiveSource(s) || s.kind === 'generator'),
+  // v0.6: reconcile the branch list FIRST, so every layer has a runtime to be
+  // configured into. Identity is the layer id, so reordering moves nothing.
+  const selectedId = project.selectedLayerId ?? project.layers[0]?.id ?? null;
+  engine.syncLayers(
+    project.layers.map((l) => ({
+      id: l.id,
+      enabled: l.enabled,
+      opacity: l.opacity,
+      blendMode: l.blendMode,
+      selected: l.id === selectedId,
+    })),
   );
-  const sourceKey = source
-    ? source.kind === 'generator'
-      ? `generator:${source.id}:${source.generator}:${source.seed}`
-      : source.kind === 'camera'
-      ? `camera:${source.id}`
-      : source.kind === 'screen'
-        ? `screen:${source.id}:${source.displayId ?? 'any'}`
-        : source.kind === 'window'
-          ? `window:${source.id}`
-          : `${source.kind}:${source.path}`
-    : null;
-  if (sourceKey !== loadedSourcePath) {
-    loadedSourcePath = sourceKey;
-    const generation = ++loadGeneration;
-    playback.detachVideo();
-    activeSourceRuntime?.dispose();
-    activeSourceRuntime = null;
-    if (source?.kind !== 'camera') cameraManager.detach();
-    if (source?.kind !== 'screen' && source?.kind !== 'window') captureManager.detach();
-    activeTemporalSource = null;
-    engine.setTemporalSource(null);
-    if (source?.kind !== 'generator') engine.setGeneratorSource(null);
-    if (!source) {
-      engine.setSource(null);
-      cameraManager.detach();
-      captureManager.detach();
-    } else if (source.kind === 'generator') {
-      // CE1F: a generator is a SourceRuntime like any other — the engine
-      // owns it and hands its texture to the technique. No special path.
-      const runtime = new GeneratorSource(source.generator as GeneratorKind, source.seed);
-      activeSourceRuntime = runtime;
-      engine.setGeneratorSource(runtime);
-      engine.setSource(runtime.texture());
-      activeTemporalSource = runtime.temporalSource();
-      engine.setTemporalSource(activeTemporalSource);
-    } else if (source.kind === 'screen' || source.kind === 'window') {
-      // Like the camera: selecting only ATTACHES (idle until START). The
-      // manager owns intent; nothing here may acquire.
-      captureManager.attach(
-        source.id,
-        source.kind,
-        source.kind === 'screen' ? source.displayId : null,
-      );
-    } else if (source.kind === 'camera') {
-      // The camera runtime is user-intent driven: selecting the source only
-      // ATTACHES it (idle until START CAMERA). Never auto-acquires.
-      cameraManager.attach(source.id, source.deviceId ?? null);
-    } else if (source.kind === 'image') {
-      const runtime = new FileImageSource(source.path);
-      activeSourceRuntime = runtime;
-      void runtime.load().then(
-        () => {
-          if (generation !== loadGeneration) {
-            runtime.dispose();
-            return;
-          }
-          engine.setSource(runtime.texture());
-          activeTemporalSource = runtime.temporalSource();
-          engine.setTemporalSource(activeTemporalSource);
-        },
-        (err: unknown) => {
-          if (generation === loadGeneration) {
-            reportError('Load source', err);
-            engine.setSource(null);
-          }
-        },
-      );
-    } else {
-      const runtime = new FileVideoSource(source.path);
-      activeSourceRuntime = runtime;
-      void runtime.load().then(
-        () => {
-          if (generation !== loadGeneration) {
-            runtime.dispose();
-            return;
-          }
-          playback.attachVideo(runtime.video);
-          engine.setSource(runtime.texture());
-          activeTemporalSource = runtime.temporalSource();
-          engine.setTemporalSource(activeTemporalSource);
-          playback.seek(0);
-        },
-        (err: unknown) => {
-          if (generation === loadGeneration) {
-            const message = err instanceof Error ? err.message : String(err);
-            reportError(message.includes('missing') ? 'Media offline' : 'Load video', err);
-            engine.setSource(null);
-          }
-        },
-      );
-    }
+  for (const layerId of [...layerBridge.keys()]) {
+    if (!project.layers.some((l) => l.id === layerId)) disposeLayerBridge(layerId);
+  }
+
+  // A live device is attached for the layer that owns it. Sharing one physical
+  // capture between layers is v0.6B's problem; here the rule is simply that
+  // the managers are told about at most one layer's camera and one's capture.
+  const cameraLayer = project.layers.find((l) => {
+    const src = project.sources.find((x) => x.id === l.sourceId);
+    return src?.kind === 'camera';
+  });
+  const captureLayer = project.layers.find((l) => {
+    const src = project.sources.find((x) => x.id === l.sourceId);
+    return src?.kind === 'screen' || src?.kind === 'window';
+  });
+  if (!cameraLayer) cameraManager.detach();
+  if (!captureLayer) captureManager.detach();
+
+  for (const layer of project.layers) {
+    syncLayerSource(project, layer, cameraLayer?.id ?? null, captureLayer?.id ?? null);
+    syncLayerTechnique(project, layer);
   }
 
   // Audio source (analysis + audio-master clock).
@@ -173,38 +324,13 @@ function syncFromProject(): void {
     }
   }
 
-  // Technique renderer lifecycle.
-  const instance = project.techniques.find((t) => t.enabled) ?? null;
-  const techniqueId = instance?.techniqueId ?? null;
-  if (techniqueId !== activeTechniqueId) {
-    activeTechniqueId = techniqueId;
-    if (techniqueId) {
-      const definition = getTechnique(techniqueId);
-      activeRenderer = definition ? definition.createRenderer() : null;
-      engine.setTechniqueRenderer(activeRenderer);
-      if (!definition) reportError('Technique', new Error(`Unknown technique: ${techniqueId}`));
-    } else {
-      activeRenderer = null;
-      engine.setTechniqueRenderer(null);
-    }
-  }
-  if (instance) engine.setTechniqueParams(instance.params);
-  // CE1F: generator params + their modulation transform (editor authority).
-  if (source?.kind === 'generator') {
-    engine.setSourceParams(source.params);
-    const genDef = getGeneratorDef(source.generator);
-    const numeric = (genDef?.params ?? []).filter(
-      (p): p is NumberParamDef => p.type === 'number',
-    );
-    engine.setSourceParamTransform((base, t) => modulationRuntime.transformSource(base, t, numeric));
-  } else {
-    engine.setSourceParamTransform(null);
-  }
-  engine.setMaterialState(project.material);
-  // Temporal history is needed whenever a technique samples past frames.
-  const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
-  engine.setTemporalEnabled(needsTemporal);
-  if (needsTemporal) syncTemporalSource();
+  // v0.6: the selected layer is what the rest of the app reports on — the
+  // Output's technique id, the inspector, presets. Per-layer configuration
+  // already happened above.
+  const selectedLayer = project.layers.find((l) => l.id === selectedId) ?? project.layers[0]!;
+  const techniqueId = selectedLayer.technique?.techniqueId ?? null;
+  const source = findSource(project, selectedLayer.sourceId);
+  syncTemporalSource();
 
   configureModulation();
 
@@ -280,7 +406,7 @@ function syncFromUi(): void {
 
 function configureModulation(): void {
   const { project } = useProjectStore.getState();
-  const instance = project.techniques.find((t) => t.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: useAudioStore.getState().analysis,
     durationSec: usePlaybackStore.getState().durationSec,
@@ -373,12 +499,8 @@ export function startEngineBridge(): () => void {
     unsubScope();
     unsubPlayback();
     engine.setParamTransform(null);
-    activeSourceRuntime?.dispose();
-    activeSourceRuntime = null;
-    loadedSourcePath = null;
+    for (const layerId of [...layerBridge.keys()]) disposeLayerBridge(layerId);
     loadedAudioPath = null;
     loadedMaterialAsset = null;
-    activeTechniqueId = null;
-    activeRenderer = null;
   };
 }

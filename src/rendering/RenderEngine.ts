@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bindTarget } from './bindTarget';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
 import { OpticalFlowField } from './flow/OpticalFlowField';
@@ -10,6 +11,8 @@ import {
   type TransitionParams,
 } from './transition/TransitionCompositor';
 import { runtimeBus } from '@/runtime/RuntimeBus';
+import { LayerCompositor, type CompositeLayer } from './layers/LayerCompositor';
+import type { LayerRenderState } from './layers/layerTypes';
 import {
   TemporalFrameProvider,
   type BoundaryMode,
@@ -32,6 +35,9 @@ export interface EngineStats {
 }
 
 const FIT_MARGIN = 0.94;
+
+/** Shared empty set: a branch that is not the measured one allocates nothing. */
+const EMPTY_VISUAL_DEMAND: ReadonlySet<VisualSignalId> = new Set();
 
 /**
  * GPU render engine. Lives outside React — React (and the store bridge) push
@@ -86,6 +92,10 @@ export class RenderEngine {
 
   init(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
+    // A remount (StrictMode's double effect, a workspace switch, a restored
+    // context) builds a NEW renderer. Any branch still holding the previous
+    // one would draw into framebuffers this renderer cannot read.
+    const adopting = this.branches.length > 0;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -100,7 +110,379 @@ export class RenderEngine {
     // techniques never sample garbage as if it were real frames.
     canvas.addEventListener('webglcontextlost', this.onContextLost);
     canvas.addEventListener('webglcontextrestored', this.onContextRestored);
+    if (adopting) {
+      // Re-point survivors and drop their targets: a target allocated by the
+      // previous renderer is unreadable by this one.
+      for (const b of this.branches) {
+        b.engine.initBranch(this.renderer);
+        b.target?.dispose();
+        b.target = null;
+      }
+      this.applyBranchVisualDemand();
+    }
     this.loop();
+  }
+
+  // ---- v0.6: the composition this engine hosts --------------------------
+
+  /**
+   * Layer branches, bottom first. Every layer is a RenderEngine in branch
+   * mode — including the first, so no layer is special. The host owns the
+   * canvas, the loop, the view and the compositor; it owns no creative state
+   * of its own.
+   */
+  private branches: { id: string; engine: RenderEngine; target: THREE.WebGLRenderTarget | null }[] =
+    [];
+  private layerStates: LayerRenderState[] = [];
+  private selectedLayerIndex = 0;
+  private readonly layerCompositor = new LayerCompositor();
+
+  /** The branch that single-branch API calls act on (the selected layer). */
+  private get activeBranch(): RenderEngine | null {
+    return this.branches[this.selectedLayerIndex]?.engine ?? null;
+  }
+
+  /** Branch for a layer id, for the bridge to configure directly. */
+  branchFor(layerId: string): RenderEngine | null {
+    return this.branches.find((b) => b.id === layerId)?.engine ?? null;
+  }
+
+  get layerCount(): number {
+    return this.branches.length;
+  }
+
+  get layerIds(): string[] {
+    return this.branches.map((b) => b.id);
+  }
+
+  /** Diagnostics: composite draws and the memory the accumulators hold. */
+  get compositorStats(): { passes: number; bytes: number; layerTargetBytes: number } {
+    const layerBytes = this.branches.reduce(
+      (n, b) => n + (b.target ? b.target.width * b.target.height * 4 : 0),
+      0,
+    );
+    return {
+      passes: this.layerCompositor.passes,
+      bytes: this.layerCompositor.bytes,
+      layerTargetBytes: layerBytes,
+    };
+  }
+
+  /**
+   * Reconcile the branch list with the project's layers.
+   *
+   * Identity is the layer ID, never the index: reordering rebuilds no runtime,
+   * so a feedback surface or a simulation survives being moved up the stack.
+   * A branch is created lazily on first appearance and disposed when its layer
+   * goes away — nothing else touches another layer's resources.
+   */
+  syncLayers(states: readonly LayerRenderState[]): void {
+    const renderer = this.renderer;
+    const next: typeof this.branches = [];
+    for (const state of states) {
+      const existing = this.branches.find((b) => b.id === state.id);
+      if (existing) {
+        next.push(existing);
+        continue;
+      }
+      const engine = new RenderEngine();
+      if (renderer) engine.initBranch(renderer);
+      next.push({ id: state.id, engine, target: null });
+    }
+    for (const previous of this.branches) {
+      if (next.some((b) => b.id === previous.id)) continue;
+      previous.engine.disposeBranch();
+      previous.target?.dispose();
+    }
+    this.branches = next;
+    this.layerStates = [...states];
+    const selected = states.findIndex((s) => s.selected);
+    this.selectedLayerIndex = selected >= 0 ? selected : 0;
+    // Global state belongs to every branch.
+    for (const b of this.branches) {
+      b.engine.setComposition(this.compWidth, this.compHeight, this.compBackground);
+      b.engine.setSeed(this.seed);
+      b.engine.setTime(this.timeSec);
+      if (this.exportMode) b.engine.beginExportMode();
+    }
+    this.applyBranchVisualDemand();
+    this.invalidate();
+  }
+
+  private ensureLayerTarget(index: number): THREE.WebGLRenderTarget {
+    const slot = this.branches[index];
+    const w = Math.max(this.compWidth, 1);
+    const h = Math.max(this.compHeight, 1);
+    if (!slot) throw new Error('layer index out of range');
+    if (!slot.target || slot.target.width !== w || slot.target.height !== h) {
+      slot.target?.dispose();
+      slot.target = new THREE.WebGLRenderTarget(w, h, {
+        depthBuffer: false,
+        stencilBuffer: false,
+        colorSpace: THREE.SRGBColorSpace,
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+      });
+    }
+    return slot.target;
+  }
+
+  /** Which layers actually contribute a draw this frame. */
+  private visibleLayers(): number[] {
+    const out: number[] = [];
+    for (const [i, state] of this.layerStates.entries()) {
+      if (!state.enabled) continue;
+      // Opacity 0 still RENDERS: a stateful branch that stopped would lose the
+      // feedback or simulation it has been accumulating, and fading back in
+      // would start from nothing. It just contributes nothing to the result.
+      if (!this.branches[i]) continue;
+      out.push(i);
+    }
+    return out;
+  }
+
+  /**
+   * Render every visible layer and blend them. Returns the composed texture,
+   * or null when nothing is visible.
+   */
+  /**
+   * True when the composition is exactly one fully opaque Normal layer.
+   *
+   * The compositor is then mathematically a no-op — `mix(bg, layer, layer.a)`
+   * is what drawing that layer straight onto the cleared background already
+   * produces — so the layer renders directly into the destination and skips
+   * both the layer target and the accumulator.
+   *
+   * That is not an optimisation dressed up as a rule: routing through two more
+   * 8-bit sRGB targets cost up to one code on 0.45% of bytes against the
+   * pre-v0.6 render. Measured, small, and still not zero — and a v3 project
+   * that migrates has to render EXACTLY as it did.
+   */
+  private singleOpaqueLayer(): number | null {
+    const visible = this.visibleLayers();
+    if (visible.length !== 1) return null;
+    const only = visible[0] as number;
+    const state = this.layerStates[only];
+    if (!state || state.opacity < 1 || state.blendMode !== 'normal') return null;
+    return only;
+  }
+
+  /**
+   * Draw the composition straight into the bound target. Returns false when
+   * the fast path does not apply and the caller must composite.
+   */
+  private renderDirectLayer(
+    renderer: THREE.WebGLRenderer,
+    paramsByLayer: ReadonlyMap<string, ParamRecord> | undefined,
+  ): boolean {
+    const index = this.singleOpaqueLayer();
+    if (index === null) return false;
+    const slot = this.branches[index]!;
+    const override = paramsByLayer?.get(slot.id);
+    const target = renderer.getRenderTarget();
+    if (!target) return false;
+    if (override) slot.engine.renderLayerToWithParams(target, override, false);
+    else slot.engine.renderLayerTo(target, { clear: false });
+    return true;
+  }
+
+  private renderComposition(
+    renderer: THREE.WebGLRenderer,
+    transparent: boolean,
+    paramsByLayer?: ReadonlyMap<string, ParamRecord>,
+  ): THREE.Texture | null {
+    const indices = this.visibleLayers();
+    const composed: CompositeLayer[] = [];
+    for (const i of indices) {
+      const slot = this.branches[i]!;
+      const state = this.layerStates[i]!;
+      const target = this.ensureLayerTarget(i);
+      const override = paramsByLayer?.get(state.id);
+      if (override) {
+        slot.engine.renderLayerToWithParams(target, override);
+      } else {
+        slot.engine.renderLayerTo(target, { clear: true });
+      }
+      composed.push({
+        texture: target.texture,
+        opacity: state.opacity,
+        blendMode: state.blendMode,
+      });
+    }
+    return this.layerCompositor.composite(renderer, composed, this.compWidth, this.compHeight, {
+      color: transparent ? '#000000' : this.compBackground,
+      alpha: transparent ? 0 : 1,
+    });
+  }
+
+  /**
+   * v0.6 — construct this engine as a LAYER BRANCH.
+   *
+   * A branch owns exactly one creative chain: source, generator, temporal
+   * history, optical flow, technique renderer, visual analysis, feedback
+   * state. It owns no canvas, no animation loop and no view transform,
+   * because those belong to the composition that hosts it.
+   *
+   * Reusing this class rather than extracting a parallel one is deliberate.
+   * Every branch behaviour — the flow gate, the N-1 signal contract, feedback
+   * priming, export preroll, context restore — is already implemented and
+   * tested here exactly once. A second implementation would be a second set of
+   * those bugs, and layers would differ from each other in ways nobody
+   * intended.
+   */
+  initBranch(renderer: THREE.WebGLRenderer): void {
+    this.renderer = renderer;
+    this.isBranch = true;
+  }
+
+  /** True when this engine is a layer inside a composition, not the host. */
+  private isBranch = false;
+
+  get branchMode(): boolean {
+    return this.isBranch;
+  }
+
+  /**
+   * Render this branch into `target` at composition resolution.
+   *
+   * The same sequence the on-canvas path uses, minus everything that belongs
+   * to the host: no well, no viewport rect, no transition compositing. What
+   * comes out is one layer's pixels, ready for the compositor.
+   */
+  renderLayerTo(
+    target: THREE.WebGLRenderTarget,
+    opts: { clear: boolean; skip?: ReadonlySet<string> },
+  ): void {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const prevTarget = renderer.getRenderTarget();
+    try {
+      // Neither setPixelRatio nor setViewport belongs here — see bindTarget.
+      const skip = opts.skip;
+      if (!skip?.has('temporal') && this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
+        const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
+        this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
+      }
+      if (!skip?.has('camera')) this.updateCamera(target.width / Math.max(target.height, 1));
+      if (!this.exportMode && !skip?.has('generator')) this.renderGenerator(renderer, this.timeSec);
+      if (!this.exportMode && !skip?.has('flow')) this.updateFlowService(renderer);
+      if (!skip?.has('sync')) this.syncScene();
+      if (!this.exportMode && !skip?.has('stats')) this.updateVisualStats(renderer);
+      if (this.feedbackActive && !skip?.has('feedback')) {
+        (
+          this.techniqueRenderer as unknown as {
+            feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
+          }
+        ).feedbackPrepass?.(renderer, performance.now() / 1000);
+      }
+      bindTarget(renderer, target);
+      if (opts.clear) {
+        // Transparent BLACK, never the composition background: the background
+        // belongs to the composition, and a layer that painted it would erase
+        // everything beneath it.
+        //
+        // Black specifically. The first version passed the string
+        // 'transparent', which THREE.Color parses as WHITE — so every layer
+        // cleared to white at zero alpha and anything with a soft edge blended
+        // against it. Measured as 64 800 differing bytes against the
+        // pre-layer render, up to 38 codes at tile edges.
+        renderer.setClearColor(0x000000, 0);
+        renderer.clear();
+      }
+      renderer.render(this.scene, this.camera);
+      this.lastLayerRender = {
+        target: [target.width, target.height],
+        viewport: renderer.getViewport(new THREE.Vector4()).toArray() as number[],
+        triangles: renderer.info.render.triangles,
+        calls: renderer.info.render.calls,
+        sceneChildren: this.scene.children.length,
+        camAspect: (this.camera as THREE.PerspectiveCamera).aspect,
+        camZ: this.camera.position.z,
+        srcTex: !!this.sourceTexture,
+        exportMode: this.exportMode,
+      };
+    } finally {
+      renderer.setRenderTarget(prevTarget);
+    }
+  }
+
+  /** v0.6A diagnosis: what the last layer draw actually saw. */
+  lastLayerRender: Record<string, unknown> | null = null;
+
+  /**
+   * Draw this branch onto whatever is currently bound — the canvas, inside the
+   * viewport and scissor rect the host has already set. Same creative chain as
+   * `renderLayerTo`; it simply does not redirect to a layer target.
+   */
+  renderLayerToCanvas(renderer: THREE.WebGLRenderer): void {
+    // The scissor rect has the composition's aspect, not the canvas's.
+    this.updateCamera(this.compWidth / Math.max(this.compHeight, 1));
+    if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
+      const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
+      this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
+    }
+    if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
+    if (!this.exportMode) this.updateFlowService(renderer);
+    this.syncScene();
+    if (!this.exportMode) this.updateVisualStats(renderer);
+    if (this.feedbackActive) {
+      (
+        this.techniqueRenderer as unknown as {
+          feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
+        }
+      ).feedbackPrepass?.(renderer, performance.now() / 1000);
+    }
+    renderer.render(this.scene, this.camera);
+  }
+
+  /** Render this branch with EXPLICIT params (export authority). */
+  renderLayerToWithParams(
+    target: THREE.WebGLRenderTarget,
+    params: ParamRecord,
+    clear = true,
+  ): void {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const prevTarget = renderer.getRenderTarget();
+    try {
+      this.updateCamera(target.width / Math.max(target.height, 1));
+      this.syncScene(params);
+      bindTarget(renderer, target);
+      if (clear) {
+        renderer.setClearColor(0x000000, 0);
+        renderer.clear();
+      }
+      renderer.render(this.scene, this.camera);
+    } finally {
+      renderer.setRenderTarget(prevTarget);
+    }
+  }
+
+  /** Free this branch's own GPU state without touching a shared renderer. */
+  disposeBranch(): void {
+    this.temporal?.dispose();
+    this.temporal = null;
+    this.flow?.dispose();
+    this.flow = null;
+    this.visualStats?.dispose();
+    this.visualStats = null;
+    this.generator?.dispose();
+    this.generator = null;
+    this.techniqueRenderer?.dispose();
+    this.techniqueRenderer = null;
+    this.originalQuad?.geometry.dispose();
+    (this.originalQuad?.material as THREE.Material | undefined)?.dispose();
+    this.originalQuad = null;
+    this.rvfcCancel?.();
+    this.rvfcCancel = null;
+    this.sourceTexture = null;
+    // The renderer is the composition's, never this branch's.
+    this.renderer = null;
+  }
+
+  /** Branch-side restore, driven by the host (a branch has no canvas). */
+  handleContextRestored(): void {
+    this.onContextRestored();
   }
 
   private onContextLost = (event: Event): void => {
@@ -130,6 +512,15 @@ export class RenderEngine {
     (
       this.techniqueRenderer as { onContextRestored?: () => void } | null
     )?.onContextRestored?.();
+    // v0.6: every layer allocated its targets on the SAME lost context, so
+    // each branch has to rebuild too. The host owns the canvas listener; the
+    // branches never see the event and would otherwise keep dead handles.
+    this.layerCompositor.release();
+    for (const b of this.branches) {
+      b.target?.dispose();
+      b.target = null;
+      b.engine.handleContextRestored();
+    }
     this.invalidate();
   };
 
@@ -137,6 +528,17 @@ export class RenderEngine {
     this.canvas?.removeEventListener('webglcontextlost', this.onContextLost);
     this.canvas?.removeEventListener('webglcontextrestored', this.onContextRestored);
     cancelAnimationFrame(this.rafId);
+    // Branches hold render targets and programs that belong to the renderer
+    // about to be destroyed. Leaving them behind orphans every layer: they
+    // keep drawing into the OLD renderer's framebuffers while the host reads
+    // the new one's, and the composition goes silently black.
+    for (const b of this.branches) {
+      b.engine.disposeBranch();
+      b.target?.dispose();
+    }
+    this.branches = [];
+    this.layerStates = [];
+    this.layerCompositor.dispose();
     this.temporal?.dispose();
     this.temporal = null;
     this.techniqueRenderer?.dispose();
@@ -173,6 +575,9 @@ export class RenderEngine {
   }
 
   setComposition(width: number, height: number, background: string): void {
+    // v0.6: composition size and background are GLOBAL — a branch renders into
+    // a target the host sized, so it has to agree about the dimensions.
+    for (const b of this.branches) b.engine.setComposition(width, height, background);
     const changed = width !== this.compWidth || height !== this.compHeight;
     this.compWidth = width;
     this.compHeight = height;
@@ -237,6 +642,24 @@ export class RenderEngine {
     return this.sourceParamTransform
       ? this.sourceParamTransform(this.sourceParams, timeSec)
       : this.sourceParams;
+  }
+
+  /**
+   * Does any layer need a frame even though nothing invalidated the host?
+   *
+   * The three "keep rendering" conditions — a live source, feedback, a
+   * simulation generator — all moved onto the branches, so the host's own
+   * flags are permanently false in layer mode and its loop went back to sleep
+   * after every invalidation. Measured on a single animating generator: 19
+   * rendered frames per second against 99 before layers, while rAF itself was
+   * running at 120. Nothing looked broken; the picture just updated slowly.
+   */
+  private get branchesAnimating(): boolean {
+    for (const b of this.branches) {
+      const e = b.engine;
+      if (e.liveSourceActive || e.feedbackActive || e.generatorActive) return true;
+    }
+    return false;
   }
 
   get hasGenerator(): boolean {
@@ -314,6 +737,7 @@ export class RenderEngine {
    * (start/stop/device/target/project switch) reset through the
    * setLiveSourceActive flip and setTemporalSource instead. */
   resetTemporal(): void {
+    for (const b of this.branches) b.engine.resetTemporal();
     if (this.liveSourceActive) return;
     this.temporal?.invalidate();
     this.invalidate();
@@ -437,6 +861,19 @@ export class RenderEngine {
     height: number,
     params?: ParamRecord,
   ): void {
+    if (this.branches.length > 0) {
+      for (const b of this.branches) {
+        b.engine.prepareFlowForExport(
+          compositionTime,
+          `${b.id}:${frameKey}`,
+          isFirstFrame,
+          width,
+          height,
+          this.exportLayerParams?.get(b.id),
+        );
+      }
+      return;
+    }
     const renderer = this.renderer;
     if (!renderer) return;
     if (params) this.syncScene(params);
@@ -485,7 +922,28 @@ export class RenderEngine {
       this.visualStats = null;
       this.latestVisual = null;
     }
+    // In layer mode the branches own the source textures, so the host has
+    // nothing to measure. v0.6A keeps the v0.5 meaning of a visual signal by
+    // measuring the SELECTED layer; every other branch is told to release its
+    // analysis targets. v0.6B replaces this with explicit per-layer routing.
+    this.applyBranchVisualDemand();
     this.invalidate();
+  }
+
+  /** Point analysis at the selected branch and route its stats to our sink. */
+  private applyBranchVisualDemand(): void {
+    if (this.branches.length === 0) return;
+    const active = this.activeBranch;
+    for (const b of this.branches) {
+      const mine = b.engine === active;
+      b.engine.setVisualSink(mine ? (stats) => this.onBranchVisual(stats) : null);
+      b.engine.setVisualDemand(mine ? this.visualDemand : EMPTY_VISUAL_DEMAND);
+    }
+  }
+
+  private onBranchVisual(stats: RawVisualStats | null): void {
+    this.latestVisual = stats;
+    this.visualSink?.(stats);
   }
 
   get visualSignalStats(): RawVisualStats | null {
@@ -493,6 +951,7 @@ export class RenderEngine {
   }
 
   get visualDiagnostics(): { reductions: number; bytes: number; width: number; height: number } | null {
+    if (this.branches.length > 0) return this.activeBranch?.visualDiagnostics ?? null;
     return this.visualStats
       ? {
           reductions: this.visualStats.reductions,
@@ -562,6 +1021,12 @@ export class RenderEngine {
   /** EXPORT: analyse this frame, keyed by GLOBAL frame so a subrange drives the
    * reducer exactly as a full export does. */
   updateVisualStatsForExport(frameKey: string): void {
+    if (this.branches.length > 0) {
+      // Each layer analyses its OWN source; the frame key is namespaced so two
+      // layers cannot share a cache entry.
+      for (const b of this.branches) b.engine.updateVisualStatsForExport(`${b.id}:${frameKey}`);
+      return;
+    }
     if (!this.renderer) return;
     this.updateVisualStats(this.renderer, frameKey);
   }
@@ -596,6 +1061,18 @@ export class RenderEngine {
     isFirstFrame: boolean,
     params?: ParamRecord,
   ): void {
+    if (this.branches.length > 0) {
+      // Feedback is per branch: each layer's surface has its own history and
+      // must be prerolled on its own.
+      for (const b of this.branches) {
+        b.engine.prepareFeedbackForExport(
+          compositionTime,
+          isFirstFrame,
+          this.exportLayerParams?.get(b.id),
+        );
+      }
+      return;
+    }
     const renderer = this.renderer;
     const fb = this.techniqueRenderer as {
       feedback?: boolean;
@@ -636,6 +1113,16 @@ export class RenderEngine {
     compositionTime: number,
     isFirstFrame: boolean,
   ): Promise<{ logicalSlot: number; sourceTime: number }[]> {
+    if (this.branches.length > 0) {
+      // Every layer that samples history primes its own; a subrange export
+      // must arrive with each branch carrying the frames a full export would
+      // have given it.
+      const all: { logicalSlot: number; sourceTime: number }[] = [];
+      for (const b of this.branches) {
+        all.push(...(await b.engine.prepareTemporalForExport(compositionTime, isFirstFrame)));
+      }
+      return all;
+    }
     if (!this.temporal || !this.temporalEnabled || !this.renderer || !this.temporalSource)
       return [];
     this.exportMode = true;
@@ -657,11 +1144,13 @@ export class RenderEngine {
   /** Enter export mode: preview rendering pauses for the whole export, not
    * just temporal-active ones (see loop()). */
   beginExportMode(): void {
+    for (const b of this.branches) b.engine.beginExportMode();
     this.exportMode = true;
   }
 
   /** Leave export mode and discard export-primed history (§13). */
   endExportMode(): void {
+    for (const b of this.branches) b.engine.endExportMode();
     this.exportMode = false;
     this.temporal?.invalidate();
     this.invalidate();
@@ -678,11 +1167,15 @@ export class RenderEngine {
   }
 
   setSeed(seed: number): void {
+    for (const b of this.branches) b.engine.setSeed(seed);
     this.seed = seed;
     this.invalidate();
   }
 
   setTime(timeSec: number): void {
+    // One composition clock. Every branch reads the same time, which is what
+    // keeps layers in step with each other and with export.
+    for (const b of this.branches) b.engine.setTime(timeSec);
     this.timeSec = timeSec;
     this.invalidate();
   }
@@ -828,6 +1321,49 @@ export class RenderEngine {
       renderer.setScissorTest(true);
     }
 
+    // v0.6: with layers configured the host renders no creative state of its
+    // own — every branch draws to its own target and the compositor blends
+    // them. The blit below is the only place composition pixels reach the
+    // canvas.
+    if (this.branches.length > 0) {
+      // One opaque Normal layer is the overwhelmingly common case, and it
+      // needs no compositor at all: the branch draws straight onto the canvas
+      // inside the composition rect, exactly as the pre-layer engine did.
+      //
+      // Routing it through the compositor instead costs a 1080p layer target,
+      // a background clear, a blend pass and a blit — measured at 21 fps
+      // against 99 fps for the same single-mosaic project on v0.5.0. The
+      // direct path restores it and makes the common case pixel-identical to
+      // v0.5 by construction rather than by luck.
+      const single = !this.transitionState ? this.singleOpaqueLayer() : null;
+      if (single !== null) {
+        const slot = this.branches[single]!;
+        slot.engine.renderLayerToCanvas(renderer);
+        renderer.setScissorTest(false);
+        return;
+      }
+      const composed = this.renderComposition(renderer, this.checkerboard);
+      renderer.setViewport(rectX, rectY, rectW, rectH);
+      renderer.setScissor(rectX, rectY, rectW, rectH);
+      renderer.setScissorTest(true);
+      if (composed) {
+        const transition = this.transitionState;
+        if (transition && this.compositor.hasSnapshot) {
+          this.compositor.composite(
+            renderer,
+            composed,
+            transition.progress,
+            transition.params,
+            this.compWidth / Math.max(this.compHeight, 1),
+          );
+        } else {
+          this.blit(renderer, composed);
+        }
+      }
+      renderer.setScissorTest(false);
+      return;
+    }
+
     this.updateCamera(this.compWidth / this.compHeight);
     // CE1F: the generator produces this frame's source pixels first.
     if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
@@ -877,6 +1413,34 @@ export class RenderEngine {
     renderer.setScissorTest(false);
   }
 
+  /** Draw a texture over the current viewport, 1:1, no resampling beyond the
+   * viewport scale the user chose. */
+  private blitScene: THREE.Scene | null = null;
+  private blitMaterial: THREE.ShaderMaterial | null = null;
+
+  private blit(renderer: THREE.WebGLRenderer, texture: THREE.Texture): void {
+    if (!this.blitScene || !this.blitMaterial) {
+      this.blitMaterial = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        vertexShader: `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy * 2.0, 0.0, 1.0); }`,
+        fragmentShader: `precision highp float; uniform sampler2D uTex; in vec2 vUv; out vec4 fragColor;
+void main() { fragColor = texture(uTex, vUv); }`,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+        uniforms: { uTex: { value: null } },
+      });
+      this.blitScene = new THREE.Scene();
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.blitMaterial);
+      mesh.frustumCulled = false;
+      this.blitScene.add(mesh);
+    }
+    this.blitMaterial.uniforms.uTex!.value = texture;
+    renderer.render(this.blitScene, this.blitCamera);
+  }
+
+  private readonly blitCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
+
   // ---- CE1G transition plumbing ----
   private compositor = new TransitionCompositor();
   private liveTarget: THREE.WebGLRenderTarget | null = null;
@@ -894,6 +1458,18 @@ export class RenderEngine {
       });
     }
     return this.liveTarget;
+  }
+
+  /**
+   * Export authority: resolved params per layer for the frame being rendered.
+   * Set by the export runner immediately before renderStill, so every branch
+   * draws the values the evaluator produced rather than whatever the preview
+   * last pushed.
+   */
+  private exportLayerParams: ReadonlyMap<string, ParamRecord> | undefined;
+
+  setExportLayerParams(params: ReadonlyMap<string, ParamRecord> | undefined): void {
+    this.exportLayerParams = params;
   }
 
   /** Editor/replica set this each frame from RESOLVED values. */
@@ -996,7 +1572,13 @@ export class RenderEngine {
     if (this.exportMode) return;
     // 18D: a live source delivers new pixels every frame outside our
     // invalidation model — while one is active, render continuously.
-    if (!this.dirty && !this.liveSourceActive && !this.feedbackActive && !this.generatorActive)
+    if (
+      !this.dirty &&
+      !this.liveSourceActive &&
+      !this.feedbackActive &&
+      !this.generatorActive &&
+      !this.branchesAnimating
+    )
       return;
     this.dirty = false;
     const start = performance.now();
@@ -1026,10 +1608,17 @@ export class RenderEngine {
   private exportPrevSourceSec: number | null = null;
 
   setExportPreviousTime(sec: number | null): void {
+    for (const b of this.branches) b.engine.setExportPreviousTime(sec);
     this.exportPrevSourceSec = sec;
   }
 
   prepareGeneratorForExport(compositionTime: number, width: number, height: number): void {
+    // EVERY layer's generator advances, not just the selected one — an export
+    // that prepared one branch would render the others from stale preview
+    // state, deterministically and wrongly.
+    for (const b of this.branches) {
+      b.engine.prepareGeneratorForExport(compositionTime, width, height);
+    }
     const renderer = this.renderer;
     if (!renderer || !this.generator) return;
     const prevW = this.compWidth;
@@ -1096,6 +1685,60 @@ export class RenderEngine {
       else renderer.setClearColor(this.compBackground, 1);
       renderer.clear();
       this.updateCamera(width / height);
+      // v0.6: export composites exactly as preview does — every layer to its
+      // own target at export resolution, then one blend chain. Layer targets
+      // are sized from the composition, so an export at a different size
+      // re-renders each branch rather than scaling a preview.
+      if (this.branches.length > 0) {
+        const prevW = this.compWidth;
+        const prevH = this.compHeight;
+        this.compWidth = width;
+        this.compHeight = height;
+        for (const b of this.branches) b.engine.setComposition(width, height, this.compBackground);
+        try {
+          // A single-layer export still arrives with one `paramsOverride`,
+          // which is the evaluator's resolved values. Route it to the layer it
+          // belongs to, or modulation would silently vanish from renders of
+          // every project written before v0.6.
+          let byLayer = this.exportLayerParams;
+          if (!byLayer && paramsOverride) {
+            const id = this.branches[this.selectedLayerIndex]?.id ?? this.branches[0]?.id;
+            if (id) byLayer = new Map([[id, paramsOverride]]);
+          }
+          renderer.setRenderTarget(target);
+          const direct = !transition && this.renderDirectLayer(renderer, byLayer);
+          const composed = direct ? null : this.renderComposition(renderer, transparent, byLayer);
+          renderer.setRenderTarget(target);
+          if (!direct && composed) {
+            if (transition && this.compositor.hasSnapshot) {
+              renderer.clear();
+              this.compositor.composite(
+                renderer,
+                composed,
+                transition.progress,
+                transition.params,
+                width / Math.max(height, 1),
+              );
+            } else {
+              this.blit(renderer, composed);
+            }
+          }
+          const out = new Uint8Array(width * height * 4);
+          renderer.readRenderTargetPixels(target, 0, 0, width, height, out);
+          // GL reads bottom row first — flip vertically, as the single-branch
+          // path below does.
+          const flippedOut = new Uint8Array(out.length);
+          const stride = width * 4;
+          for (let y = 0; y < height; y++) {
+            flippedOut.set(out.subarray(y * stride, (y + 1) * stride), (height - 1 - y) * stride);
+          }
+          return flippedOut;
+        } finally {
+          this.compWidth = prevW;
+          this.compHeight = prevH;
+          for (const b of this.branches) b.engine.setComposition(prevW, prevH, this.compBackground);
+        }
+      }
       if (transition && this.compositor.hasSnapshot) {
         // Dual render: B into its own target, then the SAME shader the
         // preview uses composites it against the A snapshot. One

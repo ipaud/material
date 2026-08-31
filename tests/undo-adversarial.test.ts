@@ -44,7 +44,7 @@ function project(): Project {
   const p = createEmptyProject('Undo');
   return {
     ...p,
-    techniques: [{ id: 'tech', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } }],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } } }],
     modulations: [
       {
         id: 'mod-1', enabled: true, source: 'bass', target: 'scale', amount: 0.5,

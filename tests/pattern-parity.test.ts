@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -117,9 +118,7 @@ function qaProject(over: Partial<Project> = {}): Project {
   const p = createEmptyProject('pattern-qa');
   return {
     ...p,
-    techniques: [
-      { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-    ],
+    layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) } }],
     timeline: { ...p.timeline, bpm: BPM, beatOffsetSec: BEAT_OFFSET },
     patternSources: PATTERNS,
     modulations: MAPPINGS,
@@ -137,7 +136,7 @@ let liveAnalysis: AudioAnalysis | null = null;
 let liveDuration = 600;
 
 function configureLive(project: Project): void {
-  const instance = project.techniques.find((t) => t.enabled) ?? null;
+  const instance = selectedLayerOf(project).technique;
   modulationRuntime.configure(project.modulations, instance?.techniqueId ?? null, {
     analysis: liveAnalysis,
     durationSec: liveDuration,
@@ -163,7 +162,7 @@ function live(_project: Project, t: number): Record<string, unknown> {
   morphRuntime.tick(t);
   const project = useProjectStore.getState().project;
   configureLive(project);
-  const instance = project.techniques.find((tq) => tq.enabled);
+  const instance = selectedLayerOf(project).technique ?? undefined;
   const definition = getTechnique(instance?.techniqueId ?? 'mosaic')!;
   return modulationRuntime.transform(
     { ...defaultParams(definition), ...(instance?.params ?? {}) },
@@ -462,9 +461,7 @@ describe('morph parity', () => {
   it('cross-technique morph filters a mosaic-only pattern mapping after the switch', () => {
     const slitLook = lookOf({
       id: 'look-slit',
-      techniques: [
-        { id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) },
-      ],
+      techniques: [{ id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) }],
       modulations: [map('m-strips', patternSourceKey('pat-b'), 'strips', 0.5)],
     });
     const project = armMorph(qaProject(), slitLook, 0, 4);
@@ -493,9 +490,7 @@ describe('morph parity', () => {
 
   it('inverse morph: a mosaic pattern mapping starts contributing once mosaic is evaluated', () => {
     const slitBase = qaProject({
-      techniques: [
-        { id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) },
-      ],
+      techniques: [{ id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) }],
     });
     const project = armMorph(slitBase, lookOf(), 0, 4);
     const evaluate = createFrameEvaluator(0, 1000);
@@ -516,9 +511,7 @@ describe('temporal technique parity', () => {
   it('a pattern mapped to a slit-scan parameter resolves identically in both paths', () => {
     const project = installProject(
       qaProject({
-        techniques: [
-          { id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) },
-        ],
+        layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) } }],
         modulations: [map('m-strips', patternSourceKey('pat-b'), 'strips', 0.5)],
       }),
     );
@@ -566,7 +559,7 @@ describe('mixed source parity', () => {
       ],
     });
     installProject(project, { analysis, durationSec: 6 });
-    const instance = project.techniques[0]!;
+    const instance = selectedLayerOf(project).technique!;
     // Export reads analysis from the audio store; drive evalSources directly
     // with the export context shape instead (same function, same inputs).
     const ctx: SourceContext = {
@@ -654,9 +647,7 @@ describe('seed and reload determinism', () => {
       id: 'look-seed',
       label: 'seed-swap',
       seed: 999,
-      techniques: [
-        { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) },
-      ],
+      techniques: [{ id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: defaultParams(mosaic) }],
       modulations: MAPPINGS,
     });
     const source = captureLookCore(qaProject())!;
@@ -756,9 +747,7 @@ describe('long and repeatable export', () => {
     const slitLook = pinnedLook({
       id: 'look-slit',
       label: 'slit',
-      techniques: [
-        { id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) },
-      ],
+      techniques: [{ id: 'tech-1', techniqueId: 'slit-scan', enabled: true, params: defaultParams(slitScan) }],
       modulations: [
         map('m-strips', patternSourceKey('pat-b'), 'strips', 0.5),
         map('m-span', patternSourceKey('pat-c'), 'spanSec', 0.4),

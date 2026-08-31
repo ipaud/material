@@ -1,3 +1,4 @@
+import { selectedLayerOf } from '@shared/schemas/project';
 import { useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { getTechnique } from '@/techniques/registry';
@@ -79,7 +80,7 @@ export function TriggersSection() {
   const triggers = useProjectStore((s) => s.project.triggers);
   const markers = useProjectStore((s) => s.project.timeline.markers);
   const modulations = useProjectStore((s) => s.project.modulations);
-  const technique = useProjectStore((s) => s.project.techniques.find((t) => t.enabled) ?? null);
+  const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const definition = technique ? getTechnique(technique.techniqueId) : null;
