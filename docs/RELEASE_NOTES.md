@@ -1,5 +1,121 @@
 # Release Notes
 
+## v0.7.0 — PERFORMANCE CAPTURE
+
+MATERIAL can record what you play.
+
+Not the picture, and not the thousands of numbers the engine works out each
+frame — the things your hands did. A fader you moved, a Look you recalled, the
+instant you hit Freeze. That recording is a **Take**: play it back, edit it a
+little, export it.
+
+It is deliberately not a timeline. No clips, no tracks for your footage, no
+curve handles, no nested takes. A Take is a performance, and if one needs more
+surgery than a handful of edits, recording it again is faster and better.
+
+### Record what you play
+
+Press **REC** (or `R`), press play, and perform. Layer faders, macro sweeps,
+Look recalls, Morphs, Freeze, muting a layer, and anything you drive over MIDI.
+Press REC again — or stop the transport — and the Take is saved.
+
+Arming and *then* pressing play starts the recording in step with the song, so
+your first gesture lands where you meant it. Press REC while the transport is
+already running and it starts immediately.
+
+Recording always creates a new Take. Nothing is ever recorded over.
+
+### What it records, and what it works out again
+
+| Recorded | Re-evaluated on every replay |
+|---|---|
+| Layer opacity you moved | Audio analysis |
+| Macro position you swept | Image and Motion Signals |
+| A parameter you dragged | Pattern output |
+| A Look you recalled | Signal calibration |
+| A Morph you launched | Every modulation result |
+| Freeze on and off | |
+| A layer you muted | |
+
+This split is the whole design. If MATERIAL recorded resolved values instead, a
+Take would sound right for about a minute and then start lying: change a
+macro's targets and it would still drive the old ones, change a Look and it
+would ignore it, load it at a different frame rate and the timing would drift.
+
+Because it records intent, a Take stays alive. Replay it over a different song
+and the Signals react to the new song while your gestures stay exactly as you
+played them. Edit a macro's targets afterwards and the Take drives the new
+ones — which is the point of having macros at all.
+
+MIDI is captured as the control it resolved to, never as device plus CC number,
+so a Take replays with nothing plugged in.
+
+### Play it back, and scrub it
+
+Select a Take and press **TAKE** (or `T`). Scrub anywhere and the composition
+shows what the Take was doing at that instant — including part-way through a
+Morph, and on the correct side of a Freeze.
+
+That works because seeking *reconstructs* rather than rewinds: the baseline is
+restored and every event replayed from the origin, while continuous controls
+are a pure function of time. Measured: six out-of-order seeks resolve to the
+same values as a frame-by-frame walk, twice over, to the digit.
+
+While a Take plays it owns the controls it recorded. Press STOP and the faders
+stay where it left them, so you carry on from there rather than from a value
+that just jumped.
+
+### Edit, minimally
+
+Press **EDIT** and you get a ruler for the Take's own length, one line per
+recorded control, one tick per event.
+
+Drag points, drag events, ⌥-click to delete, **SIMPLIFY** to thin the recorded
+points, **TRIM IN / TRIM OUT** to cut to the playhead. Everything is undoable.
+
+Trim does more than it looks: a Take cut to start after its Freeze still
+replays frozen, and a lane gets a sample planted exactly at the new boundary so
+replay begins at the value the gesture actually had there.
+
+Recording is thinned automatically. A ten-second fader move stores under eight
+points instead of six hundred, with a maximum error of 0.004 — about one pixel
+of a 300 px fader.
+
+### Export
+
+Export as usual and the selected Take drives the render, evaluated exactly as
+it was in preview. Exporting the same range twice gives identical frames.
+Exporting a slice of a longer performance gives frames identical to the same
+span of the whole thing — including the parts where your automation changed a
+feedback or simulation parameter *before* the slice began, because the Take is
+evaluated through the export's existing preroll rather than beside it.
+
+### Numbers
+
+| | |
+|---|---|
+| Recording overhead, two lanes at 60 Hz | within noise of 120 fps (−0.5 %) |
+| Replay cost, six lanes | 0.33 µs per frame |
+| Simplification | 81.5 % of samples removed, max error 0.00399 |
+| Ten-minute Take, six lanes moving continuously | 996 kB |
+| 11-minute record/replay/edit soak, 141 cycles | heap 53.0 → 55.3 MB, 120 fps, zero GL errors |
+
+### Format
+
+Project version 4 → 5. The change is additive and `migrateV4toV5` moves no
+data; the number exists so a v0.7 project carrying a performance is *refused*
+by v0.6.1 rather than opened with the performance silently stripped out. Old
+projects open unchanged and gain an empty Take list.
+
+### Not in v0.7
+
+Punch-in and overdub, several Takes at once, loop recording, quantised or
+beat-snapped events, curved automation, and recording structural edits — adding
+layers, changing sources or techniques, editing routes. Those are composition
+changes rather than performance. See `docs/BACKLOG.md`.
+
+Classification: **INTERNAL** — ad-hoc signed, not notarized.
+
 ## v0.6.0 — LAYER COMPOSITION
 
 Several visual materials can now coexist in one composition and be played

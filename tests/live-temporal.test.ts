@@ -279,10 +279,14 @@ describe('release gates (18G)', () => {
     // composition is a stack, and there is no way to express that in v3. The
     // migration is invisible and single-layer output is byte-identical to
     // v0.5.0, so the bump buys structure rather than breaking anything.
+    // v0.7 moved it again, for the OPPOSITE reason: Takes are additive and a
+    // v4 document satisfies v5 untouched, but a v0.7 project carrying a
+    // recorded performance must be refused by v0.6.1 rather than opened with
+    // the performance silently stripped.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    expect(pkg.version).toBe('0.6.1');
+    expect(pkg.version).toBe('0.7.0');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
-    expect(PROJECT_FORMAT_VERSION).toBeGreaterThanOrEqual(4);
+    expect(PROJECT_FORMAT_VERSION).toBe(5);
   });
 
   it('fps meter clamps burst samples to a plausible display rate', () => {
