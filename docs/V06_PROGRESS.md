@@ -340,9 +340,13 @@ and a cross-layer opacity route, at 320×180 exported to 160×90 at 12 fps.
 1280×720, four layers, two cross-layer routes, with layer add/delete, solo
 cycling and enable cycling every few iterations.
 
-Textures, geometries, programs, render-target bytes, branch count and
-calibration-cache size were **constant** throughout; GL errors zero. Heap
-oscillated 26–37 MB with no trend.
+**11.0 minutes, 724 iterations.** Textures 33, geometries 22, programs 21,
+render targets 21.1 MB, branches 4 and calibration entries 4 — every one of
+them identical at the first sample and the last, with no excursion in between.
+Zero GL errors. Heap oscillated 25–46 MB with no trend.
+
+The branch count holding at 4 across 240 add/delete cycles is the load-bearing
+number: it says a layer that goes away takes its runtime with it.
 
 ### Packaged QA
 
