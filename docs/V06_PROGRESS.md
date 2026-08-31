@@ -191,13 +191,11 @@ feeds several layers, and both survive export.
    rule the calibration store already followed. Export is untouched — it runs
    its own evaluator, stepped by a fixed 1/fps.
 
-### Known gap, carried to E
+### Known gap at the time, closed in E
 
-The Output replica renders **one** technique. It has not yet been taught to
-composite a layer stack, so it currently mirrors the selected layer rather than
-the composition. Passivity is unaffected — the channel already carries only
-resolved values — but the replica needs the layer list and per-layer resolved
-parameters before it shows what the editor shows.
+The Output replica rendered **one** technique: it had not been taught to
+composite a stack, so it mirrored the selected layer rather than the
+composition. Closed in E — see below.
 
 ## C — Blend, mask, layer modulation
 
@@ -381,3 +379,26 @@ build.
 `docs/LAYERS.md` (new), `docs/PROJECT_FORMAT.md` (schema v4 and the migration),
 `docs/ARCHITECTURE.md` (branch-mode engine and what it implies),
 `docs/RELEASE_NOTES.md` (v0.6.0).
+
+---
+
+## Release
+
+Tagged **v0.6.0**. Schema v4. Every gate in this document was run against the
+code that shipped, not against an earlier revision of it.
+
+The one number worth carrying forward: **eleven** defects were found in this
+release, and every one of them was invisible to a green gate at the time.
+Nine were the same shape — something that used to be true of one engine
+quietly staying written for one engine, so a host-level predicate kept
+answering for itself while the work had moved onto the branches. A stale
+renderer, a sleeping render loop, a feedback preroll that never ran, a frame
+message published once per layer, a field declared and never copied.
+
+None of them threw. Each produced a deterministic wrong answer, which is why
+the gates stayed green: determinism is not correctness, and a gate a dormant
+system can satisfy needs a companion that fails when nothing happens. In v0.6
+that companion was `probeLayers` — reading what the branches actually drew —
+and an identity comparison against a real v0.5.0 build that reports pixel
+counts alongside its hash, so black-against-black cannot pass for a match
+again.
