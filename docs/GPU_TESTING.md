@@ -427,3 +427,16 @@ fails for a reason that is not a bug. Name times every rate can land on.
 internal composition clock happily runs past it during playback. A seek test
 against such a project silently becomes five requests for t = 0. Set a duration
 on the playback store first.
+
+**The `__dev` bridge goes stale across HMR.** `main.tsx` captures module
+references once at load. Edit a module Vite then hot-replaces, and
+`window.__dev.<thing>` still points at the version from before the edit — so a
+probe exercises old code while the app runs new code, and the result looks like
+a product bug.
+
+Measured: a Take recorded through the bridge came out with no `lookCore`
+baseline minutes after the fix that adds one was committed and the suite was
+green. Relaunching the dev app produced it correctly.
+
+**After editing anything a probe reaches through `__dev`, relaunch the dev app
+before believing the probe.**

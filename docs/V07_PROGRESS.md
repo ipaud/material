@@ -406,6 +406,31 @@ single undo entry.
 it.** Recorded above under B, because the fix belongs to the baseline contract;
 it was found here, by a live probe, and by nothing the test suite was asking.
 
+### Packaged QA (§150)
+
+`npm run package` → `MATERIAL.app` 0.7.0, ad-hoc signed, not notarized.
+Launched, rendered the full UI, and offered recovery of the dev session's
+autosave — a **version 5 project carrying a Take with 25 events**, written by
+autosave and read back by the shipping binary. No debug port: the
+`remote-debugging-port` switch is behind `!app.isPackaged`, verified in the
+packaged `out/main/index.js` inside the asar. The Take UI strings (`PERFORMANCE`,
+`STOP TAKE`, `SIMPLIFY`, `TRIM IN`) are present in the shipped renderer bundle.
+
+Per `docs/GPU_TESTING.md`, packaged QA is launch + render + asar inspection:
+CDP does not answer in a packaged build, so a driven scenario is not available
+and is not claimed.
+
+### A probe trap worth the hour it cost
+
+The autosave above showed a Take with **no `lookCore` baseline**, minutes after
+the commit that adds one, with the suite green. The `__dev` bridge captures
+module references once at `main.tsx` load, so after Vite hot-replaced
+`gestures.ts` the probe was still calling the pre-fix module. Relaunching the
+dev app and re-running produced `lookCore: "mosaic"` correctly.
+
+Recorded in `docs/GPU_TESTING.md`: after editing anything a probe reaches
+through `__dev`, relaunch before believing the probe.
+
 ### Known debt
 
 - `simplifyLane` is O(n²) worst case (~7 s on a pathological ten-minute lane
