@@ -1,4 +1,5 @@
 import type { NumberParamDef } from '@/techniques/types';
+import { applyLayerModulations, isLayerTarget, type LayerDynamicState } from './layerState';
 import type { ModulationMapping, ParamRecord } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { evalSources, type SourceContext } from './sources';
@@ -245,6 +246,29 @@ class ModulationRuntime {
     }
   }
 
+  /**
+   * v0.6C — resolve ONE layer's own state (opacity), as opposed to the state
+   * of the technique inside it. Same evaluator, same Add/Set rules, same
+   * freeze; only the target namespace differs.
+   */
+  resolveLayerState(
+    layerId: string,
+    stored: LayerDynamicState,
+    timeSec: number,
+  ): LayerDynamicState {
+    const entry = this.layerMods.find((e) => e.layerId === layerId);
+    if (!entry) return stored;
+    const layerMappings = entry.mappings.filter((m) => isLayerTarget(m.target));
+    if (layerMappings.length === 0) return stored;
+    return applyLayerModulations(
+      stored,
+      layerMappings,
+      this.sourcesFor(entry, timeSec),
+      this.smoothing,
+      this.previewDt(timeSec),
+    );
+  }
+
   /** Resolve ONE layer's technique parameters. */
   transformFor(layerId: string, base: ParamRecord, timeSec: number): ParamRecord {
     if (layerId === this.primaryLayerId) return this.transform(base, timeSec);
@@ -323,13 +347,27 @@ class ModulationRuntime {
    * a fixed 1/fps — so determinism is untouched.
    */
   private previewDt(timeSec: number): number {
+    // Computed ONCE per rendered frame. Several things ask for it now — the
+    // primary layer, each secondary layer, each layer's own opacity — and a
+    // function that advances its own clock would have split one frame's dt
+    // between them and quietly slowed every smoothed mapping by the layer
+    // count.
+    if (this.frameDt !== null) return this.frameDt;
     const wall = performance.now() / 1000;
     const transportDt = this.lastTime >= 0 ? Math.abs(timeSec - this.lastTime) : 0;
     const wallDt = this.lastWallSec >= 0 ? Math.abs(wall - this.lastWallSec) : 0;
     this.lastWallSec = wall;
-    if (this.lastTime < 0) return 1 / 60;
     // A stopped transport reports a dt of exactly zero, not a small one.
-    return Math.min(transportDt > 0 ? transportDt : wallDt, 0.1);
+    const dt = this.lastTime < 0 ? 1 / 60 : Math.min(transportDt > 0 ? transportDt : wallDt, 0.1);
+    this.frameDt = dt;
+    return dt;
+  }
+
+  private frameDt: number | null = null;
+
+  /** The engine calls this once at the top of every rendered frame. */
+  markFrame(): void {
+    this.frameDt = null;
   }
 
   /** Shaped current value of one mapping (0..1) — used by FREEZE. */
@@ -412,6 +450,7 @@ class ModulationRuntime {
     this.smoothing.reset();
     this.lastTime = -1;
     this.lastWallSec = -1;
+    this.frameDt = null;
   }
 }
 

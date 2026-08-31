@@ -508,6 +508,12 @@ export const layerSchema = z.object({
   id: z.string().min(1),
   name: z.string().max(48).default(''),
   enabled: z.boolean().default(true),
+  /**
+   * Solo is a VIEW over enabled, not a mutation of it: soloing a layer must
+   * leave the others' enabled flags alone so un-soloing restores exactly what
+   * the performer had. Stored so a soloed state survives a save.
+   */
+  solo: z.boolean().default(false),
   opacity: z.number().min(0).max(1).default(1),
   blendMode: blendModeSchema.default('normal'),
   /** Which of `sources[]` this layer draws from. */
@@ -629,11 +635,33 @@ export function withSelectedSource(project: Project, sourceId: string): Project 
   };
 }
 
+/**
+ * Which layers actually render.
+ *
+ * Solo wins over enabled while any layer is soloed, and it is a VIEW: nothing
+ * about the other layers' `enabled` flags changes, so releasing solo restores
+ * precisely the state the performer had built.
+ *
+ * `enabled: false` and `opacity: 0` are deliberately NOT the same thing. A
+ * disabled layer is not rendered at all — no branch draw, no analysis, no
+ * compositor pass — so it costs nothing and its feedback or simulation history
+ * stops advancing. A layer at zero opacity is rendered and composited to
+ * nothing: it still costs, and its history keeps evolving, so fading it back
+ * up resumes where the material would have been rather than where it was
+ * abandoned. One is a mute, the other is a fader, and an instrument needs both.
+ */
+export function renderedLayers(layers: readonly Layer[]): Layer[] {
+  const soloed = layers.filter((l) => l.solo);
+  const visible = soloed.length > 0 ? soloed : layers;
+  return visible.filter((l) => l.enabled);
+}
+
 export function emptyLayer(id: string, name = ''): Layer {
   return {
     id,
     name,
     enabled: true,
+    solo: false,
     opacity: 1,
     blendMode: 'normal',
     sourceId: null,

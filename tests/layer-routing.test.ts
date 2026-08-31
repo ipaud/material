@@ -159,7 +159,9 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
     // Walked in the preroll too, or a subrange enters with no smoothing
     // history and disagrees with a full export.
     const preroll = runner.slice(runner.indexOf('for (let f = 0; f < startFrame; f++)'));
-    expect(preroll.slice(0, 900)).toContain('evaluateLayers(frame.timeSec)');
+    expect(preroll.slice(0, 900)).toContain('evaluateLayers.paramsAt(frame.timeSec)');
+    // Opacity carries smoothing state of its own and must be walked too.
+    expect(preroll.slice(0, 900)).toContain('evaluateLayers.opacityAt(frame.timeSec)');
   });
 
   it('resolved layer params are published before anything reads them', () => {
@@ -212,6 +214,8 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
     const runtime = read('src', 'modulation', 'runtime.ts');
     expect(runtime).toContain('private previewDt(');
     const fn = runtime.slice(runtime.indexOf('private previewDt('));
-    expect(fn.slice(0, 500)).toContain('transportDt > 0 ? transportDt : wallDt');
+    expect(fn.slice(0, 900)).toContain('transportDt > 0 ? transportDt : wallDt');
+    // And computed once per frame, or each layer would consume a share of it.
+    expect(fn.slice(0, 900)).toContain('if (this.frameDt !== null) return this.frameDt;');
   });
 });

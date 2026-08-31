@@ -76,6 +76,18 @@ export class RenderEngine {
   /** Optional per-frame parameter transform (modulation). */
   private paramTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
 
+  private frameSink: (() => void) | null = null;
+
+  /** Composition time, for authority that resolves values against it. */
+  get currentTimeSec(): number {
+    return this.timeSec;
+  }
+
+  /** Called once per rendered frame, before anything resolves a value. */
+  setFrameSink(fn: (() => void) | null): void {
+    this.frameSink = fn;
+  }
+
   setParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void {
     this.paramTransform = fn;
     this.invalidate();
@@ -282,6 +294,39 @@ export class RenderEngine {
   }
 
   /** Which layers actually contribute a draw this frame. */
+  /**
+   * v0.6C — the state each layer is actually composited with THIS frame.
+   *
+   * Stored opacity is the resting value; a `layer.opacity` mapping moves it,
+   * the same way a mapping moves a technique parameter. Resolution happens
+   * here, once per frame, rather than in the store: a signal-driven value is
+   * not project state and must never be written back.
+   */
+  private layerStateSink:
+    | ((layerId: string, opacity: number) => { opacity: number })
+    | null = null;
+
+  setLayerStateSink(
+    fn: ((layerId: string, opacity: number) => { opacity: number }) | null,
+  ): void {
+    this.layerStateSink = fn;
+  }
+
+  private effectiveOpacity(index: number): number {
+    const state = this.layerStates[index];
+    if (!state) return 0;
+    if (!this.layerStateSink) return state.opacity;
+    if (this.exportLayerOpacity) return this.exportLayerOpacity.get(state.id) ?? state.opacity;
+    return this.layerStateSink(state.id, state.opacity).opacity;
+  }
+
+  /** EXPORT authority: resolved opacities, resolved by the export evaluator. */
+  private exportLayerOpacity: ReadonlyMap<string, number> | undefined;
+
+  setExportLayerOpacity(byLayer: ReadonlyMap<string, number> | undefined): void {
+    this.exportLayerOpacity = byLayer;
+  }
+
   private visibleLayers(): number[] {
     const out: number[] = [];
     for (const [i, state] of this.layerStates.entries()) {
@@ -317,7 +362,10 @@ export class RenderEngine {
     if (visible.length !== 1) return null;
     const only = visible[0] as number;
     const state = this.layerStates[only];
-    if (!state || state.opacity < 1 || state.blendMode !== 'normal') return null;
+    if (!state || state.blendMode !== 'normal') return null;
+    // Resolved, not stored: a layer faded by a signal must go through the
+    // compositor even though the project still says 1.
+    if (this.effectiveOpacity(only) < 1) return null;
     return only;
   }
 
@@ -359,7 +407,7 @@ export class RenderEngine {
       }
       composed.push({
         texture: target.texture,
-        opacity: state.opacity,
+        opacity: this.effectiveOpacity(i),
         blendMode: state.blendMode,
       });
     }
@@ -1258,6 +1306,7 @@ export class RenderEngine {
     // Resolved export values must not survive into the preview, or a layer
     // keeps rendering the last exported frame’s parameters.
     this.exportLayerParams = undefined;
+    this.exportLayerOpacity = undefined;
     this.temporal?.invalidate();
     this.invalidate();
   }
@@ -1699,6 +1748,9 @@ void main() { fragColor = texture(uTex, vUv); }`,
     )
       return;
     this.dirty = false;
+    // One frame, one dt: the modulation runtime is asked for a step by every
+    // layer and by every layer's opacity, and it must answer the same thing.
+    this.frameSink?.();
     const start = performance.now();
     this.renderFrame();
     this.lastFrameTime = performance.now() - start;

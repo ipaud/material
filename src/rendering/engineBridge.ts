@@ -1,5 +1,6 @@
 import type { NumberParamDef } from '@/techniques/types';
 import { mappingsByTarget, sourceLayerOf } from '@/modulation/layerRouting';
+import { renderedLayers } from '@shared/schemas/project';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
@@ -278,10 +279,13 @@ function syncFromProject(): void {
   // v0.6: reconcile the branch list FIRST, so every layer has a runtime to be
   // configured into. Identity is the layer id, so reordering moves nothing.
   const selectedId = project.selectedLayerId ?? project.layers[0]?.id ?? null;
+  // Solo is resolved HERE, once, so the engine never has to know the rule and
+  // the store is never rewritten to express it.
+  const rendered = new Set(renderedLayers(project.layers).map((l) => l.id));
   engine.syncLayers(
     project.layers.map((l) => ({
       id: l.id,
-      enabled: l.enabled,
+      enabled: rendered.has(l.id),
       opacity: l.opacity,
       blendMode: l.blendMode,
       selected: l.id === selectedId,
@@ -500,6 +504,10 @@ export function startEngineBridge(): () => void {
       configureModulation();
     }
   });
+  engine.setFrameSink(() => modulationRuntime.markFrame());
+  engine.setLayerStateSink((layerId, opacity) =>
+    modulationRuntime.resolveLayerState(layerId, { opacity }, engine.currentTimeSec),
+  );
   engine.setParamTransform((base, t) => modulationRuntime.transform(base, t));
   // v0.6B: each branch resolves its OWN parameters, from the mappings pointed
   // at it and the layer each of those reads its signals from.

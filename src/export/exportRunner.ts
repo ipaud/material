@@ -1,4 +1,5 @@
 import { selectedLayerOf } from '@shared/schemas/project';
+import { applyLayerModulations, isLayerTarget } from '@/modulation/layerState';
 import { mappingsByTarget, sourceLayerOf } from '@/modulation/layerRouting';
 import { engine } from '@/rendering/RenderEngine';
 import { playback } from '@/playback/PlaybackController';
@@ -367,7 +368,7 @@ export function createSecondaryLayerEvaluator(
   primaryLayerId: string,
   fps: number,
   visualFor: (layerId: string) => Record<string, number>,
-) {
+): { paramsAt: (t: number) => Map<string, ParamRecord>; opacityAt: (t: number) => Map<string, number> } {
   const analysis = useAudioStore.getState().analysis;
   const byTarget = mappingsByTarget(project);
   const entries = project.layers
@@ -390,17 +391,46 @@ export function createSecondaryLayerEvaluator(
     patterns: resolvePatternHandles(project.patternSources),
     projectSeed: project.explore.lastSeed ?? 1,
   };
+  // Layer opacity belongs to EVERY layer, including the primary one, because
+  // it is not a technique parameter and the main evaluator never sees it.
+  const opacityEntries = project.layers.map((l) => ({
+    layerId: l.id,
+    stored: { opacity: l.opacity },
+    mappings: (byTarget.get(l.id) ?? []).filter((m) => isLayerTarget(m.target)),
+    signalSource: new Map(
+      (byTarget.get(l.id) ?? []).map((m) => [m.id, sourceLayerOf(project, m)]),
+    ),
+    smoothing: new SmoothingState(),
+  }));
   const dt = 1 / fps;
-  return (timeSec: number): Map<string, ParamRecord> => {
+  const visualFrom = (e: { layerId: string; signalSource: ReadonlyMap<string, string> }) => {
+    const visual = { ...visualFor(e.layerId) };
+    for (const from of new Set(e.signalSource.values())) {
+      if (from !== e.layerId) Object.assign(visual, visualFor(from));
+    }
+    return visual;
+  };
+  const opacityAt = (timeSec: number): Map<string, number> => {
+    const out = new Map<string, number>();
+    for (const e of opacityEntries) {
+      if (e.mappings.length === 0) {
+        out.set(e.layerId, e.stored.opacity);
+        continue;
+      }
+      const sources = evalSources(timeSec, { ...ctx, visual: visualFrom(e) });
+      out.set(
+        e.layerId,
+        applyLayerModulations(e.stored, e.mappings, sources, e.smoothing, dt).opacity,
+      );
+    }
+    return out;
+  };
+  const paramsAt = (timeSec: number): Map<string, ParamRecord> => {
     const out = new Map<string, ParamRecord>();
     for (const e of entries) {
       const definition = getTechnique(e.technique.techniqueId);
       if (!definition) continue;
-      const visual = { ...visualFor(e.layerId) };
-      for (const from of new Set(e.signalSource.values())) {
-        if (from !== e.layerId) Object.assign(visual, visualFor(from));
-      }
-      const sources = evalSources(timeSec, { ...ctx, visual });
+      const sources = evalSources(timeSec, { ...ctx, visual: visualFrom(e) });
       out.set(
         e.layerId,
         applyModulations(
@@ -415,6 +445,7 @@ export function createSecondaryLayerEvaluator(
     }
     return out;
   };
+  return { paramsAt, opacityAt };
 }
 
 /**
@@ -715,7 +746,8 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         // so a subrange disagreed with a full export and two runs of the same
         // subrange disagreed with each other — the exact CE1H failure, one
         // layer along.
-        const prerollLayers = new Map(evaluateLayers(frame.timeSec));
+        const prerollLayers = new Map(evaluateLayers.paramsAt(frame.timeSec));
+        evaluateLayers.opacityAt(frame.timeSec); // walk opacity smoothing too
         if (!walkGpu || f < walkFrom) continue;
         prerollLayers.set(selectedLayerOf(project0).id, frame.params);
         engine.setExportLayerParams(prerollLayers);
@@ -759,9 +791,10 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // pair both read source pixels, so the source must already exist at the
       // export resolution or a subrange's first frame would sample a
       // differently-sized source than the full export's same global frame.
-      const layerParams = new Map(evaluateLayers(timeSec));
+      const layerParams = new Map(evaluateLayers.paramsAt(timeSec));
       layerParams.set(selectedLayerOf(project0).id, params);
       engine.setExportLayerParams(layerParams);
+      engine.setExportLayerOpacity(evaluateLayers.opacityAt(timeSec));
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       // CE1H: optical flow is a source-derived pair and must advance per

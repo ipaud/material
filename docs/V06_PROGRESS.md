@@ -201,9 +201,47 @@ parameters before it shows what the editor shows.
 
 ## C — Blend, mask, layer modulation
 
-Not started. The seven blend modes are implemented and gated in the
-compositor; C decides opacity modulation, Solo, enabled-vs-opacity-0 semantics
-and whether masks land in v0.6 at all.
+Status: **complete**, with masks deliberately deferred.
+
+### Decisions
+
+| Question | Decision | Why |
+|---|---|---|
+| Modulating the layer itself | A new target namespace, **`layer.opacity`** | `motion.amount → this video's opacity` is half of why layers exist, and opacity belongs to the layer, not to any technique inside it. |
+| What else is modulatable | **Nothing else** | Blend mode is a choice from a list with no continuum to interpolate along; if it ever becomes a target it has to be a trigger action. `enabled` is a switch whose whole point is that it is *not* a dimmer. |
+| How layer modulation is evaluated | Through **`applyModulations`**, on a synthetic one-parameter definition | Opacity gets Add/Set composition, the single-Set rule, freeze, input windows, curves and smoothing with exactly the semantics every other target has, and cannot drift from them. |
+| `enabled: false` vs `opacity: 0` | **Different on purpose** | A disabled layer is not rendered at all — no branch draw, no analysis, no compositor pass — so it costs nothing and its feedback or simulation history stops advancing. A layer at zero opacity is rendered and composited to nothing: it still costs, and its history keeps evolving, so fading it back up resumes where the material would have been rather than where it was abandoned. One is a mute, the other is a fader, and an instrument needs both. |
+| Solo | Exclusive, stored, and a **view** over enabled | Nothing about the other layers' `enabled` flags changes, so releasing solo restores precisely the stack the performer had built. Resolved once in the bridge; the engine never learns the rule. |
+| Masks | **Deferred out of v0.6** | A mask is a second source, a second sampling rule, a mask blend, inversion and feathering — a feature of its own size. Blend modes plus modulated opacity already cover the compositing this release set out to deliver, and shipping half a mask would be worse than shipping none. |
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| A signal moves layer opacity, live | 0 → 0.44 → 0 → 0.94 → 1 → 0.04, tracking `motion.amount` from another layer |
+| Solo is exclusive, non-destructive, restorable | verified live: the other layer's `enabled` untouched, state identical after release |
+| Export: opacity route changes the render | 12/12 frames differ enabled vs disabled |
+| Export: repeat | 12/12 identical |
+| Export: full vs subrange | 12/12 identical |
+| Every schema blend mode is implemented | asserted against `BLEND_MODE_INDEX` |
+| Single-layer identity vs v0.5.0 | still byte-identical |
+| Suite / lint / build | 1324 tests, all clean |
+
+### One bug, and one thing that only looked like one
+
+**Bug: `dt` was being consumed several times per frame.** Once layers arrived,
+the runtime is asked for a step by the primary layer, by every secondary layer
+and by every layer's opacity. `previewDt` advanced its own clock on each call,
+so one frame's `dt` was split between them and every smoothed mapping ran
+slower in proportion to the layer count. It is now computed once per rendered
+frame, from a sink the engine calls before anything resolves a value.
+
+**Not a bug: Set mode is spelled `replace`.** The docs and the UI call it Set;
+the schema value is `'replace'`. A mapping written with `mode: 'set'` is
+silently an Add mapping — and an Add mapping with a zero signal correctly
+leaves the parameter alone, which is indistinguishable from a dead route. Cost
+an hour. The layer-opacity test now asserts movement in **both** directions, so
+a route that only appears to work cannot pass.
 
 ## D — Performance UX
 

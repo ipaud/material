@@ -81,6 +81,32 @@ export function toggleLayerEnabled(layerId: string): void {
 }
 
 /**
+ * Solo one layer — or release solo if it already holds it.
+ *
+ * Solo is exclusive and it is a VIEW: it never touches anyone's `enabled`, so
+ * releasing it restores exactly the stack the performer had. That matters
+ * live, where solo is a thing you hit to check one layer and then undo without
+ * having to remember what was muted.
+ */
+export function toggleLayerSolo(layerId: string): void {
+  const { project, apply } = useProjectStore.getState();
+  const layer = project.layers.find((l) => l.id === layerId);
+  if (!layer) return;
+  const next = !layer.solo;
+  apply((p) => ({
+    ...p,
+    layers: p.layers.map((l) => ({ ...l, solo: l.id === layerId ? next : false })),
+  }));
+}
+
+/** Release solo without changing which layer it was on. */
+export function clearLayerSolo(): void {
+  const { project, apply } = useProjectStore.getState();
+  if (!project.layers.some((l) => l.solo)) return;
+  apply((p) => ({ ...p, layers: p.layers.map((l) => ({ ...l, solo: false })) }));
+}
+
+/**
  * Duplicate a layer's CONFIG. The copy gets a new id, so the bridge builds it
  * a fresh runtime — a duplicated feedback layer starts from nothing rather
  * than inheriting frames it never rendered.
