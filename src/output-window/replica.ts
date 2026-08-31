@@ -4,10 +4,9 @@ import { RenderEngine } from '@/rendering/RenderEngine';
 import { getTechnique } from '@/techniques/registry';
 import type { LoadedShader } from '@shared/schemas/shaderPack';
 import { registerPack } from '@/shaders/packRegistry';
-import { FileImageSource } from '@/sources/FileImageSource';
 import { OutputCameraSource } from './outputCameraSource';
 import { OutputCaptureSource } from './outputCaptureSource';
-import { GeneratorSource } from '@/sources/generators/GeneratorSource';
+import type { GeneratorSource } from '@/sources/generators/GeneratorSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { FrameStateMsg, OutputChannelMsg, RenderInputsMsg } from '@shared/outputChannel';
@@ -141,51 +140,15 @@ export class OutputReplica {
     this.syncCustomShaders(msg.customShaders);
 
     this.engine.setComposition(msg.compWidth, msg.compHeight, msg.background);
-    if (msg.materialState) this.engine.setMaterialState(msg.materialState);
     this.syncMaterialAsset(
       msg.materialState?.materialId === 'custom' ? msg.materialState.assetPath : null,
     );
 
-    const key = msg.source
-      ? msg.source.kind === 'generator'
-        ? `generator:${msg.source.generator}:${msg.source.seed}:${msg.generation}`
-        : msg.source.kind === 'live-camera'
-        ? `live-camera:${msg.source.deviceId ?? 'default'}:${msg.generation}`
-        : msg.source.kind === 'live-screen'
-          ? `live-screen:${msg.source.displayId ?? 'any'}:${msg.generation}`
-          : msg.source.kind === 'live-window'
-            ? `live-window:${msg.generation}`
-            : `${msg.source.kind}:${msg.source.path}:${msg.generation}`
-      : null;
-    if (key !== this.sourceKey) {
-      this.sourceKey = key;
-      this.source?.dispose();
-      this.source = null;
-      this.camera?.dispose();
-      this.camera = null;
-      this.capture?.dispose();
-      this.capture = null;
-      this.generator?.dispose();
-      this.generator = null;
-      this.engine.setSource(null);
-      this.engine.setLiveSourceActive(false);
-      this.engine.setTemporalSource(null);
-      if (msg.source?.kind === 'generator') {
-        // CE1F: the Output builds the SAME generator locally from the config
-        // — no pixels cross the process. Per-frame params arrive resolved in
-        // FrameState; the replica never evaluates modulation.
-        this.generator = new GeneratorSource(msg.source.generator as never, msg.source.seed);
-        this.generatorParams = msg.source.params;
-        this.engine.setSource(null);
-      } else if (msg.source?.kind === 'live-camera') {
-        void this.loadCamera(msg.source.deviceId ?? null, key);
-      } else if (msg.source?.kind === 'live-screen' || msg.source?.kind === 'live-window') {
-        void this.loadCapture(key);
-      } else if (msg.source) {
-        void this.loadSource(msg.source.kind, msg.source.path, key);
-      }
-    }
-
+    // v0.6.1 — the single-source path is gone. Every source, generator and
+    // technique now belongs to a LAYER, and the editor has sent a layer stack
+    // on every message since v0.6. Keeping a second, host-level copy of that
+    // machinery is what let the replica render one technique while the editor
+    // rendered four, so it is deleted rather than guarded.
     this.applyLayerInputs(msg);
 
     // First contact only: seed the renderer so a static scene shows before
@@ -269,7 +232,7 @@ export class OutputReplica {
     } catch (err) {
       console.warn('[replica] camera join failed:', err);
       camera.dispose();
-      if (this.sourceKey === key) this.engine.setSource(null);
+      if (this.sourceKey === key) this.engine.setLiveSource('camera', null);
       return;
     }
     if (this.sourceKey !== key) {
@@ -277,10 +240,10 @@ export class OutputReplica {
       return;
     }
     this.camera = camera;
-    this.engine.setSource(camera.texture());
-    // 18F: the replica keeps its OWN realtime temporal history — same
-    // wall-clock model as the editor, warmed from its own acquisition.
-    this.engine.setLiveSourceActive(true);
+    // ONE acquisition, every layer showing it — the same rule the editor
+    // follows. 18F: the replica keeps its OWN realtime temporal history,
+    // warmed from its own join.
+    this.engine.setLiveSource('camera', camera.texture());
   }
 
   /** 18E fan-out — see outputCaptureSource.ts: silent rejoin, main decides. */
@@ -291,7 +254,7 @@ export class OutputReplica {
     } catch (err) {
       console.warn('[replica] capture rejoin failed:', err);
       capture.dispose();
-      if (this.sourceKey === key) this.engine.setSource(null);
+      if (this.sourceKey === key) this.engine.setLiveSource('capture', null);
       return;
     }
     if (this.sourceKey !== key) {
@@ -299,37 +262,9 @@ export class OutputReplica {
       return;
     }
     this.capture = capture;
-    this.engine.setSource(capture.texture());
-    this.engine.setLiveSourceActive(true);
+    this.engine.setLiveSource('capture', capture.texture());
   }
 
-  private async loadSource(
-    kind: 'file-image' | 'file-video',
-    path: string,
-    key: string | null,
-  ): Promise<void> {
-    const runtime = kind === 'file-image' ? new FileImageSource(path) : new FileVideoSource(path);
-    try {
-      await runtime.load();
-    } catch (err) {
-      console.warn('[replica] source load failed:', err);
-      if (this.sourceKey === key) this.engine.setSource(null);
-      runtime.dispose();
-      return;
-    }
-    if (this.sourceKey !== key) {
-      runtime.dispose(); // superseded while loading
-      return;
-    }
-    this.source = runtime;
-    this.engine.setSource(runtime.texture());
-    this.engine.setTemporalSource(runtime.temporalSource());
-    if (runtime instanceof FileVideoSource) {
-      this.seekVideo(this.estimateTime());
-      this.slaveVideo();
-    }
-    this.engine.invalidate();
-  }
 
   private materialAssetPath: string | null = null;
   private syncMaterialAsset(assetPath: string | null): void {
@@ -455,28 +390,17 @@ export class OutputReplica {
         this.engine.setAuthorityLayerParams(new Map(Object.entries(msg.layerParams)));
       }
     }
-    // CE1F: drive the local generator with the params the EDITOR resolved.
-    if (this.layers.size === 0 && this.generator) {
-      const params = msg.sourceParams ?? this.generatorParams;
-      const renderer = (this.engine as unknown as { renderer: THREE.WebGLRenderer | null })
-        .renderer;
-      if (renderer) {
-        if (this.generator.isStateless) {
-          this.generator.renderFrame(renderer, msg.compTime, params, true, 1920, 1080);
-        } else {
-          this.generator.advancePreview(renderer, performance.now() / 1000, params);
-        }
-        this.engine.setSource(this.generator.texture());
-      }
-    }
     const received = performance.now();
     this.framesReceived++;
     this.latest = msg;
     this.lastWallLatencyMs = Date.now() - msg.wallEmittedAt;
 
+    // 18A INVARIANT, unchanged by layers: the active technique always equals
+    // the latest FrameState.techniqueId. A cross-technique MORPH switches it
+    // without a project change, so RenderInputs — which is low-rate — is not
+    // enough on its own. It applies to the SELECTED layer, which is the one
+    // a morph acts on.
     if (msg.techniqueId) this.syncTechnique(msg.techniqueId, msg.temporalActive);
-    if (msg.materialState) this.engine.setMaterialState(msg.materialState);
-    this.engine.setTechniqueParams(msg.finalParams);
     this.engine.setTime(msg.compTime);
     // Engine's own dirty-flag rAF draws at this display's cadence —
     // latest-wins by construction, stale frames collapse into one draw.

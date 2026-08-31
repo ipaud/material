@@ -182,8 +182,9 @@ describe('v0.6B — where a mapping reads from and writes to', () => {
   it('a branch in export mode never falls back to the live transform', () => {
     // The live transform reads wall time. A branch syncing its scene through
     // it mid-render made two runs of the same export disagree.
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const sync = engine.slice(engine.indexOf('private syncScene('));
+    // MIGRATED v0.6.1: syncScene belongs to the layer runtime.
+    const runtime = read('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
+    const sync = runtime.slice(runtime.indexOf('private syncScene('));
     expect(sync.slice(0, 900)).toContain('this.paramTransform && !this.exportMode');
   });
 

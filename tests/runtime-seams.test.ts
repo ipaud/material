@@ -4,6 +4,7 @@ import { reduceLiveness, isLivenessReason, type LivenessReason } from '@shared/l
 import { FileImageSource } from '@/sources/FileImageSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
 import { RenderEngine } from '@/rendering/RenderEngine';
+import { LayerRuntimeImpl } from '@/rendering/layers/LayerRuntimeImpl';
 import { createExportRendererSync, type ExportRendererHost } from '@/export/exportRunner';
 import { getTechnique } from '@/techniques/registry';
 import { defaultParams, type TechniqueRenderer } from '@/techniques/types';
@@ -186,7 +187,10 @@ describe('RenderEngine multi-instance', () => {
   });
 
   it('technique/temporal setters are safe pre-init and across A→B→A', () => {
-    const e = new RenderEngine();
+    // MIGRATED v0.6.1: a technique and its temporal history belong to a LAYER
+    // RUNTIME, so this now exercises the class that owns them rather than the
+    // host that forwards to the selected one.
+    const e = new LayerRuntimeImpl();
     const mkRenderer = (id: string) => getTechnique(id)!.createRenderer();
     const disposeSpies: ReturnType<typeof vi.fn>[] = [];
     const track = (r: TechniqueRenderer) => {
@@ -211,14 +215,15 @@ describe('RenderEngine multi-instance', () => {
     expect(disposeSpies[1]).toHaveBeenCalledTimes(1); // B disposed at B→A
     expect(disposeSpies[2]).not.toHaveBeenCalled(); // current stays alive
 
-    e.dispose();
-    expect(disposeSpies[2]).toHaveBeenCalledTimes(1); // engine dispose owns it
+    e.disposeBranch();
+    expect(disposeSpies[2]).toHaveBeenCalledTimes(1); // runtime dispose owns it
   });
 
   it('export renderer sync + engine agree on the invariant end-to-end', () => {
     // The same host surface the export seam uses, backed by a real engine:
     // active renderer technique === evaluated frame technique.
-    const e = new RenderEngine();
+    // MIGRATED v0.6.1: the export seam acts on the selected layer's runtime.
+    const e = new LayerRuntimeImpl();
     const host: ExportRendererHost = e;
     const sync = createExportRendererSync(host, 'mosaic');
     e.setTechniqueRenderer(getTechnique('mosaic')!.createRenderer());
@@ -229,6 +234,6 @@ describe('RenderEngine multi-instance', () => {
 
     sync.restore('mosaic', { tileMode: 'off' });
     expect(e.isTemporalActive).toBe(false);
-    e.dispose();
+    e.disposeBranch();
   });
 });

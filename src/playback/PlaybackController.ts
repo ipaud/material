@@ -141,7 +141,7 @@ class PlaybackController {
     // Frames before a seek are not history for what comes after it (§13);
     // the same goes for trigger events and pending quantized actions.
     engine.resetTemporal();
-    engine.resetFlowPair();
+    engine.resetFlowPairEverywhere();
     resetTriggers(clamped);
     if (this.audioMaster) audioEngine.seek(clamped);
     if (this.video) {

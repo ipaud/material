@@ -154,7 +154,7 @@ describe('structural wiring (§18F)', () => {
       .replace(/^\s*\/\/.*$/gm, '');
 
   it('the engine switches temporal clock on liveSourceActive — one atlas, two clocks', () => {
-    const engine = code('src', 'rendering', 'RenderEngine.ts');
+    const engine = code('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     expect(engine.includes('this.liveSourceActive ? performance.now() / 1000 : this.timeSec')).toBe(
       true,
     );
@@ -165,10 +165,16 @@ describe('structural wiring (§18F)', () => {
   });
 
   it('the replica marks live sources so its LOCAL history uses the same model', () => {
+    // MIGRATED v0.6.1: the replica publishes its join to the LAYER SET, the
+    // same way the editor's managers do — one acquisition, every layer showing
+    // it — and the host marks each of those layers live. The invariant is
+    // unchanged: a live source in the replica drives its own realtime history.
     const replica = code('src', 'output-window', 'replica.ts');
-    const liveMarks = replica.split('setLiveSourceActive(true)').length - 1;
-    expect(liveMarks).toBe(2); // camera join + capture rejoin
-    expect(replica.includes('setLiveSourceActive(false)')).toBe(true);
+    const joins = replica.split(/setLiveSource\('(?:camera|capture)', \w+\.texture\(\)\)/).length - 1;
+    expect(joins).toBe(2); // camera join + capture rejoin
+    expect(replica).toContain("setLiveSource('camera', null)");
+    const host = code('src', 'rendering', 'layers', 'LayerHost.ts');
+    expect(host).toContain('s.runtime.setLiveSourceActive(texture !== null)');
   });
 
   it('no CPU frame queue and no readback anywhere in the temporal path', () => {

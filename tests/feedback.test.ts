@@ -138,7 +138,7 @@ describe('structural gates (§5, §16, §86-87)', () => {
   });
 
   it('reset matrix is wired: source change, context restore, candidate release', () => {
-    const engine = code('src', 'rendering', 'RenderEngine.ts');
+    const engine = code('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     // Slice the DEFINITION, not a range between two arbitrary occurrences:
     // v0.6 added a call to setComposition() above this method, which silently
     // inverted the old index pair into an empty string.
@@ -150,15 +150,25 @@ describe('structural gates (§5, §16, §86-87)', () => {
     expect(setSource.includes('resetFeedback()')).toBe(true);
     // The HANDLER, not the addEventListener call that mentions its name —
     // v0.6 inserted code between the two and the old index found the wrong one.
-    const restored = engine.slice(engine.indexOf('private onContextRestored'));
+    // MIGRATED v0.6.1: the host owns the canvas listener and tells every
+    // layer to rebuild; each layer rebuilds its own targets, because each
+    // allocated them on the same lost context.
+    const host = code('src', 'rendering', 'RenderEngine.ts');
+    const hostRestore = host.slice(host.indexOf('private onContextRestored'));
+    expect(hostRestore.slice(0, 900)).toContain('this.layerHost.handleContextRestored()');
+    const restored = engine.slice(engine.indexOf('handleContextRestored(): void {'));
     // CE1H §57: a restore must REALLOCATE, not just mark stale — every
     // target from the lost context is a dead GL handle.
     expect(restored.slice(0, 900).includes('resetFeedback()')).toBe(true);
     expect(restored.slice(0, 900)).toContain('onContextRestored?.()');
     expect(restored.slice(0, 900)).toContain('new TemporalFrameProvider(config)');
     expect(restored.slice(0, 900)).toContain('this.flow = null');
+    // MIGRATED v0.6.1: a Candidate release drops feedback on EVERY layer, so
+    // the call carries its scope in the name.
     const candidate = code('src', 'performance', 'candidateRuntime.ts');
-    expect(candidate.includes('engine.resetFeedback()')).toBe(true);
+    expect(candidate).toContain('engine.resetFeedbackEverywhere()');
+    const fn = host.slice(host.indexOf('resetFeedbackEverywhere()'));
+    expect(fn.slice(0, 300)).toContain('forEachRuntime((r) => r.resetFeedback())');
   });
 
   it('export path steps feedback deterministically', () => {
@@ -187,16 +197,17 @@ describe('structural gates (§5, §16, §86-87)', () => {
   });
 
   it('preview prepass runs on wall time; export never runs the preview prepass', () => {
-    const engine = code('src', 'rendering', 'RenderEngine.ts');
+    const engine = code('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     expect(engine.includes('feedbackPrepass?.(renderer, performance.now() / 1000)')).toBe(true);
     // feedbackActive is false in exportMode, and the loop gates on it.
     expect(engine.includes('!this.exportMode')).toBe(true);
-    // Read the loop's gate rather than one formatted line of it: v0.6 added a
-    // fourth condition for the layers and rewrapped the expression.
-    const loop = engine.slice(engine.indexOf('private loop = ()'));
+    // MIGRATED v0.6.1: the loop belongs to the HOST, the prepass to the
+    // runtime. And the three creative flags collapsed into one set-scoped
+    // question, because asking the host about them is what went wrong in v0.6.
+    const host = code('src', 'rendering', 'RenderEngine.ts');
+    const loop = host.slice(host.indexOf('private loop = ()'));
     const gate = loop.slice(0, loop.indexOf('this.dirty = false'));
-    for (const flag of ['!this.dirty', '!this.liveSourceActive', '!this.feedbackActive']) {
-      expect(gate.includes(flag), `loop gates on ${flag}`).toBe(true);
-    }
+    expect(gate).toContain('!this.dirty');
+    expect(gate).toContain('!this.layerHost.anyLayerNeedsContinuousRender()');
   });
 });

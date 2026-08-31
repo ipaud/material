@@ -221,7 +221,7 @@ describe('blend math is one documented formula (§73)', () => {
 
 describe('structural — layers reuse the branch, they do not fork it (§7)', () => {
   it('a layer runtime IS a RenderEngine in branch mode', () => {
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const engine = read('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     expect(engine).toContain('initBranch(renderer: THREE.WebGLRenderer)');
     expect(engine).toContain('renderLayerTo(');
     expect(engine).toContain('disposeBranch()');

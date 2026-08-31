@@ -205,7 +205,7 @@ describe('demand drives the analyser and the flow field (§A4)', () => {
   });
 
   it('the engine widens its flow gate to include signal demand', () => {
-    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    const engine = src('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     expect(engine).toContain('demandNeedsFlow(this.visualDemand)');
     expect(engine).toMatch(/flowIsNeeded\(\)/);
   });
@@ -243,17 +243,29 @@ describe('measured live defects (§A6)', () => {
     // First wiring put the call in captureTransitionSnapshot, which runs only
     // when a transition opens. Measured: demand set, texture present, grid
     // valid, and zero reductions in 2.5 s of preview.
-    const engine = src('src', 'rendering', 'RenderEngine.ts');
-    const frame = engine.slice(engine.indexOf('private renderFrame()'));
-    expect(frame).toMatch(/this\.syncScene\(\);[\s\S]{0,400}?this\.updateVisualStats\(renderer\)/);
+    // MIGRATED v0.6.1: the analysis is inside the LAYER's render, which is
+    // what a preview frame drives. The N-1 contract is unchanged — analysis
+    // runs AFTER syncScene has consumed what frame N-1 published.
+    const runtime = src('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
+    for (const fn of ['renderLayerTo(', 'renderLayerToCanvas(']) {
+      const body = runtime.slice(runtime.indexOf(fn));
+      expect(body.slice(0, 2000)).toMatch(
+        /this\.syncScene\(\);[\s\S]{0,400}?this\.updateVisualStats\(renderer\)/,
+      );
+    }
   });
 
   it('advances calibration on wall time, never on transport time', () => {
     // Feeding playback.getTime() pinned dt at 0 whenever the transport was
     // stopped, so warmupSec never elapsed and every signal stayed `warming`
     // forever — the analyser runs on produced pixels, not on transport.
+    // MIGRATED v0.6.1: analysis is delivered PER LAYER, so the sink carries a
+    // layer id. The clock is the point and it is unchanged: wall time, never
+    // transport time.
     const bridge = src('src', 'rendering', 'engineBridge.ts');
-    expect(bridge).toMatch(/setVisualSink\(\(stats\) =>\s*modulationRuntime\.setVisualStats\(stats, performance\.now\(\) \/ 1000\)\)/);
+    expect(bridge).toMatch(
+      /setLayerVisualSink\(\(layerId, stats\) =>\s*modulationRuntime\.setLayerVisualStats\(layerId, stats, performance\.now\(\) \/ 1000\)/,
+    );
     expect(bridge).not.toContain('setVisualStats(stats, playback.getTime())');
   });
 
@@ -262,7 +274,7 @@ describe('measured live defects (§A6)', () => {
     // Measured before the fix: calibrated motion.amount sat at 0.894 mean and
     // saturated at 1.0 on a source whose raw span was 0.42-0.59, because the
     // priming zero pinned the low envelope and τ_contract gives it back slowly.
-    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    const engine = src('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     expect(engine).toContain('this.flow?.ready');
     const flow = src('src', 'rendering', 'flow', 'OpticalFlowField.ts');
     // Two solves, not one: the first straddles the discontinuity. Measured at
@@ -343,7 +355,7 @@ describe('saturation is reported, not swallowed (§A9)', () => {
 
 describe('flow readiness distinguishes a constructed pair from a discontinuity (§E)', () => {
   it('export declares its two-tap prime, preview does not', () => {
-    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    const engine = src('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     // Export builds prev-frame → this-frame explicitly, so its first solve is
     // real. Requiring two solves there would have deleted motion from the
     // first frame of every export.

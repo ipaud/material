@@ -66,6 +66,20 @@ function inputs(overrides: Partial<RenderInputsMsg> = {}): RenderInputsMsg {
     compHeight: 1080,
     background: '#000000',
     source: null,
+    // v0.6.1: the editor sends a layer stack on every message, and the replica
+    // has no single-source path any more. One layer whose technique matches
+    // `techniqueId` is the minimum realistic message.
+    layers: [
+      {
+        id: 'L0',
+        techniqueId: 'mosaic',
+        materialState: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
+        blendMode: 'normal',
+        enabled: true,
+        opacity: 1,
+        source: null,
+      },
+    ],
     ...overrides,
   };
 }

@@ -1,6 +1,8 @@
 import type * as THREE from 'three';
 import type { ParamRecord } from '@shared/schemas/project';
 import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
+import type { TemporalStats } from '../temporal/TemporalFrameProvider';
+import type { TechniqueRenderer } from '@/techniques/types';
 
 /**
  * v0.6.1 — what a LAYER RUNTIME is, from the host's point of view.
@@ -74,6 +76,14 @@ export interface LayerRuntime {
   updateVisualStatsForExport(frameKey: string): void;
   setExportPreviousTime(sec: number | null): void;
   resetTemporal(): void;
+  resetFeedback(): void;
+  setTechniqueRenderer(renderer: TechniqueRenderer | null): void;
+  setTemporalEnabled(enabled: boolean): void;
+  resetFlowPair(): void;
+  setMaterialTexture(texture: THREE.Texture | null): void;
+  getTemporalStats(): TemporalStats | null;
+  readonly flowStats: { updates: number; width: number; height: number; bytes: number } | null;
+  readonly isLiveTemporalMode: boolean;
 
   // ---- analysis -------------------------------------------------------------
   setVisualDemand(ids: ReadonlySet<VisualSignalId>): void;

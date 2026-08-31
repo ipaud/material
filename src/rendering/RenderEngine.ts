@@ -1,27 +1,17 @@
 import * as THREE from 'three';
-import { bindTarget } from './bindTarget';
 import { LayerHost } from './layers/LayerHost';
+import { LayerRuntimeImpl } from './layers/LayerRuntimeImpl';
 import type { LayerRuntime } from './layers/layerRuntime';
-import type { MaterialState, ParamRecord } from '@shared/schemas/project';
+import type { ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
-import { OpticalFlowField } from './flow/OpticalFlowField';
-import { ImageStatsReducer } from './analysis/ImageStatsReducer';
-import { demandNeedsFlow } from '@/signals/visual/demand';
 import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import {
   TransitionCompositor,
   type TransitionParams,
 } from './transition/TransitionCompositor';
 import { runtimeBus } from '@/runtime/RuntimeBus';
-import { LayerCompositor, type CompositeLayer } from './layers/LayerCompositor';
 import type { LayerRenderState } from './layers/layerTypes';
-import {
-  TemporalFrameProvider,
-  type BoundaryMode,
-  type TemporalConfig,
-  type TemporalSource,
-  type TemporalStats,
-} from './temporal/TemporalFrameProvider';
+import type { TemporalStats } from './temporal/TemporalFrameProvider';
 
 export interface ViewTransform {
   zoom: number; // composition px → CSS px
@@ -38,8 +28,6 @@ export interface EngineStats {
 
 const FIT_MARGIN = 0.94;
 
-/** Shared empty set: a branch that is not the measured one allocates nothing. */
-const EMPTY_VISUAL_DEMAND: ReadonlySet<VisualSignalId> = new Set();
 
 /**
  * GPU render engine. Lives outside React — React (and the store bridge) push
@@ -51,19 +39,8 @@ export class RenderEngine {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(20, 1, 10, 100000);
 
-  private sourceTexture: THREE.Texture | null = null;
-  private materialTexture: THREE.Texture | null = null;
-  private temporal: TemporalFrameProvider | null = null;
-  private temporalEnabled = false;
-  private temporalSource: TemporalSource | null = null;
-  private boundaryMode: BoundaryMode = 'clamp';
   /** While true the preview capture path is disabled (export owns the buffer). */
   private exportMode = false;
-  private originalQuad: THREE.Mesh | null = null;
-  private techniqueRenderer: TechniqueRenderer | null = null;
-  private techniqueParams: ParamRecord = {};
-  private materialState: MaterialState | null = null;
-
   private compWidth = 1920;
   private compHeight = 1080;
   private compBackground = '#000000';
@@ -112,15 +89,6 @@ export class RenderEngine {
     );
   }
 
-  /** Read by the host when it publishes the stack. */
-  get lastResolved(): ParamRecord | null {
-    return this.lastResolvedParams;
-  }
-
-  /** What this engine last resolved for its technique — the host reads it
-   * off each branch to publish the stack in one message. */
-  private lastResolvedParams: ParamRecord | null = null;
-
   get compositionWidth(): number {
     return this.compWidth;
   }
@@ -160,7 +128,6 @@ export class RenderEngine {
   }
 
   private dirty = true;
-  private liveSourceActive = false;
   private rafId = 0;
   private lastFrameTime = 0;
   private fpsEma = 0;
@@ -210,14 +177,11 @@ export class RenderEngine {
    * such question goes to `layerHost`, whose method names carry the scope
    * being asked about.
    */
-  private readonly layerHost = new LayerHost(() => {
-    const runtime = new RenderEngine();
-    return runtime as unknown as LayerRuntime;
-  });
+  private readonly layerHost = new LayerHost(() => new LayerRuntimeImpl());
 
   /** Runtime for ONE named layer, for the bridge to configure directly. */
-  branchFor(layerId: string): RenderEngine | null {
-    return (this.layerHost.runtimeFor(layerId) as RenderEngine | null) ?? null;
+  branchFor(layerId: string): LayerRuntimeImpl | null {
+    return (this.layerHost.runtimeFor(layerId) as LayerRuntimeImpl | null) ?? null;
   }
 
   get layerCount(): number {
@@ -270,159 +234,6 @@ export class RenderEngine {
     this.layerHost.setAuthorityOpacity(byLayer);
   }
 
-  /**
-   * v0.6 — construct this engine as a LAYER BRANCH.
-   *
-   * A branch owns exactly one creative chain: source, generator, temporal
-   * history, optical flow, technique renderer, visual analysis, feedback
-   * state. It owns no canvas, no animation loop and no view transform,
-   * because those belong to the composition that hosts it.
-   *
-   * Reusing this class rather than extracting a parallel one is deliberate.
-   * Every branch behaviour — the flow gate, the N-1 signal contract, feedback
-   * priming, export preroll, context restore — is already implemented and
-   * tested here exactly once. A second implementation would be a second set of
-   * those bugs, and layers would differ from each other in ways nobody
-   * intended.
-   */
-  initBranch(renderer: THREE.WebGLRenderer): void {
-    this.renderer = renderer;
-    this.isBranch = true;
-  }
-
-  /** True when this engine is a layer inside a composition, not the host. */
-  private isBranch = false;
-
-  get branchMode(): boolean {
-    return this.isBranch;
-  }
-
-  /**
-   * Render this branch into `target` at composition resolution.
-   *
-   * The same sequence the on-canvas path uses, minus everything that belongs
-   * to the host: no well, no viewport rect, no transition compositing. What
-   * comes out is one layer's pixels, ready for the compositor.
-   */
-  renderLayerTo(target: THREE.WebGLRenderTarget, opts: { clear: boolean }): void {
-    const renderer = this.renderer;
-    if (!renderer) return;
-    const prevTarget = renderer.getRenderTarget();
-    try {
-      // Neither setPixelRatio nor setViewport belongs here — see bindTarget.
-      if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
-        const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
-        this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
-      }
-      this.updateCamera(target.width / Math.max(target.height, 1));
-      if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
-      if (!this.exportMode) this.updateFlowService(renderer);
-      this.syncScene();
-      if (!this.exportMode) this.updateVisualStats(renderer);
-      if (this.feedbackActive) {
-        (
-          this.techniqueRenderer as unknown as {
-            feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
-          }
-        ).feedbackPrepass?.(renderer, performance.now() / 1000);
-      }
-      bindTarget(renderer, target);
-      if (opts.clear) {
-        // Transparent BLACK, never the composition background: the background
-        // belongs to the composition, and a layer that painted it would erase
-        // everything beneath it.
-        //
-        // Black specifically. The first version passed the string
-        // 'transparent', which THREE.Color parses as WHITE — so every layer
-        // cleared to white at zero alpha and anything with a soft edge blended
-        // against it. Measured as 64 800 differing bytes against the
-        // pre-layer render, up to 38 codes at tile edges.
-        renderer.setClearColor(0x000000, 0);
-        renderer.clear();
-      }
-      renderer.render(this.scene, this.camera);
-    } finally {
-      renderer.setRenderTarget(prevTarget);
-    }
-  }
-
-
-  /**
-   * Draw this branch onto whatever is currently bound — the canvas, inside the
-   * viewport and scissor rect the host has already set. Same creative chain as
-   * `renderLayerTo`; it simply does not redirect to a layer target.
-   */
-  renderLayerToCanvas(renderer: THREE.WebGLRenderer): void {
-    // The scissor rect has the composition's aspect, not the canvas's.
-    this.updateCamera(this.compWidth / Math.max(this.compHeight, 1));
-    if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
-      const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
-      this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
-    }
-    if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
-    if (!this.exportMode) this.updateFlowService(renderer);
-    this.syncScene();
-    if (!this.exportMode) this.updateVisualStats(renderer);
-    if (this.feedbackActive) {
-      (
-        this.techniqueRenderer as unknown as {
-          feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
-        }
-      ).feedbackPrepass?.(renderer, performance.now() / 1000);
-    }
-    renderer.render(this.scene, this.camera);
-  }
-
-  /** Render this branch with EXPLICIT params (export authority). */
-  renderLayerToWithParams(
-    target: THREE.WebGLRenderTarget,
-    params: ParamRecord,
-    clear = true,
-  ): void {
-    const renderer = this.renderer;
-    if (!renderer) return;
-    const prevTarget = renderer.getRenderTarget();
-    try {
-      this.updateCamera(target.width / Math.max(target.height, 1));
-      this.syncScene(params);
-      bindTarget(renderer, target);
-      if (clear) {
-        renderer.setClearColor(0x000000, 0);
-        renderer.clear();
-      }
-      renderer.render(this.scene, this.camera);
-    } finally {
-      renderer.setRenderTarget(prevTarget);
-    }
-  }
-
-  /** Free this branch's own GPU state without touching a shared renderer. */
-  disposeBranch(): void {
-    this.temporal?.dispose();
-    this.temporal = null;
-    this.flow?.dispose();
-    this.flow = null;
-    this.visualStats?.dispose();
-    this.visualStats = null;
-    this.generator?.dispose();
-    this.generator = null;
-    this.techniqueRenderer?.dispose();
-    this.techniqueRenderer = null;
-    this.originalQuad?.geometry.dispose();
-    (this.originalQuad?.material as THREE.Material | undefined)?.dispose();
-    this.originalQuad = null;
-    this.rvfcCancel?.();
-    this.rvfcCancel = null;
-    this.sourceTexture = null;
-    // The renderer is the composition's, never this branch's.
-    this.renderer = null;
-  }
-
-  /** Branch-side restore, driven by the host (a branch has no canvas). */
-  handleContextRestored(): void {
-    this.onContextRestored();
-  }
-
   private onContextLost = (event: Event): void => {
     event.preventDefault();
     console.warn('[engine] WebGL context lost — awaiting restore');
@@ -435,24 +246,10 @@ export class RenderEngine {
     // that touches one raises INVALID_OPERATION (measured: 1282 after
     // restore on Time Field, Motion Mosh and Reaction Diffusion). The
     // targets have to be reallocated, not just emptied.
-    if (this.temporal) {
-      const config = this.temporal.config;
-      this.temporal.dispose();
-      this.temporal = new TemporalFrameProvider(config);
-    }
-    this.flow?.dispose();
-    this.flow = null; // updateFlowService rebuilds it on demand
+    // The host owns the canvas listener and its own compositing targets; each
+    // layer allocated its own on the SAME lost context, and never sees the
+    // event, so the host tells every one of them to rebuild.
     this.compositor.release();
-    this.visualStats?.dispose();
-    this.visualStats = null;
-    this.latestVisual = null;
-    this.resetFeedback();
-    (
-      this.techniqueRenderer as { onContextRestored?: () => void } | null
-    )?.onContextRestored?.();
-    // v0.6: every layer allocated its targets on the SAME lost context, so
-    // each branch has to rebuild too. The host owns the canvas listener; the
-    // branches never see the event and would otherwise keep dead handles.
     this.layerHost.handleContextRestored();
     this.invalidate();
   };
@@ -466,11 +263,6 @@ export class RenderEngine {
     // keep drawing into the OLD renderer's framebuffers while the host reads
     // the new one's, and the composition goes silently black.
     this.layerHost.disposeAll();
-    this.temporal?.dispose();
-    this.temporal = null;
-    this.techniqueRenderer?.dispose();
-    this.originalQuad?.geometry.dispose();
-    (this.originalQuad?.material as THREE.Material | undefined)?.dispose();
     this.renderer?.dispose();
     this.renderer = null;
     this.canvas = null;
@@ -478,175 +270,16 @@ export class RenderEngine {
 
   // ---- state setters (bridge pushes project state here) ----
 
-  setSource(texture: THREE.Texture | null): void {
-    if (this.sourceTexture && this.sourceTexture !== texture) this.sourceTexture.dispose();
-    this.sourceTexture = texture;
-    // CE1B: a new source identity must never inherit old feedback state.
-    this.resetFeedback();
-    // CE1D: nor may flow compare frames from two different sources.
-    this.flow?.reset();
-    this.watchSourceFrames();
-    this.rebuildOriginalQuad();
-    this.invalidate();
-  }
-
-  /** 18D: live camera active — the loop renders every RAF while true.
-   * 18F: flipping this is a live-history boundary (start, stop, device or
-   * target switch all funnel through the managers' teardown/start), so the
-   * temporal buffer resets — history from two source identities, or from a
-   * previous capture run, must never mix. */
-  setLiveSourceActive(active: boolean): void {
-    if (this.liveSourceActive !== active) this.temporal?.invalidate();
-    this.liveSourceActive = active;
-    this.invalidate();
-  }
-
   setComposition(width: number, height: number, background: string): void {
-    // v0.6: composition size and background are GLOBAL — a branch renders into
-    // a target the host sized, so it has to agree about the dimensions.
+    // Composition size and background are GLOBAL — a layer renders into a
+    // target the host sized, so it has to agree about the dimensions.
     this.layerHost.setComposition(width, height, background);
     const changed = width !== this.compWidth || height !== this.compHeight;
     this.compWidth = width;
     this.compHeight = height;
     this.compBackground = background;
-    if (changed) {
-      this.rebuildOriginalQuad();
-      this.fit();
-    }
+    if (changed) this.fit();
     this.invalidate();
-  }
-
-  setTechniqueRenderer(renderer: TechniqueRenderer | null): void {
-    if (this.techniqueRenderer && this.techniqueRenderer !== renderer) {
-      this.scene.remove(this.techniqueRenderer.object3d);
-      this.techniqueRenderer.dispose();
-    }
-    this.techniqueRenderer = renderer;
-    if (renderer) this.scene.add(renderer.object3d);
-    this.invalidate();
-  }
-
-  // ---- CE1F: the generator source. The engine owns the runtime, renders
-  // it every frame with the RESOLVED source params (modulation is evaluated
-  // by the editor's authority, exactly like technique params), and hands
-  // the resulting texture to whatever technique is active.
-  private generator: {
-    renderFrame(
-      renderer: THREE.WebGLRenderer,
-      timeSec: number,
-      params: ParamRecord,
-      force?: boolean,
-      width?: number,
-      height?: number,
-    ): void;
-    advancePreview(renderer: THREE.WebGLRenderer, wallSec: number, params: ParamRecord): void;
-    texture(): THREE.Texture | null;
-    isStateless: boolean;
-    dispose(): void;
-    reset(): void;
-  } | null = null;
-  private sourceParams: ParamRecord = {};
-  private sourceParamTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
-
-  setGeneratorSource(runtime: unknown): void {
-    if (this.generator && this.generator !== runtime) this.generator.dispose();
-    this.generator = (runtime as typeof this.generator) ?? null;
-    this.invalidate();
-  }
-
-  setSourceParams(params: ParamRecord): void {
-    this.sourceParams = params;
-    this.invalidate();
-  }
-
-  setSourceParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void {
-    this.sourceParamTransform = fn;
-  }
-
-  /** Final resolved generator params for this frame — the value the Output
-   * receives (it never evaluates modulation itself). */
-  resolvedSourceParams(timeSec = this.timeSec): ParamRecord {
-    return this.sourceParamTransform
-      ? this.sourceParamTransform(this.sourceParams, timeSec)
-      : this.sourceParams;
-  }
-
-  /**
-   * Does any layer need a frame even though nothing invalidated the host?
-   *
-   * The three "keep rendering" conditions — a live source, feedback, a
-   * simulation generator — all moved onto the branches, so the host's own
-   * flags are permanently false in layer mode and its loop went back to sleep
-   * after every invalidation. Measured on a single animating generator: 19
-   * rendered frames per second against 99 before layers, while rAF itself was
-   * running at 120. Nothing looked broken; the picture just updated slowly.
-   */
-  get hasGenerator(): boolean {
-    return this.generator !== null;
-  }
-
-  /** A live/simulation generator keeps the loop alive; a stateless one only
-   * needs redraws when time or params move (dirty-driven). */
-  get generatorActive(): boolean {
-    return this.generator !== null && !this.generator.isStateless && !this.exportMode;
-  }
-
-  private renderGenerator(renderer: THREE.WebGLRenderer, timeSec: number, force = false): void {
-    const gen = this.generator;
-    if (!gen) return;
-    const params = this.resolvedSourceParams(timeSec);
-    if (gen.isStateless || this.exportMode) {
-      gen.renderFrame(renderer, timeSec, params, force, this.compWidth, this.compHeight);
-    } else {
-      // Simulation generators keep CE1E preview semantics (wall clock).
-      gen.advancePreview(renderer, performance.now() / 1000, params);
-    }
-    // A generator emits no decoded-frame event, so this is its frame identity.
-    this.generatorRevision++;
-    const tex = gen.texture();
-    if (tex && tex !== this.sourceTexture) {
-      this.sourceTexture = tex;
-      this.rebuildOriginalQuad();
-    }
-  }
-
-  setTechniqueParams(params: ParamRecord): void {
-    this.techniqueParams = params;
-    const perspective = params.perspective;
-    if (typeof perspective === 'number') this.perspectiveAmount = perspective;
-    this.invalidate();
-  }
-
-  setMaterialState(material: MaterialState): void {
-    this.materialState = material;
-    this.invalidate();
-  }
-
-  setMaterialTexture(texture: THREE.Texture | null): void {
-    if (this.materialTexture && this.materialTexture !== texture) this.materialTexture.dispose();
-    this.materialTexture = texture;
-    this.invalidate();
-  }
-
-  /** Enable composition-time frame history (video tile / echo / slit scan). */
-  setTemporalEnabled(enabled: boolean, config?: Partial<TemporalConfig>): void {
-    if (enabled && !this.temporal) this.temporal = new TemporalFrameProvider(config);
-    if (!enabled && this.temporal) {
-      this.temporal.dispose();
-      this.temporal = null;
-    }
-    this.temporalEnabled = enabled;
-    this.invalidate();
-  }
-
-  setTemporalSource(source: TemporalSource | null): void {
-    this.temporalSource = source;
-    this.temporal?.invalidate();
-    this.invalidate();
-  }
-
-  setBoundaryMode(mode: BoundaryMode): void {
-    this.boundaryMode = mode;
   }
 
   /** Drop temporal history — seek, loop restart, source change (§13).
@@ -657,107 +290,7 @@ export class RenderEngine {
    * setLiveSourceActive flip and setTemporalSource instead. */
   resetTemporal(): void {
     this.layerHost.forEachRuntime((r) => r.resetTemporal());
-    if (this.liveSourceActive) return;
-    this.temporal?.invalidate();
     this.invalidate();
-  }
-
-  getTemporalStats(): TemporalStats | null {
-    return this.temporal?.getStats() ?? null;
-  }
-
-  // ---- CE1D: the shared optical-flow service. ONE per renderer; consumers
-  // receive ctx.flow. update() is gated by source-frame identity, so a
-  // 30fps source yields ~30 flow computes/s under a 120Hz loop.
-  private flow: OpticalFlowField | null = null;
-
-  /**
-   * v0.4A: flow is needed when a TECHNIQUE wants it OR a motion signal is
-   * demanded. Without this, mapping `motion.amount` while a non-flow technique
-   * is active would dispose the very field the signal measures.
-   */
-  private flowIsNeeded(): boolean {
-    return this.techniqueWantsFlow() || demandNeedsFlow(this.visualDemand);
-  }
-
-  private techniqueWantsFlow(): boolean {
-    const r = this.techniqueRenderer as {
-      usesFlow?: boolean;
-      wantsFlow?: (params: ParamRecord) => boolean;
-    } | null;
-    if (!r) return false;
-    if (r.usesFlow === true) return true;
-    return r.wantsFlow?.(this.paramTransform
-      ? this.paramTransform(this.techniqueParams, this.timeSec)
-      : this.techniqueParams) === true;
-  }
-
-  // Source-frame identity via requestVideoFrameCallback: one counter tick
-  // per DECODED frame, for file video and live capture alike. This is what
-  // gates flow recomputation — a 30fps source yields ~30 keys/s no matter
-  // how fast the render loop spins (§83 hard gate).
-  private sourceFrameCounter = 0;
-  /**
-   * Generators produce new pixels without any decoded-frame event: their
-   * texture is ONE object whose uuid never changes and `requestVideoFrameCallback`
-   * does not exist for them, so `sourceFrameKey()` was constant and every
-   * frame-gated consumer early-returned forever. Measured before the fix: 3 s
-   * of preview at 120 fps over a noise generator with Motion Mosh produced 0
-   * flow updates. Export was unaffected because it passes explicit keys, which
-   * is exactly why the determinism matrix never saw it — a frozen field is
-   * perfectly reproducible.
-   */
-  private generatorRevision = 0;
-  private rvfcCancel: (() => void) | null = null;
-
-  private watchSourceFrames(): void {
-    this.rvfcCancel?.();
-    this.rvfcCancel = null;
-    const img = (this.sourceTexture as { image?: unknown } | null)?.image as
-      | (HTMLVideoElement & {
-          requestVideoFrameCallback?: (cb: () => void) => number;
-          cancelVideoFrameCallback?: (h: number) => void;
-        })
-      | undefined;
-    if (!img || typeof img.requestVideoFrameCallback !== 'function') return;
-    let live = true;
-    const tick = () => {
-      if (!live) return;
-      this.sourceFrameCounter++;
-      img.requestVideoFrameCallback!(tick);
-    };
-    img.requestVideoFrameCallback(tick);
-    this.rvfcCancel = () => {
-      live = false;
-    };
-  }
-
-  private sourceFrameKey(): string {
-    return `${this.sourceTexture?.uuid ?? 'none'}:${this.sourceFrameCounter}:${this.generatorRevision}`;
-  }
-
-  private updateFlowService(renderer: THREE.WebGLRenderer, frameKey?: string): void {
-    if (!this.flowIsNeeded()) {
-      if (this.flow) {
-        // Demand-driven (§77): nothing needs flow — release the targets.
-        this.flow.dispose();
-        this.flow = null;
-      }
-      return;
-    }
-    if (!this.flow) this.flow = new OpticalFlowField();
-    const img = (this.sourceTexture as { image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number } } | null)?.image;
-    const w = img?.videoWidth ?? img?.width ?? 0;
-    const h = img?.videoHeight ?? img?.height ?? 0;
-    this.flow.update(renderer, this.sourceTexture, w, h, frameKey ?? this.sourceFrameKey());
-  }
-
-  /** Seek/loop discontinuity: invalidate the frame pair — for seekable
-   * sources only (a live sensor's pair stays valid across composition
-   * seeks, same rule as resetTemporal). */
-  resetFlowPair(): void {
-    if (this.liveSourceActive) return;
-    this.flow?.reset();
   }
 
   /**
@@ -780,73 +313,27 @@ export class RenderEngine {
     height: number,
     params?: ParamRecord,
   ): void {
-    if (!this.isBranch) {
-      // Every layer's flow, not the host's: a layer using Motion on a source
-      // the host never sees must still solve during export.
-      this.layerHost.forEachRuntime((runtime, layerId) =>
-        runtime.prepareFlowForExport(
-          compositionTime,
-          `${layerId}:${frameKey}`,
-          isFirstFrame,
-          width,
-          height,
-          this.layerHost.authorityParamsSnapshot?.get(layerId),
-        ),
-      );
-      return;
-    }
-    const renderer = this.renderer;
-    if (!renderer) return;
-    if (params) this.syncScene(params);
-    if (!this.flowIsNeeded()) return;
-    if (isFirstFrame) {
-      // The two-tap prime below builds a genuine adjacent pair, so the first
-      // solve after it IS a measurement — unlike a preview discontinuity.
-      this.flow?.reset(true);
-      // CE1F: prime the pair with the PREVIOUS frame's source so the first
-      // exported frame of a subrange carries the same motion as the same
-      // global frame of a full export (flow needs two frames, always).
-      if (this.generator && this.exportPrevSourceSec !== null) {
-        this.prepareGeneratorForExport(this.exportPrevSourceSec, width, height);
-        this.updateFlowService(renderer, `${frameKey}:pre`);
-        // Put the source back on THIS frame before the second tap, or the
-        // pair holds the previous frame twice and the flow is zero.
-        this.prepareGeneratorForExport(compositionTime, width, height);
-      }
-    }
-    this.updateFlowService(renderer, frameKey);
-    if (params) this.syncScene(params); // rebind ctx.flow after compute
-  }
-
-  // ---- v0.4A: image / motion signal analysis -------------------------------
-  private visualStats: ImageStatsReducer | null = null;
-  private visualDemand: ReadonlySet<VisualSignalId> = new Set();
-  private latestVisual: RawVisualStats | null = null;
-  private lastVisualMs = 0;
-  /** Preview analysis rate. Export is gated by frame key alone, so every
-   * exported frame analyses exactly once. */
-  private static readonly VISUAL_HZ = 30;
-
-  private visualSink: ((stats: RawVisualStats | null) => void) | null = null;
-
-  /** Where analysed stats go. The engine must not import the modulation
-   * runtime, so authority wires this from the bridge. */
-  setVisualSink(fn: ((stats: RawVisualStats | null) => void) | null): void {
-    this.visualSink = fn;
+    // Every layer's flow, not the host's: a layer using Motion on a source
+    // the host never sees must still solve during export.
+    this.layerHost.forEachRuntime((runtime, layerId) =>
+      runtime.prepareFlowForExport(
+        compositionTime,
+        `${layerId}:${frameKey}`,
+        isFirstFrame,
+        width,
+        height,
+        this.layerHost.authorityParamsSnapshot?.get(layerId),
+      ),
+    );
+    void params;
   }
 
   /** Editor authority pushes the demanded set; empty releases the targets. */
   setVisualDemand(ids: ReadonlySet<VisualSignalId>): void {
-    this.visualDemand = ids;
-    if (ids.size === 0) {
-      this.visualStats?.dispose();
-      this.visualStats = null;
-      this.latestVisual = null;
-    }
-    // A HOST has no source texture, so there is nothing here to measure. The
-    // demand belongs to the layer set: without a per-layer split the selected
-    // layer carries it, which is what a visual signal meant before layers.
-    if (!this.isBranch) this.layerHost.setFlatVisualDemand(ids);
+    // A host has no source texture and nothing to measure. The demand belongs
+    // to the layer set: without a per-layer split the selected layer carries
+    // it, which is what a visual signal meant before layers.
+    this.layerHost.setFlatVisualDemand(ids);
     this.invalidate();
   }
 
@@ -870,121 +357,91 @@ export class RenderEngine {
     this.layerHost.setVisualSink(fn);
   }
 
+  /** Analysis from the layer the scope is watching. */
   get visualSignalStats(): RawVisualStats | null {
-    if (!this.isBranch && !this.layerHost.isEmpty) return this.layerHost.selectedVisualStats;
-    return this.latestVisual;
+    return this.layerHost.selectedVisualStats;
   }
 
   get visualDiagnostics(): { reductions: number; bytes: number; width: number; height: number } | null {
-    if (!this.isBranch && !this.layerHost.isEmpty) return this.layerHost.selectedVisualDiagnostics;
-    return this.visualStats
-      ? {
-          reductions: this.visualStats.reductions,
-          bytes: this.visualStats.bytes,
-          ...this.visualStats.resolution,
-        }
-      : null;
-  }
-
-  /** Analysis grid: the flow grid when flow is live (sampling a vector field
-   * 1:1 matters — bilinear resampling before `length()` under-reads magnitude
-   * wherever directions oppose), else the source fitted under a cap. */
-  private visualGrid(): { width: number; height: number } | null {
-    const flowRes = this.flow?.resolution;
-    if (flowRes && flowRes.width > 1) return flowRes;
-    const img = (
-      this.sourceTexture as {
-        image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number };
-      } | null
-    )?.image;
-    const w = img?.videoWidth ?? img?.width ?? 0;
-    const h = img?.videoHeight ?? img?.height ?? 0;
-    if (w < 2 || h < 2) return null;
-    const scale = Math.min(256 / Math.max(w, h), 1);
-    return { width: Math.max(Math.round(w * scale), 8), height: Math.max(Math.round(h * scale), 8) };
-  }
-
-  /**
-   * Reduce this frame's source (and flow) to scalars.
-   *
-   * Called AFTER syncScene in preview, so `evalSources` has already consumed
-   * what frame N-1 published. That one-frame delay is not a nicety: preview
-   * evaluates signals after the source renders and export evaluates them
-   * before, so sampling N-1 in both is what makes them agree.
-   */
-  private updateVisualStats(renderer: THREE.WebGLRenderer, frameKey?: string): void {
-    if (this.visualDemand.size === 0) return;
-    if (!frameKey) {
-      const now = performance.now();
-      if (now - this.lastVisualMs < 1000 / RenderEngine.VISUAL_HZ) return;
-      this.lastVisualMs = now;
-    }
-    const grid = this.visualGrid();
-    if (!grid) return;
-    if (!this.visualStats) this.visualStats = new ImageStatsReducer();
-    const next = this.visualStats.analyse(
-      renderer,
-      this.sourceTexture,
-      // `ready` and not merely present: the priming update clears the field,
-      // and publishing that zero seeds the motion calibrator with a low
-      // extreme it then takes ~10 s to give back (measured: calibrated motion
-      // sat at 0.89 mean, saturating at 1, on a source whose raw span was
-      // 0.42-0.59). Absence is the honest report — publish.ts omits the keys.
-      demandNeedsFlow(this.visualDemand) && this.flow?.ready
-        ? (this.flow.texture() ?? null)
-        : null,
-      grid.width,
-      grid.height,
-      frameKey ?? this.sourceFrameKey(),
-    );
-    if (next !== this.latestVisual) {
-      this.latestVisual = next;
-      this.visualSink?.(next);
-    }
+    return this.layerHost.selectedVisualDiagnostics;
   }
 
   /** EXPORT: analyse this frame, keyed by GLOBAL frame so a subrange drives the
    * reducer exactly as a full export does. */
   updateVisualStatsForExport(frameKey: string): void {
-    if (!this.isBranch) {
-      // Each layer analyses its OWN source; the frame key is namespaced so two
-      // layers cannot share a cache entry.
-      this.layerHost.forEachRuntime((runtime, layerId) =>
-        runtime.updateVisualStatsForExport(`${layerId}:${frameKey}`),
-      );
-      return;
-    }
-    if (!this.renderer) return;
-    this.updateVisualStats(this.renderer, frameKey);
-  }
-
-  get flowStats(): { updates: number; width: number; height: number; bytes: number } | null {
-    return this.flow
-      ? { updates: this.flow.updates, ...this.flow.resolution, bytes: this.flow.bytes }
-      : null;
-  }
-
-  /** CE1B: a feedback technique keeps the loop stepping (its state is a
-   * visual process — static image + static params still evolve, §24). */
-  get feedbackActive(): boolean {
-    return (
-      (this.techniqueRenderer as { feedback?: boolean } | null)?.feedback === true &&
-      !this.exportMode
+    // Each layer analyses its OWN source; the frame key is namespaced so two
+    // layers cannot share a cache entry.
+    this.layerHost.forEachRuntime((runtime, layerId) =>
+      runtime.updateVisualStatsForExport(`${layerId}:${frameKey}`),
     );
   }
 
-  /** Temporal history anywhere in the stack, for the same reason. */
+  /** Enter export mode across the whole composition. */
+  beginExportMode(): void {
+    this.layerHost.beginExportMode();
+    this.exportMode = true;
+  }
+
+  /** Drop feedback state on EVERY layer — a Candidate release, a source
+   * identity change, a context restore. */
+  resetFeedbackEverywhere(): void {
+    this.layerHost.forEachRuntime((r) => r.resetFeedback());
+    this.invalidate();
+  }
+
+  /** Drop the optical-flow pair on EVERY layer: a seek makes the two frames
+   * either side of it non-adjacent, and their difference is not motion. */
+  resetFlowPairEverywhere(): void {
+    this.layerHost.forEachRuntime((r) => r.resetFlowPair());
+    this.invalidate();
+  }
+
+  /** Material texture is composition-wide; every layer gets the same one. */
+  setMaterialTexture(texture: THREE.Texture | null): void {
+    this.layerHost.forEachRuntime((r) => r.setMaterialTexture(texture));
+    this.invalidate();
+  }
+
+  /** Temporal diagnostics for the layer the scope is watching. */
+  getTemporalStats(): TemporalStats | null {
+    return this.layerHost.selectedRuntime?.getTemporalStats() ?? null;
+  }
+
+  /** Is the SELECTED layer addressing frame history? */
+  get isTemporalActive(): boolean {
+    return this.layerHost.selectedRuntime?.isTemporalActive ?? false;
+  }
+
+  /**
+   * Export renderer sync (pre-v0.3 hotfix) acts on the SELECTED layer: a
+   * cross-technique morph switches that layer's technique mid-export, and the
+   * renderer has to follow the evaluated frame. Forwarded so the export runner
+   * keeps a single handle.
+   */
+  setTechniqueRenderer(renderer: TechniqueRenderer | null): void {
+    this.layerHost.selectedRuntime?.setTechniqueRenderer(renderer);
+    this.invalidate();
+  }
+
+  setTemporalEnabled(enabled: boolean): void {
+    this.layerHost.selectedRuntime?.setTemporalEnabled(enabled);
+    this.invalidate();
+  }
+
+  /** Flow diagnostics for the layer the scope is watching. */
+  get flowStats(): { updates: number; width: number; height: number; bytes: number } | null {
+    return this.layerHost.selectedRuntime?.flowStats ?? null;
+  }
+
+  /** Is the SELECTED layer running on a live source? */
+  get isLiveTemporalMode(): boolean {
+    return this.layerHost.selectedRuntime?.isLiveTemporalMode ?? false;
+  }
+
+  /** Temporal history ANYWHERE in the stack. */
   get isTemporalActiveAnywhere(): boolean {
-    return this.isTemporalActive || this.layerHost.anyLayerUsesTemporalHistory();
+    return this.layerHost.anyLayerUsesTemporalHistory();
   }
-
-  /** CE1B: drop feedback state — source identity change, context restore,
-   * Candidate release. Next frame primes from the current image. */
-  resetFeedback(): void {
-    (this.techniqueRenderer as { resetFeedback?: () => void } | null)?.resetFeedback?.();
-  }
-
-  private lastFeedbackExportSec: number | null = null;
 
   /** Export path: deterministic feedback stepping (preroll on first frame,
    * incremental whole steps after). Mirrors prepareTemporalForExport. */
@@ -993,34 +450,16 @@ export class RenderEngine {
     isFirstFrame: boolean,
     params?: ParamRecord,
   ): void {
-    if (!this.isBranch) {
-      // Feedback is per layer: each surface has its own history and must be
-      // prerolled on its own.
-      this.layerHost.forEachRuntime((runtime, layerId) =>
-        runtime.prepareFeedbackForExport(
-          compositionTime,
-          isFirstFrame,
-          this.layerHost.authorityParamsSnapshot?.get(layerId),
-        ),
-      );
-      return;
-    }
-    const renderer = this.renderer;
-    const fb = this.techniqueRenderer as {
-      feedback?: boolean;
-      exportBegin?: (r: THREE.WebGLRenderer, t: number) => void;
-      exportAdvance?: (r: THREE.WebGLRenderer, from: number, to: number) => void;
-    } | null;
-    if (!renderer || fb?.feedback !== true) return;
-    // Make sure the renderer holds THIS frame's params/context before any
-    // stepping — a cold export (no preview ever ran) must still prime.
-    if (params) this.syncScene(params);
-    if (isFirstFrame || this.lastFeedbackExportSec === null) {
-      fb.exportBegin?.(renderer, compositionTime);
-    } else {
-      fb.exportAdvance?.(renderer, this.lastFeedbackExportSec, compositionTime);
-    }
-    this.lastFeedbackExportSec = compositionTime;
+    // Feedback is per layer: each surface has its own history and must be
+    // prerolled on its own.
+    this.layerHost.forEachRuntime((runtime, layerId) =>
+      runtime.prepareFeedbackForExport(
+        compositionTime,
+        isFirstFrame,
+        this.layerHost.authorityParamsSnapshot?.get(layerId),
+      ),
+    );
+    void params;
   }
 
   /** True when the installed technique keeps a feedback surface — i.e. its
@@ -1037,16 +476,7 @@ export class RenderEngine {
    * six decimals.
    */
   get isFeedbackTechnique(): boolean {
-    if ((this.techniqueRenderer as { feedback?: boolean } | null)?.feedback === true) return true;
     return this.layerHost.anyLayerUsesFeedback();
-  }
-
-  get isLiveTemporalMode(): boolean {
-    return this.liveSourceActive;
-  }
-
-  get isTemporalActive(): boolean {
-    return this.temporalEnabled && this.temporal !== null;
   }
 
   /**
@@ -1057,41 +487,16 @@ export class RenderEngine {
     compositionTime: number,
     isFirstFrame: boolean,
   ): Promise<{ logicalSlot: number; sourceTime: number }[]> {
-    if (!this.isBranch) {
-      // Every layer that samples history primes its own; a subrange export
-      // must arrive with each layer carrying the frames a full export would
-      // have given it.
-      const all: { logicalSlot: number; sourceTime: number }[] = [];
-      const runtimes: LayerRuntime[] = [];
-      this.layerHost.forEachRuntime((r) => runtimes.push(r));
-      for (const runtime of runtimes) {
-        all.push(...(await runtime.prepareTemporalForExport(compositionTime, isFirstFrame)));
-      }
-      return all;
+    // Every layer that samples history primes its own; a subrange export must
+    // arrive with each layer carrying the frames a full export would have
+    // given it.
+    const all: { logicalSlot: number; sourceTime: number }[] = [];
+    const runtimes: LayerRuntime[] = [];
+    this.layerHost.forEachRuntime((r) => runtimes.push(r));
+    for (const runtime of runtimes) {
+      all.push(...(await runtime.prepareTemporalForExport(compositionTime, isFirstFrame)));
     }
-    if (!this.temporal || !this.temporalEnabled || !this.renderer || !this.temporalSource)
-      return [];
-    this.exportMode = true;
-    return isFirstFrame
-      ? this.temporal.primeExact(
-          this.renderer,
-          compositionTime,
-          this.temporalSource,
-          this.boundaryMode,
-        )
-      : this.temporal.advanceExact(
-          this.renderer,
-          compositionTime,
-          this.temporalSource,
-          this.boundaryMode,
-        );
-  }
-
-  /** Enter export mode: preview rendering pauses for the whole export, not
-   * just temporal-active ones (see loop()). */
-  beginExportMode(): void {
-    this.layerHost.beginExportMode();
-    this.exportMode = true;
+    return all;
   }
 
   /** Leave export mode and discard export-primed history (§13). */
@@ -1101,7 +506,6 @@ export class RenderEngine {
     // Resolved export values must not survive into the preview, or a layer
     // keeps rendering the last exported frame’s parameters.
     this.layerHost.setAuthorityParams(undefined);
-    this.temporal?.invalidate();
     this.invalidate();
   }
 
@@ -1172,10 +576,8 @@ export class RenderEngine {
 
   getStats(): EngineStats {
     const info = this.renderer?.getContext();
-    const instanceCount =
-      this.techniqueRenderer && 'instanceCount' in this.techniqueRenderer
-        ? (this.techniqueRenderer as { instanceCount: number }).instanceCount
-        : 0;
+    const selected = this.layerHost.selectedRuntime as { instanceCount?: number } | null;
+    const instanceCount = typeof selected?.instanceCount === 'number' ? selected.instanceCount : 0;
     return {
       fps: Math.round(this.fpsEma),
       frameTimeMs: this.lastFrameTime,
@@ -1185,22 +587,6 @@ export class RenderEngine {
   }
 
   // ---- render ----
-
-  private rebuildOriginalQuad(): void {
-    if (this.originalQuad) {
-      this.scene.remove(this.originalQuad);
-      this.originalQuad.geometry.dispose();
-      (this.originalQuad.material as THREE.Material).dispose();
-      this.originalQuad = null;
-    }
-    if (!this.sourceTexture) return;
-    this.originalQuad = new THREE.Mesh(
-      new THREE.PlaneGeometry(this.compWidth, this.compHeight),
-      new THREE.MeshBasicMaterial({ map: this.sourceTexture }),
-    );
-    this.originalQuad.visible = false;
-    this.scene.add(this.originalQuad);
-  }
 
   private updateCamera(aspect: number): void {
     // Perspective amount maps to fov; camera distance always frames the
@@ -1254,22 +640,6 @@ export class RenderEngine {
     }
     renderer.clear();
 
-    // PREVIEW temporal capture. File sources address history by COMPOSITION
-    // time (seekable grid). Live sources (18F) address it by a MONOTONIC
-    // wall clock instead: paused transport keeps accumulating, seeks never
-    // rewind observed reality, loops never replay it — history is realtime
-    // observation, "N seconds before now", which is exactly how the shared
-    // shader samples (offsetSeconds behind head). Disabled during export so
-    // preview contents can never influence a render (§3).
-    if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
-      const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
-      this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
-      // Restore the on-canvas viewport state clobbered by the capture pass.
-      renderer.setViewport(rectX, rectY, rectW, rectH);
-      renderer.setScissor(rectX, rectY, rectW, rectH);
-      renderer.setScissorTest(true);
-    }
-
     // v0.6: with layers configured the host renders no creative state of its
     // own — every branch draws to its own target and the compositor blends
     // them. The blit below is the only place composition pixels reach the
@@ -1311,58 +681,12 @@ export class RenderEngine {
       this.publishComposition();
       return;
     }
-
-    this.updateCamera(this.compWidth / this.compHeight);
-    // CE1F: the generator produces this frame's source pixels first.
-    if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
-    // CE1D: refresh the shared flow service first — syncScene binds ctx.flow.
-    if (!this.exportMode) this.updateFlowService(renderer);
-    this.syncScene();
-    // v0.4A: analyse AFTER syncScene — evalSources has already consumed what
-    // frame N-1 published, which is the N-1 contract that makes preview and
-    // export agree despite evaluating in opposite order.
-    if (!this.exportMode) this.updateVisualStats(renderer);
-    // CE1B feedback prepass: preview steps on WALL time (live, paused
-    // transport and static images all evolve — export steps separately and
-    // deterministically via prepareFeedbackForExport).
-    if (this.feedbackActive) {
-      (
-        this.techniqueRenderer as unknown as {
-          feedbackPrepass?: (r: THREE.WebGLRenderer, clockSec: number) => void;
-        }
-      ).feedbackPrepass?.(renderer, performance.now() / 1000);
-    }
-    // CE1G: with a transition reveal open, the live render becomes the B
-    // side and is composited against the snapshot taken at the identity
-    // switch. Authority stays in the editor: it decides progress/style; the
-    // Output receives resolved values and composites its OWN local frames.
-    const transition = this.transitionState;
-    if (transition && this.compositor.hasSnapshot) {
-      const live = this.ensureLiveTarget(renderer);
-      const prevTarget = renderer.getRenderTarget();
-      renderer.setRenderTarget(live);
-      renderer.setScissorTest(false);
-      renderer.render(this.scene, this.camera);
-      renderer.setRenderTarget(prevTarget);
-      renderer.setViewport(rectX, rectY, rectW, rectH);
-      renderer.setScissor(rectX, rectY, rectW, rectH);
-      renderer.setScissorTest(true);
-      this.compositor.composite(
-        renderer,
-        live.texture,
-        transition.progress,
-        transition.params,
-        this.compWidth / Math.max(this.compHeight, 1),
-      );
-      renderer.setScissorTest(false);
-      return;
-    }
-    renderer.render(this.scene, this.camera);
-    renderer.setScissorTest(false);
   }
+
 
   /** Draw a texture over the current viewport, 1:1, no resampling beyond the
    * viewport scale the user chose. */
+  private static readonly BLIT_CAMERA = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
   private blitScene: THREE.Scene | null = null;
   private blitMaterial: THREE.ShaderMaterial | null = null;
 
@@ -1384,10 +708,8 @@ void main() { fragColor = texture(uTex, vUv); }`,
       this.blitScene.add(mesh);
     }
     this.blitMaterial.uniforms.uTex!.value = texture;
-    renderer.render(this.blitScene, this.blitCamera);
+    renderer.render(this.blitScene, RenderEngine.BLIT_CAMERA);
   }
-
-  private readonly blitCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
 
   // ---- CE1G transition plumbing ----
   private compositor = new TransitionCompositor();
@@ -1455,9 +777,13 @@ void main() { fragColor = texture(uTex, vUv); }`,
     const gl = renderer.getContext();
     const w = Math.max(gl.drawingBufferWidth, 2);
     const h = Math.max(gl.drawingBufferHeight, 2);
+    // The A side is the composition as it stands, drawn through the same
+    // layer path the live frame uses — never a layer in isolation.
     this.compositor.capture(renderer, w, h, () => {
-      this.syncScene();
-      renderer.render(this.scene, this.camera);
+      if (!this.layerHost.renderSingleOpaqueToCanvas(renderer)) {
+        const composed = this.layerHost.composite(renderer, false);
+        if (composed) this.blit(renderer, composed);
+      }
     });
   }
 
@@ -1475,78 +801,6 @@ void main() { fragColor = texture(uTex, vUv); }`,
     };
   }
 
-  private syncScene(paramsOverride?: ParamRecord): void {
-    const showProcessed = !this.showOriginal;
-    if (this.originalQuad) this.originalQuad.visible = !showProcessed;
-    if (this.techniqueRenderer) {
-      this.techniqueRenderer.object3d.visible = showProcessed;
-      if (showProcessed && this.materialState) {
-        // In export, resolved values come from authority and from nowhere
-        // else. Falling through to the live transform let a branch sync its
-        // scene from the PREVIEW runtime mid-render — which reads wall time —
-        // and two runs of the same export stopped matching.
-        const params =
-          paramsOverride ??
-          (this.paramTransform && !this.exportMode
-            ? this.paramTransform(this.techniqueParams, this.timeSec)
-            : this.techniqueParams);
-        // RuntimeBus seam (18A): the live pass publishes its evaluated frame.
-        // renderStill/export pass paramsOverride and never reach the bus —
-        // export isolation is preserved by construction.
-        this.lastResolvedParams = params;
-        // A BRANCH is not the composition: if every layer published, the
-        // Output would receive one message per layer per frame and show
-        // whichever arrived last. A composition publishes once, from
-        // publishComposition(), with the whole stack attached.
-        //
-        // `layerHost.isEmpty` makes the two mutually exclusive rather than
-        // merely unlikely: this seam survives only for an engine rendering
-        // with no layer set at all — the Output replica's pre-v0.6 path.
-        if (
-          paramsOverride === undefined &&
-          !this.exportMode &&
-          !this.isBranch &&
-          this.layerHost.isEmpty
-        ) {
-          runtimeBus.emitFrame(
-            this.timeSec,
-            params,
-            this.isTemporalActive,
-            this.generator ? this.resolvedSourceParams() : undefined,
-            this.transitionState
-              ? {
-                  generation: this.transitionGeneration,
-                  progress: this.transitionState.progress,
-                  style: this.transitionState.params.style,
-                  params: {
-                    softness: this.transitionState.params.softness,
-                    amount: this.transitionState.params.amount,
-                    scale: this.transitionState.params.scale,
-                    centerX: this.transitionState.params.centerX,
-                    centerY: this.transitionState.params.centerY,
-                    angle: this.transitionState.params.angle,
-                    seed: this.transitionState.params.seed,
-                  },
-                }
-              : undefined,
-          );
-        }
-        this.techniqueRenderer.update(params, {
-          sourceTexture: this.sourceTexture,
-          materialTexture: this.materialTexture,
-          temporal: this.temporalEnabled && this.temporal ? this.temporal.getUniforms() : null,
-          flow: this.flow?.texture() ?? null,
-          compWidth: this.compWidth,
-          compHeight: this.compHeight,
-          material: this.materialState,
-          timeSec: this.timeSec,
-          seed: this.seed,
-          renderer: this.renderer,
-        });
-      }
-    }
-  }
-
   private loop = (): void => {
     this.rafId = requestAnimationFrame(this.loop);
     // No preview renders during export: an interleaved render re-uploads the
@@ -1556,14 +810,12 @@ void main() { fragColor = texture(uTex, vUv); }`,
     if (this.exportMode) return;
     // 18D: a live source delivers new pixels every frame outside our
     // invalidation model — while one is active, render continuously.
-    if (
-      !this.dirty &&
-      !this.liveSourceActive &&
-      !this.feedbackActive &&
-      !this.generatorActive &&
-      !this.layerHost.anyLayerNeedsContinuousRender()
-    )
-      return;
+    // A live source, feedback and a simulation generator are the three things
+    // that keep rendering without an explicit invalidate, and all three live
+    // on the layers — so this is one question about the SET, not three about
+    // the host. Asking the host produced 19 rendered frames per second while
+    // rAF ran at 120.
+    if (!this.dirty && !this.layerHost.anyLayerNeedsContinuousRender()) return;
     this.dirty = false;
     // One frame, one dt: the modulation runtime is asked for a step by every
     // layer and by every layer's opacity, and it must answer the same thing.
@@ -1583,39 +835,17 @@ void main() { fragColor = texture(uTex, vUv); }`,
   };
   private lastLoopTs = 0;
 
-  /**
-   * Deterministic offscreen render at arbitrary resolution (export path,
-   * Explore thumbnails). Optional paramsOverride bypasses the live modulation
-   * transform. Returns tightly packed RGBA bytes, top row first.
-   */
-  /** CE1F export seam: render the generator's exact frame for this
-   * composition time before the still is taken (deterministic, no decoder). */
-  /** Composition time of the frame before the current export frame — used
-   * to prime motion analysis at a subrange boundary. */
-  private exportPrevSourceSec: number | null = null;
-
   setExportPreviousTime(sec: number | null): void {
     this.layerHost.forEachRuntime((r) => r.setExportPreviousTime(sec));
-    this.exportPrevSourceSec = sec;
   }
 
   prepareGeneratorForExport(compositionTime: number, width: number, height: number): void {
     // EVERY layer's generator advances, not just the selected one — an export
-    // that prepared one branch would render the others from stale preview
-    // state, deterministically and wrongly.
+    // that prepared one would render the others from stale preview state,
+    // deterministically and wrongly.
     this.layerHost.forEachRuntime((r) =>
       r.prepareGeneratorForExport(compositionTime, width, height),
     );
-    const renderer = this.renderer;
-    if (!renderer || !this.generator) return;
-    const prevW = this.compWidth;
-    const prevH = this.compHeight;
-    // Procedural scale semantics are normalized: render at the export size.
-    this.compWidth = width;
-    this.compHeight = height;
-    this.renderGenerator(renderer, compositionTime, true);
-    this.compWidth = prevW;
-    this.compHeight = prevH;
   }
 
   /**
@@ -1631,11 +861,18 @@ void main() { fragColor = texture(uTex, vUv); }`,
     try {
       renderer.setPixelRatio(1);
       this.updateCamera(width / height);
+      // The A side is the whole composition, drawn through the same layer
+      // path an exported frame uses.
+      const byLayer = new Map(this.layerHost.authorityParamsSnapshot ?? []);
+      const selected = this.layerHost.selectedLayerId;
+      if (selected) byLayer.set(selected, params);
       this.compositor.capture(renderer, width, height, () => {
         renderer.setClearColor(this.compBackground, 1);
         renderer.clear();
-        this.syncScene(params);
-        renderer.render(this.scene, this.camera);
+        if (!this.layerHost.renderSingleOpaqueToBoundTarget(renderer, byLayer)) {
+          const composed = this.layerHost.composite(renderer, false, byLayer);
+          if (composed) this.blit(renderer, composed);
+        }
       });
     } finally {
       renderer.setPixelRatio(prevPixelRatio);
@@ -1735,47 +972,9 @@ void main() { fragColor = texture(uTex, vUv); }`,
           this.layerHost.setComposition(prevW, prevH, this.compBackground);
         }
       }
-      if (transition && this.compositor.hasSnapshot) {
-        // Dual render: B into its own target, then the SAME shader the
-        // preview uses composites it against the A snapshot. One
-        // implementation of the mask math — export cannot drift from what
-        // the user watched.
-        const bTarget = new THREE.WebGLRenderTarget(width, height, {
-          colorSpace: THREE.SRGBColorSpace,
-          depthBuffer: false,
-        });
-        try {
-          renderer.setRenderTarget(bTarget);
-          if (transparent) renderer.setClearColor('#000000', 0);
-          else renderer.setClearColor(this.compBackground, 1);
-          renderer.clear();
-          this.syncScene(paramsOverride);
-          renderer.render(this.scene, this.camera);
-          renderer.setRenderTarget(target);
-          renderer.clear();
-          this.compositor.composite(
-            renderer,
-            bTarget.texture,
-            transition.progress,
-            transition.params,
-            width / height,
-          );
-        } finally {
-          bTarget.dispose();
-        }
-      } else {
-        this.syncScene(paramsOverride);
-        renderer.render(this.scene, this.camera);
-      }
-      const pixels = new Uint8Array(width * height * 4);
-      renderer.readRenderTargetPixels(target, 0, 0, width, height, pixels);
-      // GL reads bottom row first — flip vertically.
-      const flipped = new Uint8Array(pixels.length);
-      const rowBytes = width * 4;
-      for (let y = 0; y < height; y++) {
-        flipped.set(pixels.subarray(y * rowBytes, (y + 1) * rowBytes), (height - 1 - y) * rowBytes);
-      }
-      return flipped;
+      // No non-layer path: a composition always has at least one layer, so
+      // the block above is the only way a still is produced.
+      throw new Error('renderStill: composition has no layers');
     } finally {
       renderer.setPixelRatio(prevPixelRatio);
       renderer.setRenderTarget(prevTarget);

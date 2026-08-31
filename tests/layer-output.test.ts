@@ -43,9 +43,13 @@ describe('v0.6E — the Output shows the composition, and still evaluates nothin
   it('every layer is published once, by the host, not once per branch', () => {
     // A branch is not the composition. If each published, the Output would get
     // one message per layer per frame and show whichever arrived last.
+    // v0.6.1 makes this structural: the runtime class cannot reach the bus at
+    // all, so there is exactly one emitFrame site in the tree and it is the
+    // host's, called after compositing.
+    const runtime = read('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
+    expect(runtime.includes('runtimeBus'), 'a runtime must not reach the bus').toBe(false);
     const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const sync = engine.slice(engine.indexOf('private syncScene('));
-    expect(sync.slice(0, 3000)).toContain('!this.isBranch');
+    expect((engine.match(/runtimeBus\.emitFrame\(/g) ?? []).length).toBe(1);
     expect(engine).toContain('private publishComposition()');
   });
 

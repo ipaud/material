@@ -37,7 +37,7 @@ describe('R1 — a generator has frame identity (§A0)', () => {
     // over a noise generator with Motion Mosh produced 0 flow updates; after,
     // 360. Export was never affected because it passes explicit keys — which
     // is exactly why the determinism matrix read 12/12 throughout.
-    const engine = src('src', 'rendering', 'RenderEngine.ts');
+    const engine = src('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
     expect(engine).toContain('private generatorRevision = 0;');
     expect(engine).toMatch(/sourceFrameKey\(\)[\s\S]{0,200}this\.generatorRevision/);
     expect(engine).toContain('this.generatorRevision++;');

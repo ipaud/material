@@ -97,24 +97,22 @@ describe('v0.6.1 — one frame, one publication', () => {
   it('a layer runtime never publishes; only the host does', () => {
     // Four layers each publishing meant the Output received one message per
     // layer per frame and showed whichever arrived last.
+    //
+    // v0.6.1 makes this structural rather than guarded: the runtime class has
+    // no bus import and no emit call, so there is exactly ONE emitFrame site
+    // in the whole tree and it is the host's.
+    const runtime = read('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
+    expect(runtime.includes('runtimeBus'), 'a runtime must not reach the bus').toBe(false);
     const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const sync = engine.slice(engine.indexOf('private syncScene('));
-    expect(sync.slice(0, 3000)).toContain('!this.isBranch');
-    // Two emit sites exist and are MUTUALLY EXCLUSIVE: publishComposition
-    // for a composition, and a legacy seam that fires only when there is no
-    // layer set at all (the Output replica's pre-v0.6 path).
-    expect((engine.match(/runtimeBus\.emitFrame\(/g) ?? []).length).toBe(2);
-    expect(sync.slice(0, 3000)).toContain('this.layerHost.isEmpty');
-    const publish = engine.slice(engine.indexOf('private publishComposition()'));
-    expect(publish.slice(0, 400)).toContain('this.layerHost.isEmpty) return');
+    expect((engine.match(/runtimeBus\.emitFrame\(/g) ?? []).length).toBe(1);
+    expect(engine).toContain('private publishComposition()');
   });
 
   it('the host publishes after compositing, on every path that draws', () => {
     const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const frame = engine.slice(engine.indexOf('private renderFrame()'));
-    const body = frame.slice(0, 6000);
     // Both the direct fast path and the composite path publish.
-    expect((body.match(/this\.publishComposition\(\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    const frame = engine.slice(engine.indexOf('  private renderFrame()'));
+    expect((frame.match(/this\.publishComposition\(\)/g) ?? []).length).toBe(2);
   });
 });
 
@@ -129,8 +127,8 @@ describe('v0.6.1 — the frame order is documented and followed', () => {
   it('a branch in export mode never falls back to the live transform', () => {
     // The live transform reads wall time. A branch syncing its scene through
     // it mid-render made two runs of the same export disagree.
-    const engine = read('src', 'rendering', 'RenderEngine.ts');
-    const sync = engine.slice(engine.indexOf('private syncScene('));
+    const runtime = read('src', 'rendering', 'layers', 'LayerRuntimeImpl.ts');
+    const sync = runtime.slice(runtime.indexOf('private syncScene('));
     expect(sync.slice(0, 1200)).toContain('this.paramTransform && !this.exportMode');
   });
 });

@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { RenderEngine } from '@/rendering/RenderEngine';
+import type { LayerRuntimeImpl } from '@/rendering/layers/LayerRuntimeImpl';
 import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { FileImageSource } from '@/sources/FileImageSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
@@ -53,7 +53,7 @@ export class OutputLayer {
   private liveKind: 'camera' | 'capture' | null = null;
 
   /** Rebuild media only when the description actually changed. */
-  applyInputs(branch: RenderEngine, input: OutputLayerInput, generation: number): void {
+  applyInputs(branch: LayerRuntimeImpl, input: OutputLayerInput, generation: number): void {
     const src = input.source;
     const key = src
       ? src.kind === 'generator'
@@ -111,7 +111,7 @@ export class OutputLayer {
 
   /** Drive this layer's generator with the params the EDITOR resolved. */
   advanceGenerator(
-    branch: RenderEngine,
+    branch: LayerRuntimeImpl,
     renderer: THREE.WebGLRenderer,
     compTime: number,
     params: ParamRecord | undefined,
@@ -127,7 +127,7 @@ export class OutputLayer {
   }
 
   private async loadFile(
-    branch: RenderEngine,
+    branch: LayerRuntimeImpl,
     kind: 'file-image' | 'file-video',
     path: string,
     generation: number,
@@ -149,7 +149,7 @@ export class OutputLayer {
     branch.setTemporalSource(runtime.temporalSource());
   }
 
-  private releaseSource(branch: RenderEngine): void {
+  private releaseSource(branch: LayerRuntimeImpl): void {
     this.source?.dispose();
     this.source = null;
     this.generator?.dispose();
@@ -159,7 +159,7 @@ export class OutputLayer {
     branch.setTemporalSource(null);
   }
 
-  dispose(branch: RenderEngine | null): void {
+  dispose(branch: LayerRuntimeImpl | null): void {
     this.loadGeneration++;
     this.source?.dispose();
     this.source = null;

@@ -589,7 +589,6 @@ export function startEngineBridge(): () => void {
   // pinned dt at 0 whenever playback was paused, so the warmup window never
   // elapsed and every visual signal stayed `warming` forever. Export does not
   // use this path — it owns a separate store stepped by frame time.
-  engine.setVisualSink((stats) => modulationRuntime.setVisualStats(stats, performance.now() / 1000));
   modulationRuntime.setDemandSink((ids) => {
     engine.setVisualDemand(ids);
     // The per-layer split has to follow: an overlay changes what the primary

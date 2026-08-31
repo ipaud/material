@@ -189,7 +189,7 @@ class CandidateRuntime {
     // branches (only one renders at a time — no double cost). Ending an
     // audition re-primes it so CURRENT never keeps candidate residue;
     // APPLY deliberately keeps the auditioned state (seamless takeover).
-    if (!on) engine.resetFeedback();
+    if (!on) engine.resetFeedbackEverywhere();
     engine.invalidate();
     this.sync();
   }
