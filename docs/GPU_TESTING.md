@@ -363,3 +363,36 @@ black. It can also validate wrong against wrong.
 | **Anti-noop** | does disabling this change the pixels? | the feature is inert |
 
 Determinism belongs alongside all three, never instead of them.
+
+### The fixture has to be deterministic before the comparison means anything
+
+v0.6.1's four-layer fixture disagreed across builds. It also disagreed
+**with itself**: two captures from two sessions of the *same* v0.6.0 build
+produced different hashes. The comparison was measuring session history, not
+code.
+
+Two causes, found in order, and both worth knowing:
+
+1. **Stateful techniques accumulate on a wall clock during preview.** A
+   feedback surface or a reaction-diffusion simulation carries whatever the
+   app did before the capture into the first exported frame. The fixture now
+   resets every layer's feedback, temporal and flow state before capturing.
+
+2. **The reset itself has to exist on both sides.** The first fix called
+   `resetFeedbackEverywhere()`, which is a v0.6.1 method; the reference fell
+   back to the host's `resetFeedback()`, which is a no-op there because a host
+   has no technique. So a *clean* candidate was being compared against a
+   *warm* reference, and the four-layer fixture kept differing by about 0.4 in
+   mean. Resetting per layer — `branchFor(id).resetFeedback()` — is the only
+   spelling both builds understand.
+
+Sequence to trust a result:
+
+```
+capture reference twice  → must be IDENTICAL to itself
+capture candidate twice  → must be IDENTICAL to itself
+then compare the two
+```
+
+Skipping the first two steps produces a difference report that says nothing
+about the code. It cost most of an afternoon here.

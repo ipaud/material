@@ -213,3 +213,108 @@ runtime got no source and no technique, and the composition went black and
 stayed black. Confirmed present in v0.6.0 by running the same
 dispose/init/resync sequence against the v0.6.0 worktree, so it is a fix, not
 an artefact. The memo now records the runtime object it describes.
+
+---
+
+# R6 — equivalence against v0.6.0
+
+Six fixtures × four composition times, both apps freshly started, driven by
+the same fixture text:
+
+| Fixture | Result | Content |
+|---|---|---|
+| single still generator | IDENTICAL | 39 348 non-black, var 8 918 |
+| single animated generator | IDENTICAL | 41 904, var 8 205 |
+| single stateful (feedback) | IDENTICAL | 43 092, var 8 011 |
+| two layers, blend + opacity | IDENTICAL | 46 656, var 6 955 |
+| two layers, cross-layer routes | IDENTICAL | 57 600, var 2 005 |
+| four layers, 4 techniques, 2 routes | IDENTICAL | 57 600, var 884 |
+
+Every frame clears a declared non-black and variance floor, so a blank result
+cannot pass as a match.
+
+**The four-layer fixture was wrong before it was right**, and the sequence is
+worth repeating: it disagreed across builds, then was found to disagree with
+*itself* across sessions of the same build, because stateful techniques
+accumulate on a wall clock during preview. After resetting per-layer history
+it still differed — because the reset was spelled with a v0.6.1-only method
+and the reference silently no-opped, comparing a clean candidate against a
+warm reference. Both are recorded in GPU_TESTING.md. A gate has to be shown
+deterministic against itself before a difference it reports means anything.
+
+# R7 — soak, performance, package
+
+## Soak
+
+11.0 minutes, 750 iterations at 1280×720 with four layers and two cross-layer
+routes, churning throughout: add/delete, reorder, solo, enable/disable, source
+switches between generators, composition resize, StrictMode-style remounts
+(~68 of them) and freeze/unfreeze.
+
+| | first half | second half |
+|---|---|---|
+| textures | 37.0 | 37.0 |
+| geometries | 22.9 | 22.7 |
+| render targets | 17.7 MB | 17.7 MB |
+| layer runtimes | 4.0 | 4.0 |
+| **stale runtimes** | **0.0** | **0.0** |
+
+Zero GL errors. The render-target figure oscillates between 13.5 and 21.1 MB
+because the soak deliberately resizes the composition; the means match.
+
+`staleRuntimes` holding at zero across ~68 remounts is the load-bearing
+number: no runtime ever kept a renderer the host had replaced.
+
+## Heap, and why it is not a regression
+
+JS heap rises under this workload. Measured as RETAINED heap — a forced
+collection before every sample — from a freshly started app, five minutes
+each, same script:
+
+| | start | end | slope | total |
+|---|---|---|---|---|
+| v0.6.0 | 23 MB | 35 MB | +0.337 MB/sample | +12.1 MB |
+| v0.6.1 | 23 MB | 34 MB | +0.324 MB/sample | +11.6 MB |
+
+Identical within noise, candidate marginally lower. The growth predates the
+refactor and belongs to the churn workload, not to the ownership change. It is
+recorded here rather than claimed as clean.
+
+The first attempt at this measurement was invalid and worth naming: the
+candidate was sampled on an app that had already been running fifteen minutes,
+so it started at 47 MB against the reference's 23 and looked like a leak. Both
+sides have to start from the same place.
+
+## Performance
+
+1920×1080, four heavy techniques each with its own generator, renders forced
+every rAF.
+
+| | v0.6.0 | v0.6.1 |
+|---|---|---|
+| 1 layer | 120 fps · 0.1 ms | 120 fps · 0.0 ms |
+| 4 layers | 120 fps · 0.1 ms | 126 fps · 0.1 ms |
+| VRAM at 4 layers | 47.5 MB | 47.5 MB |
+| textures / geometries | 15 / 14 | 15 / 14 |
+
+Vsync-capped on both sides with identical GPU resources.
+
+## Packaged
+
+`release/mac-arm64/MATERIAL.app` at version 0.6.1. Launches, stays up, quits
+cleanly on TERM, no errors in its log. The `app.asar` carries `LayerHost`,
+`LayerRuntimeImpl`, `anyLayerUsesFeedback`, `exportRequirements` and
+`adoptRenderer`. The remote debugging port is `isDev`-guarded exactly as in
+v0.6.0 and is **closed** in the packaged build, verified by connecting.
+
+CDP `Runtime.evaluate` does not answer in a packaged Electron build, so the
+packaged pass is launch, liveness, artifact inspection and clean shutdown —
+not a driven scenario. That is a property of the harness and is unchanged
+since v0.6.
+
+## Security
+
+`electron/preload/index.ts` and `electron/main/index.ts` are **byte-identical**
+to v0.6.0. No new IPC channel, no new `contextBridge` surface, no change to
+`nodeIntegration`, `sandbox` or `contextIsolation`, no new filesystem or
+shader surface. This phase moved renderer-process code only.
