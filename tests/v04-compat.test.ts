@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { parseProject } from '@shared/schemas/project';
 import { SmoothingState, applyModulations } from '@/modulation/evaluator';
 import { getTechnique } from '@/techniques/registry';
+import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 
 /**
  * v0.4E — the compatibility promise, stated as tests.
@@ -23,7 +24,7 @@ describe('project compatibility (§136)', () => {
     for (const f of files) {
       const parsed = parseProject(fixture(f));
       expect(parsed, `${f} failed to parse`).not.toBeNull();
-      expect(parsed!.version).toBe(4);
+      expect(parsed!.version).toBe(PROJECT_FORMAT_VERSION);
     }
   });
 
@@ -52,7 +53,7 @@ describe('project compatibility (§136)', () => {
     // And the closed form, so this cannot drift silently.
     const shaped = 0.1 + (0.9 - 0.1) * 0.6;
     expect(a.scale).toBeCloseTo(1 + 0.7 * shaped * 3, 10);
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
   });
 
   it('a project carrying the new fields round-trips them', () => {

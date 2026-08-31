@@ -14,6 +14,7 @@ import { morphRuntime } from '@/performance/morphRuntime';
 import { applyMacros } from '@/performance/macros';
 import { candidateRuntime } from '@/performance/candidateRuntime';
 import type { Macro } from '@shared/schemas/project';
+import type { ResolvedTake } from '@/performance/take/evaluate';
 
 /**
  * Live modulation runtime: the bridge feeds it project state; the render
@@ -257,11 +258,13 @@ class ModulationRuntime {
     timeSec: number,
   ): LayerDynamicState {
     const entry = this.layerMods.find((e) => e.layerId === layerId);
-    if (!entry) return stored;
+    const takeOpacity = this.takeOpacity(layerId);
+    const effective = takeOpacity === null ? stored : { ...stored, opacity: takeOpacity };
+    if (!entry) return effective;
     const layerMappings = entry.mappings.filter((m) => isLayerTarget(m.target));
-    if (layerMappings.length === 0) return stored;
+    if (layerMappings.length === 0) return effective;
     return applyLayerModulations(
-      stored,
+      effective,
       layerMappings,
       this.sourcesFor(entry, timeSec),
       this.smoothing,
@@ -281,7 +284,7 @@ class ModulationRuntime {
     // to what the performer is holding, and applying it to every layer would
     // make one gesture rewrite the whole composition.
     const modulated = applyModulations(
-      applyMacros(base, this.macros, definition),
+      applyMacros(this.takeBase(layerId, base), this.takeMacros(), definition),
       entry.mappings,
       this.sourcesFor(entry, timeSec),
       definition,
@@ -322,6 +325,46 @@ class ModulationRuntime {
 
   configureMacros(macros: Macro[]): void {
     this.macros = macros;
+  }
+
+  // ---- v0.7: Take replay ---------------------------------------------------
+
+  /**
+   * The replaying Take's continuous state for this frame, or null.
+   *
+   * It enters at the BASE, exactly where the human drag it recorded entered
+   * (§56). Everything downstream — macros, Set/Add modulation, freeze, pulses,
+   * clamp — runs on top, unchanged, so a Signal that was reacting to the
+   * performer's fader during the recording reacts to the replayed fader in
+   * the same way. Applying a Take AFTER modulation would have made it
+   * overwrite the very Signals it was performed against.
+   */
+  private takeState: ResolvedTake | null = null;
+
+  setTakeState(state: ResolvedTake | null): void {
+    this.takeState = state;
+  }
+
+  /** Base params for one layer, with any Take-controlled values substituted. */
+  private takeBase(layerId: string, base: ParamRecord): ParamRecord {
+    const over = this.takeState?.params.get(layerId);
+    if (!over) return base;
+    return { ...base, ...over };
+  }
+
+  /** Macro values with any the Take is playing substituted. */
+  private takeMacros(): Macro[] {
+    const over = this.takeState?.macros;
+    if (!over || over.size === 0) return this.macros;
+    return this.macros.map((m) => {
+      const v = over.get(m.id);
+      return v === undefined ? m : { ...m, value: v };
+    });
+  }
+
+  /** A layer's stored opacity, or the one the Take is playing. */
+  takeOpacity(layerId: string): number | null {
+    return this.takeState?.opacity.get(layerId) ?? null;
   }
 
   hasActiveMappings(): boolean {
@@ -419,7 +462,11 @@ class ModulationRuntime {
     // pulses → clamp. Macros ride ON TOP of look/morph state (§13) — they
     // are performance state, applied after the overlay, never stored into
     // Looks.
-    const effectiveBase = applyMacros(overlay ? overlay.params : base, this.macros, definition);
+    const effectiveBase = applyMacros(
+      this.takeBase(this.primaryLayerId ?? '', overlay ? overlay.params : base),
+      this.takeMacros(),
+      definition,
+    );
     const effectiveMappings = overlay ? overlay.modulations : this.mappings;
     const modulated = applyModulations(
       effectiveBase,
@@ -442,6 +489,7 @@ class ModulationRuntime {
   }
 
   reset(): void {
+    this.takeState = null;
     this.visualByLayer.clear();
     this.lastVisualStats = null;
     this.lastVisualAtSec = -1;

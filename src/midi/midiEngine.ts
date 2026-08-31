@@ -7,6 +7,8 @@ import { applyCurve, SmoothingState } from '@/modulation/evaluator';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { playback } from '@/playback/PlaybackController';
+import { takeRecorder } from '@/performance/take/recorder';
+import { macroTarget, paramTarget } from '@/performance/take/model';
 import { getTechnique } from '@/techniques/registry';
 import { allParams, type NumberParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
@@ -438,6 +440,13 @@ class MidiEngine {
     }
     this.setStatus(mapping.id, 'live');
     const store = useProjectStore.getState();
+    takeRecorder.control(
+      macroTarget(macro.id),
+      shaped,
+      playback.getTime(),
+      macro.value,
+      1,
+    );
     store.beginTransient();
     this.selfWrite = true;
     store.apply((p) => ({
@@ -473,6 +482,21 @@ class MidiEngine {
   ): void {
     const value = def.min + Math.min(Math.max(norm, 0), 1) * (def.max - def.min);
     const store = useProjectStore.getState();
+    // v0.7: MIDI is captured as the SEMANTIC HOST CONTROL it resolved to, not
+    // as device + CC number. The Take then replays without the controller
+    // plugged in, and without depending on a mapping that may since have been
+    // reassigned (§57/§80). Raw MIDI capture is backlogged as its own mode.
+    const layer = store.project.layers.find((l) => l.technique?.id === techniqueInstanceId);
+    if (layer) {
+      const current = layer.technique?.params[paramId];
+      takeRecorder.control(
+        paramTarget(layer.id, paramId),
+        value,
+        playback.getTime(),
+        typeof current === 'number' ? current : value,
+        def.max - def.min,
+      );
+    }
     // beginTransient is idempotent, so asking every message keeps the engine
     // in step with the STORE rather than with a local flag. A local flag goes
     // stale the moment a project is loaded mid-gesture (the store clears its

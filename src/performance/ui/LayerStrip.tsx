@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { engine } from '@/rendering/RenderEngine';
+import { selectLayer, setLayerBlend, toggleLayerSolo } from '@/projects/layerActions';
 import {
-  selectLayer,
-  setLayerBlend,
-  setLayerOpacity,
-  toggleLayerEnabled,
-  toggleLayerSolo,
-} from '@/projects/layerActions';
+  performLayerOpacity,
+  performToggleLayerEnabled,
+} from '@/performance/take/gestures';
 import { blendModeSchema, type BlendMode, type Layer } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 
@@ -88,7 +86,7 @@ function LayerCell({
 
   const setFromPointer = (e: { currentTarget: HTMLElement; clientX: number }) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    setLayerOpacity(layer.id, Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1));
+    performLayerOpacity(layer.id, Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1));
   };
 
   return (
@@ -133,8 +131,10 @@ function LayerCell({
         }}
         onKeyDown={(e) => {
           const step = e.shiftKey ? 0.01 : 0.05;
-          if (e.key === 'ArrowLeft') setLayerOpacity(layer.id, Math.max(layer.opacity - step, 0));
-          if (e.key === 'ArrowRight') setLayerOpacity(layer.id, Math.min(layer.opacity + step, 1));
+          if (e.key === 'ArrowLeft')
+            performLayerOpacity(layer.id, Math.max(layer.opacity - step, 0));
+          if (e.key === 'ArrowRight')
+            performLayerOpacity(layer.id, Math.min(layer.opacity + step, 1));
         }}
       >
         <span className="perf-layer-fill" style={{ width: `${layer.opacity * 100}%` }} />
@@ -150,7 +150,7 @@ function LayerCell({
       <div className="perf-layer-controls">
         <button
           className={'perf-layer-btn' + (layer.enabled ? '' : ' on')}
-          onClick={() => toggleLayerEnabled(layer.id)}
+          onClick={() => performToggleLayerEnabled(layer.id)}
           title={
             layer.enabled
               ? 'Mute — stops rendering this layer entirely, so its feedback or simulation stops advancing too'

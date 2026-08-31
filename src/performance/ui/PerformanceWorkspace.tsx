@@ -5,7 +5,7 @@ import { liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
 import { isLookDirty } from '@/performance/lookCore';
 import { pinCurrentLook } from '@/projects/lookActions';
-import { toggleFreezeAll } from '@/modulation/modulationActions';
+import { performMacroValue, performToggleFreeze } from '@/performance/take/gestures';
 import { midiEngine, useMidiStore } from '@/midi/midiEngine';
 import { WebMidiTransport } from '@/midi/transport';
 import {
@@ -21,7 +21,6 @@ import {
   morphToLookQuantized,
   renameMacro,
   resetMacro,
-  setMacroValue,
   setPerformanceQuantize,
 } from '@/performance/performanceActions';
 import type { Macro, QuantizeMode } from '@shared/schemas/project';
@@ -246,7 +245,7 @@ function MacroControl({ macro }: { macro: Macro }) {
             useProjectStore.getState().commitTransient();
           }
         }}
-        onChange={(e) => setMacroValue(macro.id, Number(e.target.value))}
+        onChange={(e) => performMacroValue(macro.id, Number(e.target.value))}
         onDoubleClick={() => resetMacro(macro.id)}
       />
       {menuOpen && (
@@ -305,7 +304,7 @@ export function ActionsStrip() {
         <div className="perf-group-body">
           <button
             className={`perf-big-btn${anyFrozen ? ' engaged' : ''}`}
-            onClick={() => toggleFreezeAll()}
+            onClick={() => performToggleFreeze()}
             title="Freeze/release all modulated values (F)"
           >
             {anyFrozen ? '■ FROZEN' : 'FREEZE'}

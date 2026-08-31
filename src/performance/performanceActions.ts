@@ -2,8 +2,8 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { playback } from '@/playback/PlaybackController';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
-import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
-import { applyLookBySlot } from '@/projects/lookActions';
+import type { MorphDuration } from '@/performance/morphRuntime';
+import { performLookRecall, performMorph } from '@/performance/take/gestures';
 import { uid } from '@/utils/id';
 import type { Macro, QuantizeMode, TriggerMapping } from '@shared/schemas/project';
 
@@ -55,8 +55,15 @@ export function applyLookQuantized(slot: number): boolean {
   if (!project.pinnedLooks.some((l) => l.slot === slot)) return false;
   const quantize = project.performanceQuantize;
   if (quantize === 'off' || !project.timeline.bpm) {
-    return applyLookBySlot(slot);
+    const look = project.pinnedLooks.find((l) => l.slot === slot);
+    if (!look) return false;
+    performLookRecall(look.id);
+    return true;
   }
+  // A QUEUED action is recorded when it executes, not when the button was
+  // pressed — the scheduler is the only place that knows the instant a
+  // quantized gesture actually landed on, and that instant is what a replay
+  // has to reproduce.
   const { ctx } = getTriggerState();
   liveScheduler.fireLive(
     perfTrigger({ action: 'applyLook', lookSlot: slot, quantize }),
@@ -70,11 +77,7 @@ export function applyLookQuantized(slot: number): boolean {
 export function morphToLookQuantized(lookId: string, duration: MorphDuration): boolean {
   const { project } = useProjectStore.getState();
   const quantize = project.timeline.bpm ? project.performanceQuantize : 'off';
-  return morphRuntime.start(lookId, {
-    startQuantize: quantize,
-    duration,
-    curve: 'easeInOut',
-  });
+  return performMorph(lookId, duration, 'easeInOut', quantize);
 }
 
 /**

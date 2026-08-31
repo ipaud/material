@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readFileSync } from 'node:fs';
 import type * as PackModuleNS from '@electron/filesystem/shaderPacks';
+import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 
 /**
  * v0.5B — pack loading and, mostly, pack REFUSING.
@@ -299,7 +300,7 @@ describe('a project that references a pack (§135, §136)', () => {
       ],
     });
     expect(parsed).not.toBeNull();
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
     expect(parsed.layers[0]!.technique!.techniqueId).toBe('custom:com.example.pack:demo');
     // The values survive whether or not the pack is installed.
     expect(parsed.layers[0]!.technique!.params.amount).toBe(0.42);

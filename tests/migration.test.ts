@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createEmptyProject, parseProject } from '@shared/schemas/project';
+import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 
 /**
  * Phase 17 §9: v1 → v2 migration is a release commitment. These fixtures are
@@ -84,7 +85,7 @@ function v1Look(): Record<string, unknown> {
 describe('v1 → v2 migration', () => {
   test('a plain v1 project opens and keeps its visual state', () => {
     const migrated = parseProject(v1Project());
-    expect(migrated.version).toBe(4); // v1 → v2 → v3 (live sources) → v4 (layers)
+    expect(migrated.version).toBe(PROJECT_FORMAT_VERSION); // v1 → v2 → v3 → v4 → v5
     expect(migrated.layers[0]!.technique!.params).toEqual({ columns: 32, rows: 18, scale: 1.2 });
     expect(migrated.material.materialId).toBe('square');
     expect(migrated.modulations[0]).toMatchObject({ source: 'bass', target: 'scale', amount: 0.6 });
@@ -287,7 +288,7 @@ describe('projects predating Creative Expansion (§77)', () => {
   test('a v3 project written before CE1G replays its morphs as Smooth', () => {
     // A recorded morph with no transition must not suddenly acquire a wipe.
     const parsed = parseProject(preExpansion());
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
     expect(parsed.morphEvents[0]!.transition.style).toBe('smooth');
     expect(parsed.morphEvents[0]!.transition.softness).toBe(0.15);
   });

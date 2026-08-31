@@ -199,9 +199,20 @@ describe('schema v3 — screen/window are additive variants', () => {
   };
 
   it('18E did NOT bump the format version', () => {
-    // 18E was additive inside v3. v0.6 bumped to v4 for layers, which is a
-    // different reason — screen/window still add no version of their own.
-    expect(PROJECT_FORMAT_VERSION).toBe(4);
+    // 18E was additive inside v3: screen and window are source VARIANTS, so
+    // they need no migration of their own. Later bumps (v4 layers, v5 takes)
+    // exist for structural reasons unrelated to capture, and a v3 document
+    // carrying a screen source still arrives intact without one.
+    const v3 = {
+      ...createEmptyProject(),
+      version: 3,
+      sources: [
+        { id: 's1', kind: 'screen', name: 'Display', path: null, displayId: null, generator: null },
+      ],
+    } as unknown as Record<string, unknown>;
+    const parsed = parseProject(JSON.parse(JSON.stringify(v3)));
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
+    expect(parsed.sources[0]?.kind).toBe('screen');
   });
 
   it('screen refs round-trip; displayId nullable', () => {
@@ -255,7 +266,7 @@ describe('schema v3 — screen/window are additive variants', () => {
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
     const migrated = parseProject(v2);
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(PROJECT_FORMAT_VERSION);
     expect(migrated.sources.every(isFileSource)).toBe(true);
   });
 });

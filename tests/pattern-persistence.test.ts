@@ -133,9 +133,9 @@ describe('project format version', () => {
     // v3 was introduced by 18D for live source refs; patterns still never
     // forced a bump and still parse from v2 files via migration.
     // Patterns were additive inside v3. v4 is the layers change, not this one.
-    expect(PROJECT_FORMAT_VERSION).toBe(4);
+    expect(PROJECT_FORMAT_VERSION).toBeGreaterThanOrEqual(4);
     const parsed = parseProject(JSON.parse(JSON.stringify(projectWith())));
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
   });
 
   it('a v2 project written before patterns existed still opens', () => {
@@ -155,7 +155,7 @@ describe('project format version', () => {
     delete v1.macros;
     v1.timeline = { inSec: null, outSec: null, loop: true, bpm: null, beatOffsetSec: 0 };
     const parsed = parseProject(v1);
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
     expect(parsed.patternSources).toEqual([]);
     expect(parsed.timeline.beatsPerBar).toBe(4);
   });

@@ -1,7 +1,6 @@
-import { selectedLayerOf } from '@shared/schemas/project';
+import { selectedLayerOf, withSelectedTechnique } from '@shared/schemas/project';
 import { useCallback, useEffect, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
-import { withSelectedTechnique, type TechniqueInstance } from '@shared/schemas/project';
 import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
@@ -17,6 +16,7 @@ import { MidiSection } from './MidiSection';
 import { MacrosSection } from './MacrosSection';
 import { PatternsSection } from '@/patterns/PatternsSection';
 import { MidiParamWrap } from './MidiParamWrap';
+import { performSelectedParam } from '@/performance/take/gestures';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
 import { compileErrorFor, subscribePacks } from '@/shaders/packRegistry';
@@ -82,19 +82,9 @@ export function InspectorPanel() {
   const beginTransient = useProjectStore((s) => s.beginTransient);
   const commitTransient = useProjectStore((s) => s.commitTransient);
 
-  const setParam = useCallback(
-    (paramId: string, value: ParamValue) => {
-      apply((p) => {
-        const active = selectedLayerOf(p).technique;
-        if (!active) return p;
-        // v0.6: edits land on the SELECTED layer's technique.
-        return withSelectedTechnique(p, (t: TechniqueInstance | null) =>
-          t ? { ...t, params: { ...t.params, [paramId]: value } } : t,
-        );
-      });
-    },
-    [apply],
-  );
+  // v0.7: a direct parameter drag is a performance gesture, so it goes
+  // through the capture seam rather than writing the store here.
+  const setParam = useCallback(performSelectedParam, []);
 
   const setMaterial = useCallback(
     (patch: Partial<typeof material>) => {

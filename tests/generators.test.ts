@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   GENERATORS,
   generatorDefaults,
@@ -93,8 +93,16 @@ describe('source-parameter modulation namespace', () => {
 
 describe('schema: generator sources are additive inside v3', () => {
   it('does not bump the project format', () => {
-    // Generators were additive inside v3; the v4 bump belongs to v0.6 layers.
-    expect(PROJECT_FORMAT_VERSION).toBe(4);
+    // Generators were additive inside v3, so no migration step belongs to
+    // them. Later bumps (v4 layers, v5 takes) have their own reasons; the
+    // claim here is that a v3 fixture needs no generator-specific rewriting
+    // to reach whatever the current version is.
+    const v3 = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'tests/fixtures/v3-single-layer.material'), 'utf8'),
+    ) as Record<string, unknown>;
+    const parsed = parseProject(v3);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
+    expect(parsed.sources).toEqual((v3 as { sources: unknown }).sources);
   });
 
   it('generator refs round-trip with params and seed', () => {
@@ -119,7 +127,7 @@ describe('schema: generator sources are additive inside v3', () => {
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
     const migrated = parseProject(v2);
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(PROJECT_FORMAT_VERSION);
     expect(migrated.sources.every(isFileSource)).toBe(true);
   });
 });

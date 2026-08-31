@@ -4,7 +4,8 @@ import { useProjectStore } from '@/state/projectStore';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
 import { ParameterSlider } from '@/components/ParameterSlider';
-import { addMacro, deleteMacro, renameMacro, setMacroValue } from '@/performance/performanceActions';
+import { addMacro, deleteMacro, renameMacro } from '@/performance/performanceActions';
+import { performMacroValue } from '@/performance/take/gestures';
 import type { Macro, MacroMapping } from '@shared/schemas/project';
 
 /**
@@ -60,7 +61,7 @@ export function MacrosSection() {
                   max={1}
                   step={0.01}
                   defaultValue={0}
-                  onChange={(v) => setMacroValue(macro.id, v)}
+                  onChange={(v) => performMacroValue(macro.id, v)}
                 />
                 {macro.mappings.map((mapping, index) => (
                   <MacroMappingRow

@@ -1,10 +1,13 @@
 import { usePlaybackStore } from '@/state/playbackStore';
+import { useUiStore } from '@/state/uiStore';
 import { engine } from '@/rendering/RenderEngine';
 import { isExporting } from '@/export/exportGuard';
 import { audioEngine } from '@/audio/AudioEngine';
 import { resetTriggers, tickTriggers } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { runtimeBus } from '@/runtime/RuntimeBus';
+import { takeRecorder } from '@/performance/take/recorder';
+import { takePlayer } from '@/performance/take/player';
 
 const UI_TICK_MS = 100;
 /** Video is re-synced to the audio clock when drift exceeds this. */
@@ -91,6 +94,7 @@ class PlaybackController {
       this.clockOriginWall = performance.now() / 1000;
       void window.material.setLiveness('transport', true).catch(() => undefined);
       usePlaybackStore.getState().setPlaying(true);
+      this.beginArmedRecording();
       this.startTicking();
       runtimeBus.emitTransport('play', this.clockOriginComp);
       return;
@@ -115,11 +119,30 @@ class PlaybackController {
       void this.video.play().catch(() => undefined);
     }
     usePlaybackStore.getState().setPlaying(true);
+    this.beginArmedRecording();
     this.startTicking();
     runtimeBus.emitTransport('play', this.getTime());
   }
 
+  /**
+   * v0.7: ARM then PLAY starts the recording, so a performance can begin at
+   * composition t=0 in step with the song rather than a moment after it. The
+   * import is lazy for one reason only — takeActions reaches back into this
+   * controller for the playhead and the loop flag, and the cycle would be
+   * evaluated at module load.
+   */
+  private beginArmedRecording(): void {
+    if (!takeRecorder.armed) return;
+    void import('@/performance/take/takeActions').then((m) => m.beginRecording());
+  }
+
   pause(): void {
+    // Stopping the transport ends the take: a recording is a stretch of the
+    // song, and a paused clock records nothing but a pile of events at one
+    // instant.
+    if (takeRecorder.recording) {
+      void import('@/performance/take/takeActions').then((m) => m.stopRecording());
+    }
     void window.material.setLiveness('transport', false).catch(() => undefined);
     audioEngine.pause();
     this.video?.pause();
@@ -138,6 +161,16 @@ class PlaybackController {
     // The export owns the video element's position while it runs.
     if (isExporting()) return;
     const clamped = Math.min(Math.max(timeSec, 0), this.getDuration());
+    // v0.7 §39: a seek during recording ENDS the take rather than writing
+    // backwards time into a lane that has to stay monotonic. Ending and
+    // keeping, not cancelling — a performer who seeks by accident should not
+    // lose what they played.
+    if (takeRecorder.recording) {
+      void import('@/performance/take/takeActions').then((m) => {
+        m.stopRecording();
+        useUiStore.getState().pushToast('info', 'Seek ended the recording');
+      });
+    }
     // Frames before a seek are not history for what comes after it (§13);
     // the same goes for trigger events and pending quantized actions.
     engine.resetTemporal();
@@ -158,6 +191,9 @@ class PlaybackController {
     }
     usePlaybackStore.getState().setTime(clamped);
     engine.setTime(clamped);
+    // A Take is seekable by reconstruction, not by rewinding: there is no
+    // previous frame for the playhead to have crossed anything from.
+    takePlayer.seek(clamped);
     engine.invalidate();
     runtimeBus.emitTransport('seek', clamped);
   }
@@ -176,6 +212,11 @@ class PlaybackController {
       tickTriggers(time);
       // Morph side flips + completion commit are composition-time driven too.
       morphRuntime.tick(time);
+      // v0.7: both halves of Performance Capture run on the same composition
+      // clock as everything else. Never wall time — a Take recorded at 120Hz
+      // has to replay identically at 24.
+      takeRecorder.tick(time);
+      takePlayer.tick(time);
 
       // Slave video to the audio clock.
       if (this.audioMaster && this.video && this.video.duration > 0) {

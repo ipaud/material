@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CameraSource } from '@/sources/CameraSource';
+import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 import {
   createEmptyProject,
   isFileSource,
@@ -241,7 +242,7 @@ describe('schema v3 — live sources', () => {
       readFileSync(join(__dirname, 'fixtures', 'project-v2-pattern.json'), 'utf8'),
     ) as Record<string, unknown>;
     const migrated = parseProject(v2);
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(PROJECT_FORMAT_VERSION);
     expect(migrated.patternSources).toHaveLength(3);
     expect(migrated.pinnedLooks).toHaveLength(1);
     expect(migrated.sources.every(isFileSource)).toBe(true);
@@ -249,7 +250,7 @@ describe('schema v3 — live sources', () => {
     const v1 = JSON.parse(JSON.stringify(createEmptyProject('v1'))) as Record<string, unknown>;
     v1.version = 1;
     v1.timeline = { inSec: null, outSec: null, loop: true, bpm: null, beatOffsetSec: 0 };
-    expect(parseProject(v1).version).toBe(4);
+    expect(parseProject(v1).version).toBe(PROJECT_FORMAT_VERSION);
   });
 
   it('never persists runtime camera state', () => {

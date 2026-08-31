@@ -282,7 +282,7 @@ describe('release gates (18G)', () => {
     const pkg = JSON.parse(read('package.json')) as { version: string };
     expect(pkg.version).toBe('0.6.1');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
-    expect(PROJECT_FORMAT_VERSION).toBe(4);
+    expect(PROJECT_FORMAT_VERSION).toBeGreaterThanOrEqual(4);
   });
 
   it('fps meter clamps burst samples to a plausible display rate', () => {

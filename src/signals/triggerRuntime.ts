@@ -7,6 +7,7 @@ import { useUiStore } from '@/state/uiStore';
 import { freezeMapping, unfreezeMapping, updateMapping } from '@/modulation/modulationActions';
 import { applyLook, pinCurrentLook } from '@/projects/lookActions';
 import { morphRuntime } from '@/performance/morphRuntime';
+import { performTriggerAction } from '@/performance/take/gestures';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
 
@@ -121,7 +122,12 @@ const liveTarget: ActionTarget = {
   },
 };
 
-export const liveScheduler = new TriggerScheduler(liveTarget);
+export const liveScheduler = new TriggerScheduler(liveTarget, (mapping, atTime) => {
+  // v0.7: a hand fired this — a MIDI note, a pad, a keyboard shortcut, a
+  // manual button, or a quantized action landing on its boundary. The Take
+  // records the semantics, at the instant it actually executed.
+  performTriggerAction(mapping.action, mapping.lookSlot, atTime);
+});
 
 let triggers: TriggerMapping[] = [];
 let triggerCtx: TriggerContext = {

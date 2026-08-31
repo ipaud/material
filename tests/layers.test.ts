@@ -68,8 +68,13 @@ describe('the layer cap is a product decision, not an array length', () => {
 describe('v3 → v4 migration is invisible (§14, §16, §17)', () => {
   it('the format version moved, because the change could not be additive', () => {
     // v3 has exactly ONE place to say what renders. A parallel `layers` field
-    // beside it would have left two sources of truth.
-    expect(PROJECT_FORMAT_VERSION).toBe(4);
+    // beside it would have left two sources of truth. The claim is about the
+    // STEP, not about the current number: v3 must arrive carrying a stack.
+    expect(PROJECT_FORMAT_VERSION).toBeGreaterThanOrEqual(4);
+    const v3 = { ...createEmptyProject(), version: 3 } as unknown as Record<string, unknown>;
+    delete v3.layers;
+    delete v3.selectedLayerId;
+    expect(parseProject(JSON.parse(JSON.stringify(v3))).layers).toHaveLength(1);
   });
 
   it('a v3 project becomes exactly one layer holding its whole branch', () => {
@@ -91,7 +96,7 @@ describe('v3 → v4 migration is invisible (§14, §16, §17)', () => {
     delete v3.selectedLayerId;
 
     const parsed = parseProject(v3);
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
     expect(parsed.layers).toHaveLength(1);
     const layer = parsed.layers[0]!;
     expect(layer.id).toBe(MIGRATED_LAYER_ID);
@@ -155,7 +160,7 @@ describe('v3 → v4 migration is invisible (§14, §16, §17)', () => {
 
   it('every committed fixture still opens, at v4', () => {
     const parsed = parseProject(fixture('project-v2-pattern.json'));
-    expect(parsed.version).toBe(4);
+    expect(parsed.version).toBe(PROJECT_FORMAT_VERSION);
     expect(parsed.layers).toHaveLength(1);
   });
 

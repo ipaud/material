@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
+import { performLookRecall, performMorph } from '@/performance/take/gestures';
 import {
-  applyLook,
   deleteLook,
   duplicateLook,
   renameLook,
@@ -73,7 +73,7 @@ export function LooksPanel() {
             <div
               key={look.id}
               className={`look-card${isActive ? ' active' : ''}`}
-              onClick={() => applyLook(look.id)}
+              onClick={() => performLookRecall(look.id)}
               title={`Apply ${look.label}${look.slot ? ` (key ${look.slot})` : ''}`}
             >
               <div className="look-thumb">
@@ -298,7 +298,7 @@ function MorphPanel() {
           onClick={() => {
             const duration = DURATION_OPTIONS.find((o) => o.id === durationId)?.value;
             if (targetId && duration) {
-              morphRuntime.start(targetId, { startQuantize: start, duration, curve });
+              performMorph(targetId, duration, curve, start);
             }
           }}
         >

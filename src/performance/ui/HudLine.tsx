@@ -4,7 +4,7 @@ import { playback } from '@/playback/PlaybackController';
 import { liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { musicalPosition } from '@/audio/beatGrid';
-import { toggleFreezeAll } from '@/modulation/modulationActions';
+import { performToggleFreeze } from '@/performance/take/gestures';
 import { useMidiStore } from '@/midi/midiEngine';
 import { useCandidateStore } from '@/performance/candidateRuntime';
 
@@ -70,7 +70,7 @@ export function HudLine() {
       {anyFrozen && (
         <button
           className="hud-chip frozen mono"
-          onClick={() => toggleFreezeAll()}
+          onClick={() => performToggleFreeze()}
           title="Release all frozen values (F)"
         >
           ■ FROZEN

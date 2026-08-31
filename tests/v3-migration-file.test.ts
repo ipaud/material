@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseProject, MIGRATED_LAYER_ID, selectedLayerOf } from '@shared/schemas/project';
+import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 
 describe('v0.6 — a real v3 file on disk', () => {
   // A real file, on disk, in the shape v0.5 actually wrote. Constructing the
@@ -13,7 +14,7 @@ describe('v0.6 — a real v3 file on disk', () => {
 
   it('opens, and becomes exactly one layer carrying everything it had', () => {
     const p = parseProject(raw);
-    expect(p.version).toBe(4);
+    expect(p.version).toBe(PROJECT_FORMAT_VERSION);
     expect(p.layers).toHaveLength(1);
     const l = selectedLayerOf(p);
     expect(l.id).toBe(MIGRATED_LAYER_ID);

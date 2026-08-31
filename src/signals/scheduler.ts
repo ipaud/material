@@ -66,7 +66,21 @@ export class TriggerScheduler {
     pendingCount: 0,
   };
 
-  constructor(private readonly target: ActionTarget) {}
+  /**
+   * `onLiveAction` is the v0.7 capture hook, and it is optional for a reason:
+   * the EXPORT scheduler is constructed without one, so a replayed trigger is
+   * structurally incapable of recording itself.
+   *
+   * Only LIVE-class sources reach it. A beat, bar, onset or marker trigger is
+   * generated control — it re-evaluates from the timeline during export — so
+   * recording it would double it. `isDeterministicSource` is the same
+   * predicate the export path already trusts to decide what it replays, which
+   * is exactly the line the Take needs.
+   */
+  constructor(
+    private readonly target: ActionTarget,
+    private readonly onLiveAction?: (mapping: TriggerMapping, atTime: number) => void,
+  ) {}
 
   /** Drop everything tied to the old position (seek / loop restart / stop). */
   reset(timeSec: number | null = null): void {
@@ -191,6 +205,9 @@ export class TriggerScheduler {
 
   private execute(mapping: TriggerMapping, atTime: number): void {
     this.lastFiredAt.set(mapping.id, atTime);
+    if (mapping.action !== 'pulse' && !isDeterministicSource(mapping.source)) {
+      this.onLiveAction?.(mapping, atTime);
+    }
     this.diag = {
       lastTriggerSource: mapping.source,
       lastTriggerTime: atTime,

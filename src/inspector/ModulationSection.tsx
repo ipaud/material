@@ -17,11 +17,10 @@ const SOURCE_GROUPS: [string, typeof MOD_SOURCES][] = Object.entries(GROUP_LABEL
   .filter(([, defs]) => defs.length > 0);
 import { patternSourceKey } from '@/pattern/patternSourceRuntime';
 import { patternLabel } from '@/patterns/PatternsSection';
+import { performFreeze } from '@/performance/take/gestures';
 import {
   addMapping,
-  clearAllFreezes,
   deleteMapping,
-  freezeAll,
   freezeMapping,
   unfreezeMapping,
   updateMapping,
@@ -89,12 +88,12 @@ export function ModulationSection() {
           <button
             className="vp-btn"
             title="Freeze all modulated targets at their current values (F)"
-            onClick={() => freezeAll()}
+            onClick={() => performFreeze(true)}
           >
             FREEZE ALL
           </button>
           {anyFrozen && (
-            <button className="vp-btn active" title="Clear all frozen values" onClick={() => clearAllFreezes()}>
+            <button className="vp-btn active" title="Clear all frozen values" onClick={() => performFreeze(false)}>
               CLEAR
             </button>
           )}

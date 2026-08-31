@@ -4,6 +4,7 @@ import { detectTempo } from '@/audio/tempo';
 import { TapTempo, offsetFromTap } from '@/audio/tapTempo';
 import { divisionPhase, musicalPosition, divisionBeats } from '@/audio/beatGrid';
 import { parseProject, createEmptyProject } from '@shared/schemas/project';
+import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 
 const SR = 48000;
 
@@ -251,7 +252,7 @@ describe('project format v2', () => {
     delete v1.timeline.beatsPerBar;
     delete v1.timeline.markers;
     const migrated = parseProject(v1);
-    expect(migrated.version).toBe(4); // v1 → v2 → v3 (live sources) → v4 (layers)
+    expect(migrated.version).toBe(PROJECT_FORMAT_VERSION); // v1 → v2 → v3 → v4 → v5
     expect(migrated.timeline.beatsPerBar).toBe(4);
     expect(migrated.timeline.markers).toEqual([]);
   });
@@ -262,7 +263,7 @@ describe('project format v2', () => {
   });
 
   test('newer versions are refused', () => {
-    const p = { ...createEmptyProject(), version: 5 };
+    const p = { ...createEmptyProject(), version: PROJECT_FORMAT_VERSION + 1 };
     expect(() => parseProject(p)).toThrow(/version/i);
   });
 });

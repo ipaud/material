@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
-import { applyLookBySlot, overwriteSlotWithCurrent, pinCurrentLook } from '@/projects/lookActions';
-import { toggleFreezeAll } from '@/modulation/modulationActions';
+import { overwriteSlotWithCurrent, pinCurrentLook } from '@/projects/lookActions';
+
+/** BUILD-workspace slot recall: unquantized, still a recordable gesture. */
+function recallSlot(slot: number): boolean {
+  const look = useProjectStore.getState().project.pinnedLooks.find((l) => l.slot === slot);
+  if (!look) return false;
+  performLookRecall(look.id);
+  return true;
+}
+import { performLookRecall, performToggleFreeze } from '@/performance/take/gestures';
 import { useUiStore } from '@/state/uiStore';
 import { useProjectStore } from '@/state/projectStore';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
@@ -62,7 +70,7 @@ export function usePerformanceKeys(): void {
           if (e.shiftKey) {
             overwriteSlotWithCurrent(digit);
           } else {
-            const ok = isPerf ? applyLookQuantized(digit) : applyLookBySlot(digit);
+            const ok = isPerf ? applyLookQuantized(digit) : recallSlot(digit);
             if (!ok) {
               useUiStore.getState().pushToast('info', `No look in slot ${digit} — press P to pin`);
             }
@@ -86,7 +94,7 @@ export function usePerformanceKeys(): void {
       }
       if (e.code === 'KeyF') {
         e.preventDefault();
-        toggleFreezeAll();
+        performToggleFreeze();
         return;
       }
       if (hasCandidateKeys) {

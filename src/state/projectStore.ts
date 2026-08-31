@@ -13,6 +13,8 @@ interface ProjectStore {
   transientBase: Project | null;
   /** Bumped when the document is REPLACED (new / open / recover), never on edits. */
   projectGeneration: number;
+  /** See runSilently. */
+  silent: boolean;
 
   /**
    * Apply an immutable update. Pushes an undo entry unless a transient
@@ -25,6 +27,21 @@ interface ProjectStore {
    * commit happens at morph completion.
    */
   applySilent: (updater: (p: Project) => Project) => void;
+  /**
+   * Run `fn` with every `apply` inside it behaving as `applySilent`.
+   *
+   * v0.7: replaying a Take recalls Looks, restores freezes and flips layers,
+   * all through the actions that already do those things. None of it is an
+   * EDIT — the document did not change because the performer pressed play —
+   * so it must leave neither an undo entry nor a dirty flag (§76). Scoping the
+   * store rather than duplicating a silent variant of every action keeps one
+   * implementation of what a Look recall means.
+   *
+   * Synchronous only, by construction: the flag is cleared in a `finally`, so
+   * an async continuation lands outside the scope and dirties normally. That
+   * is the safe direction to fail.
+   */
+  runSilently: (fn: () => void) => void;
   beginTransient: () => void;
   commitTransient: () => void;
   cancelTransient: () => void;
@@ -44,11 +61,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   future: [],
   transientBase: null,
   projectGeneration: 0,
+  silent: false,
 
   apply: (updater) => {
-    const { project, past, transientBase } = get();
+    const { project, past, transientBase, silent } = get();
     const next = updater(project);
     if (next === project) return;
+    if (silent) {
+      set({ project: next });
+      return;
+    }
     if (transientBase !== null) {
       // Mid-gesture: update live value, defer history.
       set({ project: next, dirty: true });
@@ -60,6 +82,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       future: [],
       dirty: true,
     });
+  },
+
+  runSilently: (fn) => {
+    const was = get().silent;
+    set({ silent: true });
+    try {
+      fn();
+    } finally {
+      set({ silent: was });
+    }
   },
 
   applySilent: (updater) => {
