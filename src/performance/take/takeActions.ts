@@ -189,6 +189,32 @@ export function duplicateTake(takeId: string): string | null {
   return id;
 }
 
+/**
+ * Apply a pure Take edit through the store.
+ *
+ * ONE undo entry per operation, and the editing surface never touches a
+ * runtime: the player reads whatever the project holds, so an edited Take
+ * takes effect on the next evaluation with nothing to invalidate.
+ */
+export function editTake(
+  takeId: string,
+  edit: (take: PerformanceTake) => PerformanceTake,
+): void {
+  useProjectStore.getState().apply((p) => {
+    const current = p.takes.find((t) => t.id === takeId);
+    if (!current) return p;
+    const next = edit(current);
+    if (next === current) return p;
+    return { ...p, takes: p.takes.map((t) => (t.id === takeId ? next : t)) };
+  });
+  // A Take being replayed has to pick the edit up immediately, or the panel
+  // and the picture disagree until the next transport action.
+  if (takePlayer.isPlaying) {
+    const next = activeTake();
+    if (next && next.id === takeId) takePlayer.start(next, playback.getTime());
+  }
+}
+
 export function deleteTake(takeId: string): void {
   if (takePlayer.isPlaying && activeTake()?.id === takeId) takePlayer.reset();
   useProjectStore.getState().apply((p) => ({

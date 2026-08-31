@@ -29,6 +29,8 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['⇧1 – ⇧9', 'Overwrite that slot with the current state'],
       ['P', 'Pin the current state as a Look'],
       ['F', 'Freeze / release all modulated values'],
+      ['R', 'Arm recording — starts with the transport (stops it if recording)'],
+      ['T', 'Play / stop the selected Take'],
     ],
   },
   {

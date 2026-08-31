@@ -4,7 +4,7 @@
 
 /* ---- Workspace frame ---- */
 .workspace-perform {
-  grid-template-rows: 1fr auto auto auto;
+  grid-template-rows: 1fr auto auto auto auto;
 }
 .workspace-perform.hud {
   grid-template-rows: 1fr auto;
@@ -935,4 +935,226 @@
   border: 1px solid var(--border-0);
   color: var(--text-2);
   cursor: pointer;
+}
+
+/* ---- v0.7 Performance Capture ------------------------------------------
+   REC / PLAY TAKE / STOP sit in the strip with everything else a hand
+   touches mid-song. The editor is a ruler, one polyline per lane and one
+   tick per event — the smallest thing that makes a Take fixable, and
+   deliberately not the first step toward a timeline. */
+.perf-takes {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--border-0);
+  background: var(--surface-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-wrap: wrap;
+}
+.perf-takes::-webkit-scrollbar {
+  display: none;
+}
+.perf-group-label.rec {
+  color: var(--danger);
+}
+.perf-big-btn.armed-rec {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.perf-big-btn.engaged-rec {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface-0);
+  font-weight: 700;
+}
+.perf-take-meter,
+.perf-take-empty {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.perf-take-meter em {
+  font-style: normal;
+  color: var(--danger);
+}
+.perf-take-warn {
+  font-style: normal;
+  color: var(--danger);
+}
+.perf-take-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-1);
+  overflow: hidden;
+}
+.perf-take-chip.active {
+  border-color: var(--border-active);
+}
+.perf-take-select {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 0 var(--sp-3);
+  background: transparent;
+  border: 0;
+  color: var(--text-0);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.perf-take-chip.active .perf-take-select {
+  color: var(--accent);
+}
+.perf-take-select em {
+  font-style: normal;
+  color: var(--text-2);
+  font-size: 9px;
+}
+.perf-take-name {
+  min-height: 34px;
+  width: 96px;
+  padding: 0 var(--sp-3);
+  background: var(--surface-2);
+  border: 0;
+  color: var(--text-0);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.perf-take-mini {
+  min-width: 20px;
+  min-height: 34px;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--border-0);
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 10px;
+}
+.perf-take-mini:hover {
+  color: var(--text-0);
+  background: var(--surface-2);
+}
+.perf-take-mini.danger:hover {
+  color: var(--danger);
+}
+
+.perf-take-editor {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border-0);
+}
+.perf-take-ruler {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 128px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-2);
+}
+.perf-take-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.perf-take-lane-label {
+  width: 120px;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.perf-take-lane {
+  position: relative;
+  flex: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border-0);
+  border-radius: var(--radius-1);
+  touch-action: none;
+}
+.perf-take-lane svg path {
+  fill: none;
+  stroke: var(--mod);
+  stroke-width: 1;
+}
+.perf-take-point {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  margin: -3px 0 0 -3px;
+  padding: 0;
+  background: var(--mod);
+  border: 0;
+  border-radius: 50%;
+  cursor: grab;
+}
+.perf-take-point:hover,
+.perf-take-point:focus-visible {
+  background: var(--accent);
+  outline: none;
+  transform: scale(1.6);
+}
+.perf-take-event {
+  position: absolute;
+  top: 3px;
+  min-width: 13px;
+  height: 20px;
+  margin-left: -6px;
+  padding: 0;
+  background: var(--surface-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-1);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  cursor: grab;
+}
+.perf-take-event:hover,
+.perf-take-event:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+.perf-take-event.kind-freeze {
+  color: var(--accent);
+}
+.perf-take-event.kind-morph {
+  color: var(--mod);
+}
+.perf-take-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.perf-take-lane-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-2);
+}
+.perf-take-lane-meta .perf-take-mini {
+  min-height: 18px;
+  border-left: 0;
+}
+.perf-take-tools {
+  display: flex;
+  gap: var(--sp-2);
+  margin-left: 128px;
+  margin-top: var(--sp-2);
 }

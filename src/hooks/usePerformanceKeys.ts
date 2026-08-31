@@ -9,6 +9,7 @@ function recallSlot(slot: number): boolean {
   return true;
 }
 import { performLookRecall, performToggleFreeze } from '@/performance/take/gestures';
+import { toggleArm, toggleTakePlayback } from '@/performance/take/takeActions';
 import { useUiStore } from '@/state/uiStore';
 import { useProjectStore } from '@/state/projectStore';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
@@ -42,6 +43,9 @@ const DURATION_VALUES: Record<string, MorphDuration> = {
  *   B (hold)   audition the candidate; release returns to CURRENT
  *   Enter      apply the candidate (quantized when a grid exists)
  *   Backspace  discard the candidate
+ * Anywhere (Performance Capture):
+ *   R          arm recording (starts with the transport); stops it if recording
+ *   T          play / stop the selected Take
  * PERFORM workspace only:
  *   Q          cycle quantization
  *   M          morph to the selected target look
@@ -95,6 +99,18 @@ export function usePerformanceKeys(): void {
       if (e.code === 'KeyF') {
         e.preventDefault();
         performToggleFreeze();
+        return;
+      }
+      // v0.7: R arms/stops recording, T replays the selected Take. Both are
+      // things a hand reaches for mid-song, so neither lives in a menu (§120).
+      if (e.code === 'KeyR') {
+        e.preventDefault();
+        toggleArm();
+        return;
+      }
+      if (e.code === 'KeyT') {
+        e.preventDefault();
+        toggleTakePlayback();
         return;
       }
       if (hasCandidateKeys) {
