@@ -196,3 +196,37 @@ describe('v0.6.1 — authority values have exactly one owner', () => {
     expect(req.slice(0, 800)).toContain('all.some((r) => r.needsTemporalHistory)');
   });
 });
+
+describe('v0.6.1 — the transport follows the CURRENT first video layer', () => {
+  it('the binding is re-evaluated, not latched on the first video ever seen', () => {
+    // Found by building a real four-layer scene on real footage. The guard
+    // was `if (!playback.hasVideo)`, which only asks "is anything attached" —
+    // so once a video was bound the transport kept it even after the layer
+    // that owned it had been replaced. Measured: the composition clock
+    // advanced to 15 s while all three video layers sat paused at 0.02 s,
+    // driving an orphaned decoder from an earlier import. Optical flow saw no
+    // new frames, so every motion signal read exactly zero and every
+    // cross-layer route into them was silently inert.
+    const bridge = read('src', 'rendering', 'engineBridge.ts');
+    expect(bridge).toContain('function syncTransportVideo()');
+    const fn = bridge.slice(bridge.indexOf('function syncTransportVideo()'));
+    const body = fn.slice(0, 1200);
+    // It picks the FIRST video layer in stack order...
+    expect(body).toContain('for (const layer of project.layers)');
+    expect(body).toContain('runtime instanceof FileVideoSource');
+    expect(body).toContain('break;');
+    // ...compares against what is currently attached...
+    expect(body).toContain('if (first === playback.currentVideo) return;');
+    // ...and detaches when no layer holds a video at all.
+    expect(body).toContain('playback.detachVideo()');
+
+    // The old latch must be gone: no attach guarded only by hasVideo.
+    expect(bridge.includes('if (!playback.hasVideo) {'), 'the latch is gone').toBe(false);
+
+    // And it runs on every reconcile, plus after each async load resolves,
+    // because loads finish out of order.
+    const sync = bridge.slice(bridge.indexOf('  for (const layer of project.layers) {'));
+    expect(sync.slice(0, 400)).toContain('syncTransportVideo()');
+    expect((bridge.match(/syncTransportVideo\(\)/g) ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+});

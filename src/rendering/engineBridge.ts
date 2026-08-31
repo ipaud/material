@@ -225,15 +225,12 @@ function syncLayerSource(
         runtime.dispose();
         return;
       }
-      // The transport follows the FIRST video layer: there is one composition
-      // clock, and two videos driving it would fight over it.
-      if (!playback.hasVideo) {
-        playback.attachVideo(runtime.video);
-        playback.seek(0);
-      }
       branch.setSource(runtime.texture());
       state.temporalSource = runtime.temporalSource();
       branch.setTemporalSource(state.temporalSource);
+      // A video finishing its load can change which element should drive the
+      // clock, and loads resolve out of order.
+      syncTransportVideo();
     },
     (err: unknown) => {
       if (generation === state.loadGeneration) {
@@ -334,6 +331,7 @@ function syncFromProject(): void {
     syncLayerSource(project, layer, cameraLayer?.id ?? null, captureLayer?.id ?? null);
     syncLayerTechnique(project, layer);
   }
+  syncTransportVideo();
 
   // Audio source (analysis + audio-master clock).
   const audioSource = project.sources.find(
@@ -472,6 +470,39 @@ function syncFromProject(): void {
 function syncFromUi(): void {
   const ui = useUiStore.getState();
   engine.setShowOriginal(ui.showOriginal);
+}
+
+/**
+ * The transport follows the FIRST video layer, re-evaluated on every change.
+ *
+ * There is one composition clock and two videos driving it would fight, so
+ * exactly one element is attached. It has to be the one a layer is actually
+ * showing NOW: the original guard only asked "is anything attached", so once
+ * a video was bound the transport kept it even after the layer that owned it
+ * was replaced. Measured on a four-layer scene — the clock advanced while
+ * every layer's video sat paused at 0.02 s, driving an orphaned decoder from
+ * an earlier import, and optical flow saw no new frames at all.
+ */
+function syncTransportVideo(): void {
+  const { project } = useProjectStore.getState();
+  let first: HTMLVideoElement | null = null;
+  for (const layer of project.layers) {
+    const runtime = layerBridge.get(layer.id)?.runtime;
+    const video = runtime instanceof FileVideoSource ? runtime.video : null;
+    if (video) {
+      first = video;
+      break;
+    }
+  }
+  if (first === playback.currentVideo) return;
+  if (!first) {
+    playback.detachVideo();
+    return;
+  }
+  // Keep where the performer is; only a first attach starts from zero.
+  const at = playback.hasVideo ? usePlaybackStore.getState().timeSec : 0;
+  playback.attachVideo(first);
+  playback.seek(at);
 }
 
 function configureModulation(): void {
