@@ -1,0 +1,171 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { modulationRuntime } from '@/modulation/runtime';
+import type { ModulationMapping } from '@shared/schemas/project';
+
+const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), 'utf8');
+
+const mapping = (over: Partial<ModulationMapping> = {}): ModulationMapping =>
+  ({
+    id: 'm',
+    enabled: true,
+    source: 'beat:1/4',
+    target: 'scale',
+    amount: 1,
+    min: 0,
+    max: 1,
+    invert: false,
+    smoothing: 0.4,
+    curve: 'linear',
+    frozenValue: null,
+    mode: 'replace',
+    ...over,
+  }) as ModulationMapping;
+
+/** Configure N layers, all driven by the same single mapping on layer 0. */
+function configure(nLayers: number) {
+  modulationRuntime.reset();
+  modulationRuntime.configureLayers(
+    Array.from({ length: nLayers }, (_, i) => ({
+      layerId: 'L' + i,
+      techniqueId: 'mosaic',
+      mappings: i === 0 ? [mapping()] : [],
+      signalSource: new Map(i === 0 ? [['m', 'L0']] : []),
+    })),
+    'L0',
+  );
+  modulationRuntime.configure([mapping()], 'mosaic', {
+    analysis: null,
+    durationSec: 10,
+    bpm: 120,
+    beatOffsetSec: 0,
+    beatsPerBar: 4,
+  });
+}
+
+/** Resolve the same timeline, marking exactly one frame per step. */
+function sequence(nLayers: number): number[] {
+  configure(nLayers);
+  const out: number[] = [];
+  for (let i = 0; i < 24; i++) {
+    const t = i * 0.05;
+    modulationRuntime.markFrame();
+    // Every layer resolves within the frame, exactly as the render loop does.
+    for (let l = 0; l < nLayers; l++) modulationRuntime.transformFor('L' + l, { scale: 1 }, t);
+    out.push(Math.round((modulationRuntime.transformFor('L0', { scale: 1 }, t).scale as number) * 1e6) / 1e6);
+  }
+  return out;
+}
+
+describe('v0.6.1 — one frame, one dt', () => {
+  beforeEach(() => modulationRuntime.reset());
+
+  it('smoothing is layer-count invariant', () => {
+    // The v0.6C bug: previewDt advanced its own clock on every call, and the
+    // runtime is asked for a step by the primary layer, by every secondary
+    // layer and by every layer's opacity. One frame's dt was split between
+    // them, so smoothing ran slower in proportion to the layer count.
+    const one = sequence(1);
+    const four = sequence(4);
+    expect(four).toEqual(one);
+  });
+
+  it('...and the sequence it compares actually moves', () => {
+    // Two constant sequences agree trivially. This is the companion that
+    // fails when the timeline is dead, so the test above cannot pass on a
+    // frozen mapping.
+    const one = sequence(1);
+    expect(new Set(one).size).toBeGreaterThan(12);
+    expect(Math.max(...one) - Math.min(...one)).toBeGreaterThan(0.05);
+  });
+
+  it('dt is computed once and reused inside a frame', () => {
+    const src = read('src', 'modulation', 'runtime.ts');
+    const fn = src.slice(src.indexOf('private previewDt('));
+    expect(fn.slice(0, 900)).toContain('if (this.frameDt !== null) return this.frameDt;');
+    // ...and the engine is what opens the frame.
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const loop = engine.slice(engine.indexOf('private loop = ()'));
+    expect(loop.slice(0, 1400)).toContain('this.frameSink?.()');
+    const bridge = read('src', 'rendering', 'engineBridge.ts');
+    expect(bridge).toContain('engine.setFrameSink(() => modulationRuntime.markFrame())');
+  });
+});
+
+describe('v0.6.1 — one frame, one publication', () => {
+  it('a layer runtime never publishes; only the host does', () => {
+    // Four layers each publishing meant the Output received one message per
+    // layer per frame and showed whichever arrived last.
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const sync = engine.slice(engine.indexOf('private syncScene('));
+    expect(sync.slice(0, 3000)).toContain('!this.isBranch');
+    // Two emit sites exist and are MUTUALLY EXCLUSIVE: publishComposition
+    // for a composition, and a legacy seam that fires only when there is no
+    // layer set at all (the Output replica's pre-v0.6 path).
+    expect((engine.match(/runtimeBus\.emitFrame\(/g) ?? []).length).toBe(2);
+    expect(sync.slice(0, 3000)).toContain('this.layerHost.isEmpty');
+    const publish = engine.slice(engine.indexOf('private publishComposition()'));
+    expect(publish.slice(0, 400)).toContain('this.layerHost.isEmpty) return');
+  });
+
+  it('the host publishes after compositing, on every path that draws', () => {
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const frame = engine.slice(engine.indexOf('private renderFrame()'));
+    const body = frame.slice(0, 6000);
+    // Both the direct fast path and the composite path publish.
+    expect((body.match(/this\.publishComposition\(\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('v0.6.1 — the frame order is documented and followed', () => {
+  it('the authority order is written down', () => {
+    const doc = read('docs', 'RENDER_RUNTIME.md');
+    for (const stage of ['clock', 'sources', 'signals', 'mappings', 'resolved state', 'composite', 'publish']) {
+      expect(doc.includes(stage), `frame order must document "${stage}"`).toBe(true);
+    }
+  });
+
+  it('a branch in export mode never falls back to the live transform', () => {
+    // The live transform reads wall time. A branch syncing its scene through
+    // it mid-render made two runs of the same export disagree.
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const sync = engine.slice(engine.indexOf('private syncScene('));
+    expect(sync.slice(0, 1200)).toContain('this.paramTransform && !this.exportMode');
+  });
+});
+
+describe('v0.6.1 — a rebuilt runtime is configured from scratch', () => {
+  it('the bridge memo is invalidated when the runtime object changes', () => {
+    // A remount rebuilds every layer runtime. The bridge memo is keyed on
+    // SOURCE identity, so an unchanged source short-circuited the whole
+    // reconciliation and nothing was ever attached to the new runtime: the
+    // composition went black and stayed black, with no error.
+    //
+    // Confirmed present in v0.6.0 by running the same dispose/init/resync
+    // sequence against a v0.6.0 worktree, so this is a fix rather than a
+    // refactor artefact. Recorded as a behavioural change in DECISIONS.md.
+    const bridge = read('src', 'rendering', 'engineBridge.ts');
+    expect(bridge).toContain('configuredRuntime: unknown;');
+    const sync = bridge.slice(bridge.indexOf('function syncLayerSource('));
+    const body = sync.slice(0, 1200);
+    expect(body).toContain('state.configuredRuntime !== branch');
+    // Both memos have to go, not just the source one.
+    expect(body).toContain('state.sourceKey = null');
+    expect(body).toContain('state.techniqueId = null');
+    // ...and the invalidation must happen BEFORE the unchanged-source
+    // short-circuit, or it can never run.
+    expect(body.indexOf('state.configuredRuntime !== branch')).toBeLessThan(
+      body.indexOf('if (key === state.sourceKey)'),
+    );
+  });
+
+  it('a cached render is keyed on every input that changes the picture', () => {
+    // The generator bug: ensure() rebuilds the target when the size changes,
+    // but the redraw cache was keyed on params and time, neither of which
+    // moves when only the size does — so it served a blank texture.
+    const gen = read('src', 'sources', 'generators', 'GeneratorSource.ts');
+    expect(gen).toContain('const reallocated = this.ensure(');
+    expect(gen).toContain('if (!force && !reallocated &&');
+  });
+});

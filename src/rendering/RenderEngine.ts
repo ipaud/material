@@ -1493,9 +1493,18 @@ void main() { fragColor = texture(uTex, vUv); }`,
         this.lastResolvedParams = params;
         // A BRANCH is not the composition: if every layer published, the
         // Output would receive one message per layer per frame and show
-        // whichever arrived last. The host publishes once, below, with the
-        // whole stack attached.
-        if (paramsOverride === undefined && !this.exportMode && !this.isBranch) {
+        // whichever arrived last. A composition publishes once, from
+        // publishComposition(), with the whole stack attached.
+        //
+        // `layerHost.isEmpty` makes the two mutually exclusive rather than
+        // merely unlikely: this seam survives only for an engine rendering
+        // with no layer set at all — the Output replica's pre-v0.6 path.
+        if (
+          paramsOverride === undefined &&
+          !this.exportMode &&
+          !this.isBranch &&
+          this.layerHost.isEmpty
+        ) {
           runtimeBus.emitFrame(
             this.timeSec,
             params,

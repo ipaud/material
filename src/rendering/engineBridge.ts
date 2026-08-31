@@ -38,6 +38,19 @@ import type { TechniqueRenderer } from '@/techniques/types';
  * key against its own previous one.
  */
 interface LayerBridgeState {
+  /**
+   * The engine object this memo describes.
+   *
+   * v0.6.1 — the memo below is keyed on SOURCE identity, so an unchanged
+   * source short-circuits the whole reconciliation. That is right until the
+   * runtime itself is replaced: a remount rebuilds every layer runtime, the
+   * new one has no source and no technique, and a memo saying "unchanged"
+   * meant nothing was ever attached to it. The composition went black and
+   * stayed black, with no error — the same ownership question, one layer
+   * further out. Measured on v0.6.0 as well, so this is a fix and not a
+   * refactor artefact.
+   */
+  configuredRuntime: unknown;
   sourceKey: string | null;
   runtime: SourceRuntime | null;
   temporalSource: TemporalSource | null;
@@ -52,6 +65,7 @@ function bridgeState(layerId: string): LayerBridgeState {
   let state = layerBridge.get(layerId);
   if (!state) {
     state = {
+      configuredRuntime: null,
       sourceKey: null,
       runtime: null,
       temporalSource: null,
@@ -131,6 +145,12 @@ function syncLayerSource(
   const branch = engine.branchFor(layer.id);
   if (!branch) return;
   const state = bridgeState(layer.id);
+  // A rebuilt runtime carries none of what this memo remembers configuring.
+  if (state.configuredRuntime !== branch) {
+    state.configuredRuntime = branch;
+    state.sourceKey = null;
+    state.techniqueId = null;
+  }
   const source = findSource(project, layer.sourceId);
   const key = sourceKeyOf(source);
   if (key === state.sourceKey) {
