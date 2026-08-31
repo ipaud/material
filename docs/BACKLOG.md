@@ -3,6 +3,45 @@
 Deferred work, extracted during CE1H so nothing lives as a scattered TODO.
 Nothing here is scheduled; each entry says what it is and what it depends on.
 
+## Code debt taken on knowingly
+
+### RenderEngine.ts is 2044 lines — DEBT (v0.6)
+
+The repo's own rule is 800. `RenderEngine.ts` was already over at 1149 before
+layers; v0.6 took it to 2044, which is the largest single quality cost of the
+release and is recorded here rather than glossed.
+
+The extraction is not vague. The layer-host concerns form a coherent unit of
+roughly 350 lines with a narrow interface onto the rest of the engine:
+
+```
+branches / layerStates / selectedLayerIndex
+syncLayers · branchFor · layerIds · layerCount
+renderComposition · renderDirectLayer · ensureLayerTarget · visibleLayers
+singleOpaqueLayer · effectiveOpacity · publishComposition
+distributeLiveSources · setLiveLayerKinds · applyBranchVisualDemand
+```
+
+A `LayerHost` owning those, with `RenderEngine` delegating, would take the
+file back under the limit without touching branch mode itself.
+
+**Why not now.** It moves ~40 private members across a boundary immediately
+after v0.6 proved single-layer output byte-identical to v0.5.0, and every
+structural regression test added this release reads `RenderEngine.ts` as
+source text, so they would all need re-pointing in the same change. High churn,
+zero behavioural gain, at exactly the moment the gates are green.
+
+**What makes it safe later.** Those same gates: the identity comparison against
+a real v0.5.0 build, the compositor goldens, the four-layer export matrix and
+`probeLayers`. Do the split first, re-run them, and the refactor is verified by
+construction rather than by reading.
+
+### Masks — DEFERRED (v0.6C)
+
+A mask is a second source, a second sampling rule, a mask blend, inversion and
+feathering — a feature of its own size. Blend modes plus modulated opacity
+cover the compositing v0.6 set out to deliver. See [LAYERS](LAYERS.md).
+
 ## Product decisions taken but not built
 
 ### Generator source presets — DEFERRED (CE1H §9)
