@@ -440,3 +440,10 @@ green. Relaunching the dev app produced it correctly.
 
 **After editing anything a probe reaches through `__dev`, relaunch the dev app
 before believing the probe.**
+
+It is worse than stale reads. Vite full-reloads the page for a non-component
+module, which resets the store — so editing source while the app holds live
+state DESTROYS that state. A 76-second recorded performance was lost this way,
+mid-session, and the loss was silent: the next probe simply read a different
+project. **Save the project to disk before touching source, or do not touch
+source while holding anything you would mind losing.**
