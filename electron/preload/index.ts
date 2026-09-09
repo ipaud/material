@@ -24,6 +24,9 @@ const api: MaterialApi & { getPathForFile(file: File): string } = {
   probeMedia: (path) => ipcRenderer.invoke(IPC.probeMedia, path),
   readProject: (path) => ipcRenderer.invoke(IPC.readProject, path),
   writeProject: (path, project) => ipcRenderer.invoke(IPC.writeProject, path, project),
+  pickMediaFolder: () => ipcRenderer.invoke(IPC.pickMediaFolder),
+  collectMedia: (projectPath, sourcePaths) =>
+    ipcRenderer.invoke(IPC.collectMedia, projectPath, sourcePaths),
   openProjectDialog: () => ipcRenderer.invoke(IPC.openProjectDialog),
   saveProjectDialog: (defaultName) => ipcRenderer.invoke(IPC.saveProjectDialog, defaultName),
   savePngDialog: (base64Png, defaultName) =>

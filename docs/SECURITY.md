@@ -86,3 +86,20 @@ main process.
 Camera, screen and window capture are intent-gated: the permission is armed by
 an explicit user action and disarmed when that source stops. Shader
 extensibility added no new permission requirement.
+
+## v0.8 — a show that travels
+
+Two channels were added, and both were shaped so the capability does not become
+a way to read the disk.
+
+- **`media:pick-folder` opens its own dialog.** The renderer never names a
+  directory; the only folders ever walked are ones a person pointed at in
+  Finder. The walk is bounded to three levels and 2000 files, skips dotfiles,
+  and does not follow directories by symlink.
+- **`media:collect` copies only between two constrained ends** — paths the
+  project already references, into `<project>/media/`. Both are validated by
+  the same `pathArgSchema` every other path argument uses.
+
+No preload API beyond those two. No new permission. No network. Media paths
+stored relative to the project resolve in the main process, which already owned
+every path in the app; the renderer's view is unchanged and still absolute.

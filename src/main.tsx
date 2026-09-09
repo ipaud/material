@@ -15,6 +15,7 @@ import { patternRandom01 } from './pattern/patternRandom';
 import { formatSequencePattern, parsePattern } from './pattern/miniNotation';
 import { getPatternCompileCount, getPatternDiagnostics } from './pattern/patternSourceRuntime';
 import { useOutputStore } from './state/outputStore';
+import * as projectActions from './projects/projectActions';
 import { importMediaPaths, openProjectFromPath } from './projects/projectActions';
 import { modulationRuntime } from './modulation/runtime';
 import * as takeActions from './performance/take/takeActions';
@@ -634,6 +635,8 @@ if (import.meta.env.DEV) {
       },
       useUiStore,
       openProjectFromPath,
+      /** v0.8: QA drives collect/relink through the same actions the UI does. */
+      projectActions,
       modulationRuntime,
       modulationActions,
       packRegistry,

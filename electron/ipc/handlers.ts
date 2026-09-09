@@ -28,6 +28,7 @@ import { detectEncoders, ffmpegPath, ffprobePath } from '../media/ffmpeg';
 import { probeMedia } from '../media/probe';
 import { readSanitizedSvg } from '../media/svg';
 import { readProjectFile, writeProjectFile } from '../filesystem/projects';
+import { collectMediaBeside, scanFolderForMedia } from '../filesystem/mediaFolder';
 import { deleteUserPreset, listUserPresets, saveUserPreset } from '../filesystem/presets';
 import { isApprovedMediaPath } from '../filesystem/mediaRegistry';
 import { cancelExport, finishExport, startExport, writeExportFrame } from '../export/encoder';
@@ -133,6 +134,28 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     const filePath = pathArgSchema.parse(rawPath);
     return probeMedia(filePath);
   });
+
+  ipcMain.handle(IPC.pickMediaFolder, async () => {
+    const win = getWindow();
+    if (!win) return null;
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Find Missing Media',
+      message: 'Pick the folder your media moved to',
+      properties: ['openDirectory'],
+    });
+    const dir = result.filePaths[0];
+    if (result.canceled || !dir) return null;
+    return scanFolderForMedia(dir);
+  });
+
+  ipcMain.handle(
+    IPC.collectMedia,
+    async (_event, rawProjectPath: unknown, rawSources: unknown) => {
+      const projectPath = pathArgSchema.parse(rawProjectPath);
+      const sources = z.array(pathArgSchema).parse(rawSources);
+      return collectMediaBeside(projectPath, sources);
+    },
+  );
 
   ipcMain.handle(IPC.readProject, async (_event, rawPath: unknown) => {
     const filePath = pathArgSchema.parse(rawPath);

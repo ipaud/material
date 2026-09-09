@@ -3,6 +3,7 @@ import path from 'node:path';
 import { PROJECT_EXTENSION } from '../../shared/constants/app';
 import { parseProject, projectSchema, type Project } from '../../shared/schemas/project';
 import { approveMediaPath } from './mediaRegistry';
+import { toAbsolutePaths, toPortablePaths } from './projectPaths';
 
 function assertProjectPath(filePath: string): void {
   if (!path.isAbsolute(filePath)) throw new Error('Project path must be absolute');
@@ -25,7 +26,10 @@ export async function readProjectFile(filePath: string): Promise<Project> {
   } catch {
     throw new Error('Project file is corrupted (invalid JSON)');
   }
-  const project = parseProject(raw);
+  // v0.8: media stored relative to the project file becomes absolute here, so
+  // everything above this line works exactly as it did when paths were only
+  // ever absolute.
+  const project = toAbsolutePaths(parseProject(raw), filePath);
   // Re-approve referenced media so material:// can serve it after reopening.
   // Live sources (camera/screen/window) and generators have no file to
   // approve — only the file-backed variants carry a path.
@@ -38,7 +42,8 @@ export async function readProjectFile(filePath: string): Promise<Project> {
 /** Atomic write: temp file in the same directory, then rename. */
 export async function writeProjectFile(filePath: string, project: unknown): Promise<void> {
   assertProjectPath(filePath);
-  const validated = projectSchema.parse(project);
+  // v0.8: relativise on the way out, so moving the folder keeps the links.
+  const validated = toPortablePaths(projectSchema.parse(project), filePath);
   const tmpPath = path.join(
     path.dirname(filePath),
     `.${path.basename(filePath)}.tmp-${process.pid}`,

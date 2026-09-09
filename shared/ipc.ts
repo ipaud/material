@@ -1,4 +1,12 @@
-import type { MediaMetadata } from './schemas/media';
+import type { MediaKind, MediaMetadata } from './schemas/media';
+
+/** v0.8: one media file found in a folder the user pointed at. */
+export interface FolderMediaEntry {
+  path: string;
+  fileName: string;
+  fileSize: number;
+  kind: MediaKind;
+}
 import type { Project } from './schemas/project';
 import type { DisplayInfo, OutputDisplayStatus, OutputMode } from './display';
 import type { Preset } from './schemas/preset';
@@ -27,6 +35,11 @@ export const IPC = {
   saveProjectDialog: 'project:save-dialog',
   savePngDialog: 'export:save-png',
   readSvg: 'media:read-svg',
+  // v0.8 — a show that can travel. Both channels open their own dialog, so
+  // the renderer never names a directory and no new way to enumerate the
+  // disk is introduced.
+  pickMediaFolder: 'media:pick-folder',
+  collectMedia: 'media:collect',
   // v0.5B — shader packs. Four narrow channels; the renderer never receives a
   // filesystem API, only validated pack DATA.
   shaderPacksList: 'shaderPacks:list',
@@ -129,6 +142,13 @@ export interface MaterialApi {
   probeMedia(path: string): Promise<MediaMetadata>;
   readProject(path: string): Promise<{ path: string; project: Project }>;
   writeProject(path: string, project: Project): Promise<void>;
+  /** Pick a folder in Finder and list the media in it (bounded depth). */
+  pickMediaFolder(): Promise<FolderMediaEntry[] | null>;
+  /** Copy media beside the project file; returns old path → new path. */
+  collectMedia(
+    projectPath: string,
+    sourcePaths: string[],
+  ): Promise<{ moved: Record<string, string>; bytesCopied: number; missing: string[] }>;
   openProjectDialog(): Promise<string | null>;
   saveProjectDialog(defaultName: string): Promise<string | null>;
   /** Saves a base64-encoded PNG via a Finder dialog; returns chosen path or null. */

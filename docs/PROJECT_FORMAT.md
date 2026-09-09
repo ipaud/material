@@ -236,6 +236,43 @@ Presets live outside projects, in `userData/presets.json`:
 A preset stores technique, material, parameters and modulation mappings — but
 **never source media**, so presets travel between projects.
 
+## Media paths, and moving a project (v0.8)
+
+Media paths are stored **relative when the file lives at or below the project's
+own directory**, and absolute otherwise:
+
+```jsonc
+"sources": [
+  { "kind": "video", "path": "media/clip.mp4" },              // travels
+  { "kind": "audio", "path": "/Volumes/Drive/song.wav" }      // does not
+]
+```
+
+The in-memory project always holds absolute paths. Conversion happens only at
+the disk boundary, in `electron/filesystem/projectPaths.ts`, so nothing in the
+renderer — `material://` approval, probing, relinking — knows relative paths
+exist.
+
+Only descendants are relativised. A `../../..` chain out of the project's
+directory is not portability: it is a different absolute path written more
+fragilely, and moving the folder breaks it just as thoroughly while looking
+like it should work.
+
+**COLLECT MEDIA** copies everything the project uses into `<project>/media/`
+and repoints it, so the folder becomes the whole show. Files already inside are
+left where they are — they already travel, and moving them would break a layout
+the user chose. Two different files with the same name get a numeric suffix;
+re-collecting the same show copies nothing twice.
+
+**RELINK ALL** appears when something is offline. It walks one folder the user
+picks and matches by what the project already records about each file —
+`fileName`, `fileSize`, `durationSec` and kind have been in `MediaMetadata`
+since v3. A source whose best match ties with another candidate stays offline
+and says so; nothing is ever silently repointed.
+
+Neither changes the format version. Relative paths parse as strings, and a
+project written by v0.7 with absolute paths opens unchanged.
+
 ## Recovery
 
 Autosaves go to `userData/recovery/<sessionId>.json` every 15 s while the

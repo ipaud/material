@@ -4,6 +4,7 @@ import { uid } from '@/utils/id';
 import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
 import type { MediaMetadata } from '@shared/schemas/media';
+import { planRelink } from './relink';
 import { isFileSource, isLiveSource, type Project } from '@shared/schemas/project';
 import { selectedLayerOf, withSelectedSource, withSelectedTechnique } from '@shared/schemas/project';
 
@@ -59,7 +60,7 @@ export async function openProjectFromPath(path: string): Promise<void> {
 }
 
 /** Probe every source; mark missing files as MEDIA OFFLINE. */
-async function checkOfflineSources(): Promise<void> {
+export async function checkOfflineSources(): Promise<void> {
   const { project } = useProjectStore.getState();
   const offline: string[] = [];
   for (const source of project.sources) {
@@ -92,6 +93,115 @@ export async function relinkSource(sourceId: string): Promise<void> {
     await checkOfflineSources();
   } catch (err) {
     reportError('Relink media', err);
+  }
+}
+
+/**
+ * v0.8 — find every missing file in one folder pick.
+ *
+ * A project already knows enough to recognise its own media: name, byte size,
+ * duration and kind have been in `MediaMetadata` since v3. What was missing was
+ * a resolver that uses them. Relinking a four-layer show was five Finder
+ * dialogs; it is now one, and a source whose match is ambiguous stays offline
+ * and says so rather than being pointed at whichever file sorted first.
+ */
+export async function relinkAllFromFolder(): Promise<void> {
+  try {
+    const entries = await window.material.pickMediaFolder();
+    if (!entries) return;
+    const { project } = useProjectStore.getState();
+    const offlineIds = new Set(useUiStore.getState().offlineSources);
+    const offline = project.sources
+      .filter((s) => isFileSource(s) && offlineIds.has(s.id))
+      .map((s) => ({ id: s.id, metadata: (s as { metadata: MediaMetadata | null }).metadata }));
+    if (offline.length === 0) {
+      useUiStore.getState().pushToast('info', 'Nothing is offline');
+      return;
+    }
+
+    const plan = planRelink(offline, entries);
+    if (plan.resolved.size > 0) {
+      // One project transaction, so undo puts the whole relink back.
+      useProjectStore.getState().apply((p) => ({
+        ...p,
+        sources: p.sources.map((s) => {
+          const found = plan.resolved.get(s.id);
+          return found && isFileSource(s) ? { ...s, path: found.path, kind: found.kind } : s;
+        }),
+      }));
+      // Metadata is re-probed from the file that was actually found: a
+      // re-encode legitimately has a different duration and size, and keeping
+      // the old numbers would make the NEXT relink match against a fiction.
+      for (const [id, found] of plan.resolved) {
+        try {
+          const metadata = await window.material.probeMedia(found.path);
+          useProjectStore.getState().apply((p) => ({
+            ...p,
+            sources: p.sources.map((s) => (s.id === id ? { ...s, metadata } : s)),
+          }));
+        } catch {
+          /* the file was there a moment ago; checkOfflineSources will catch it */
+        }
+      }
+    }
+    await checkOfflineSources();
+
+    const stuck = plan.unresolved.length + plan.ambiguous.size;
+    const parts = [`Relinked ${plan.resolved.size}`];
+    if (plan.ambiguous.size > 0) parts.push(`${plan.ambiguous.size} ambiguous`);
+    if (plan.unresolved.length > 0) parts.push(`${plan.unresolved.length} not found`);
+    useUiStore.getState().pushToast(stuck > 0 ? 'error' : 'info', parts.join(' · '));
+  } catch (err) {
+    reportError('Relink media', err);
+  }
+}
+
+/**
+ * v0.8 — copy the show's media next to the project, so the folder IS the show.
+ *
+ * Files already at or below the project directory are left alone: they already
+ * travel, and moving them would break a layout the user chose. Saving
+ * afterwards is what turns the copies into relative paths.
+ */
+export async function collectMedia(): Promise<void> {
+  const { project, projectPath } = useProjectStore.getState();
+  if (!projectPath) {
+    useUiStore.getState().pushToast('info', 'Save the project first — collect copies media beside it');
+    return;
+  }
+  try {
+    const paths = project.sources.filter(isFileSource).map((s) => s.path);
+    if (paths.length === 0) {
+      useUiStore.getState().pushToast('info', 'No media to collect');
+      return;
+    }
+    const { moved, bytesCopied, missing } = await window.material.collectMedia(projectPath, paths);
+    const count = Object.keys(moved).length;
+    if (count === 0) {
+      useUiStore
+        .getState()
+        .pushToast(
+          missing.length > 0 ? 'error' : 'info',
+          missing.length > 0
+            ? `Nothing collected — ${missing.length} file(s) offline. Relink them first.`
+            : 'Media already travels with the project',
+        );
+      return;
+    }
+    useProjectStore.getState().apply((p) => ({
+      ...p,
+      sources: p.sources.map((s) =>
+        isFileSource(s) && moved[s.path] ? { ...s, path: moved[s.path] as string } : s,
+      ),
+    }));
+    await saveProject();
+    const mb = (bytesCopied / 1048576).toFixed(0);
+    const note = missing.length > 0 ? ` · ${missing.length} offline, not collected` : '';
+    useUiStore
+      .getState()
+      .pushToast(missing.length > 0 ? 'error' : 'info', `Collected ${count} file(s) · ${mb} MB${note}`);
+  } catch (err) {
+    reportError('Collect media', err);
   }
 }
 

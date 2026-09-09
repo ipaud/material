@@ -160,3 +160,28 @@
   white-space: normal;
   line-height: 1.4;
 }
+
+/* v0.8 — a show that can travel.
+   RELINK ALL only appears when something is offline: a repair tool on screen
+   at all times reads as a chore. COLLECT sits beside it, quiet, because it is
+   a thing you do once before leaving rather than while working. */
+.library-actions.travel {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-3);
+  flex-wrap: wrap;
+}
+.library-actions.travel .vp-btn {
+  padding: 2px 6px;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.library-actions.travel .vp-btn.danger {
+  border-color: rgba(209, 86, 79, 0.5);
+  color: var(--danger);
+}
+.library-actions.travel .vp-btn.danger:hover {
+  border-color: var(--danger);
+  background: rgba(209, 86, 79, 0.08);
+}

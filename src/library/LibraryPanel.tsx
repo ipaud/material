@@ -2,7 +2,7 @@ import { withSelectedSource } from '@shared/schemas/project';
 import { LooksPanel } from './LooksPanel';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
-import { relinkSource } from '@/projects/projectActions';
+import { collectMedia, relinkAllFromFolder, relinkSource } from '@/projects/projectActions';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { captureManager, useCaptureStore } from '@/sources/captureManager';
 import {
@@ -49,6 +49,10 @@ export function LibraryPanel() {
   const activeAudioId = useProjectStore((s) => s.project.composition.audioSourceId);
   const offlineSources = useUiStore((s) => s.offlineSources);
   const apply = useProjectStore((s) => s.apply);
+  const fileSourceCount = sources.filter(isFileSource).length;
+  const offlineFileCount = sources.filter(
+    (s) => isFileSource(s) && offlineSources.includes(s.id),
+  ).length;
 
   const selectSource = (id: string, kind: string) => {
     apply((p) => {
@@ -183,6 +187,31 @@ export function LibraryPanel() {
             </button>
           )}
         </div>
+        {/* v0.8 — a show that can travel. RELINK ALL appears only when
+            something is actually offline, because it is a repair tool and a
+            repair tool visible at all times reads as a chore. */}
+        {(offlineFileCount > 0 || fileSourceCount > 0) && (
+          <div className="library-actions travel">
+            {offlineFileCount > 0 && (
+              <button
+                className="vp-btn danger"
+                title={`Find all ${offlineFileCount} missing file(s) in one folder`}
+                onClick={() => void relinkAllFromFolder()}
+              >
+                RELINK ALL · {offlineFileCount}
+              </button>
+            )}
+            {fileSourceCount > 0 && (
+              <button
+                className="vp-btn"
+                title="Copy this project's media next to the project file, so the folder is the whole show"
+                onClick={() => void collectMedia()}
+              >
+                COLLECT MEDIA
+              </button>
+            )}
+          </div>
+        )}
         {sources.length === 0 ? (
           <div className="library-empty">No media imported</div>
         ) : (
