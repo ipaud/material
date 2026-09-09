@@ -181,12 +181,16 @@ as vocal isolation.
 v0.8 made a project portable: relative media paths, COLLECT MEDIA, RELINK ALL.
 A show is now an object you can carry.
 
-The pixel protocols come next, and they are their own version.
-`docs/V08_AUDIT.md` records what Syphon costs — a third renderer, the project's
-first native addon, and retiring "no pixel ever leaves" in writing rather than
-by accident. That trade is worth making now that there is something worth
-moving; it was not worth making to send a show to a second application on a
-machine the show could not be carried to.
+**Syphon is deferred, deliberately.** `docs/V08_AUDIT.md` records what it costs
+— a third renderer, the project's first native addon, and retiring "no pixel
+ever leaves" in writing. That price only buys something if MATERIAL needs to
+feed another application: a projector on the second output is already covered
+by the Output window, and paying for Syphon to serve a case that does not exist
+would be the most expensive thing this project has ever done for no reason.
+
+Revisit when there is a real rig on the other end of the cable — someone else
+running Resolume or VDMX with MATERIAL as one source among several. Until then
+the audit stands and the work does not start.
 
 ## After v0.7
 

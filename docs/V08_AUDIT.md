@@ -109,3 +109,18 @@ stubbed from a live probe either. Everything on both sides of it is covered —
 the matcher purely, the folder walk against a real disk, and the apply /
 re-probe / recheck path with a stubbed preload — but the `showOpenDialog` call
 itself is verified only by having opened it by hand.
+
+
+## Status
+
+**Deferred, not rejected.** The show file shipped as v0.8.0; Syphon is not
+scheduled.
+
+The reason is the one this audit should have asked first: the price buys
+nothing unless MATERIAL has to feed *another application*. A projector on a
+second output is already the Output window's job. Syphon matters when someone
+else is running the rig — Resolume, VDMX, MadMapper — and MATERIAL is one
+source among several.
+
+That case does not exist yet. When it does, this audit is the starting point
+and nothing in it needs redoing.
