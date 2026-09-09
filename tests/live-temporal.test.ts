@@ -284,7 +284,9 @@ describe('release gates (18G)', () => {
     // recorded performance must be refused by v0.6.1 rather than opened with
     // the performance silently stripped.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    expect(pkg.version).toBe('0.7.0');
+    // v0.7.1 is Take-editor polish found by playing a real performance: no
+    // schema change, no new concepts, so the format stays at 5.
+    expect(pkg.version).toBe('0.7.1');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(5);
   });

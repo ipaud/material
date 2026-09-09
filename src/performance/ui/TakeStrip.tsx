@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { playback } from '@/playback/PlaybackController';
-import { parseControlTarget } from '@/performance/take/model';
+import { laneValueAt, parseControlTarget } from '@/performance/take/model';
+import { getTechnique } from '@/techniques/registry';
+import { allParams } from '@/techniques/types';
 import { takeStats, deleteEvent, deleteLane, moveEvent, movePoint, simplifyTake, trimTake } from '@/performance/take/edit';
 import { resolveAgainstProject } from '@/performance/take/evaluate';
 import { takeRecorder } from '@/performance/take/recorder';
@@ -34,8 +36,31 @@ import type { PerformanceTake, Project, TakeEvent, TakeLane } from '@shared/sche
  * rather than to grow it (§62, §165).
  */
 
-const LANE_W = 320;
-const LANE_H = 26;
+/**
+ * Lane geometry.
+ *
+ * X is normalised: the polyline is drawn in a 0..LANE_VB viewBox that stretches
+ * to whatever width the strip has, and points are positioned in percent. A
+ * fixed pixel width made a 71-second Take 4.5 px per second, which is legible
+ * and unaimable — two Freeze events two bars apart rendered almost touching.
+ * `vector-effect` keeps the stroke one pixel however far the box stretches.
+ */
+const LANE_VB = 1000;
+/**
+ * 26px was sized for a 320px lane. Fluid width made the box roughly 1300px
+ * wide, and the same gesture in the same height reads as a flat wobble at
+ * 50:1. Taller is what makes a shape legible once it is allowed to stretch.
+ */
+const LANE_H = 44;
+/**
+ * Vertical inset, so a point at the extreme of its range is not clipped by the
+ * lane's own border. It has to appear in BOTH directions: the renderer insets
+ * and the drag handler did not, so grabbing a point moved it about 4% of its
+ * range before the pointer had travelled at all.
+ */
+const LANE_PAD = 3;
+/** Width of the label gutter; the ruler and the tools line up with it. */
+const LABEL_W = 120;
 
 /** Composition-time readout at UI rate, not render rate. */
 function useUiTime(): number {
@@ -51,6 +76,37 @@ function laneLabel(target: string, project: Project): string {
   const layer = project.layers.find((l) => l.id === parsed.layerId);
   const name = layer?.name || `LAYER ${project.layers.indexOf(layer!) + 1}`;
   return parsed.kind === 'layerOpacity' ? `${name} · OPACITY` : `${name} · ${parsed.paramId}`;
+}
+
+/**
+ * The range a lane is DRAWN against — its control's own domain, not the range
+ * the gesture happened to cover.
+ *
+ * Auto-scaling each lane to its own content made a lane that moved 0.4 to 0.5
+ * look exactly as dramatic as one that swept 0 to 1, so two lanes could not be
+ * compared by eye. Against the domain, a small gesture looks small, which is
+ * the truth. A parameter whose definition cannot be found falls back to its
+ * content, because a flat line with no explanation is worse than a rescaled one.
+ */
+export function laneDomain(
+  target: string,
+  project: Project,
+  samples: readonly { v: number }[],
+): [number, number] {
+  const parsed = parseControlTarget(target);
+  if (parsed && (parsed.kind === 'layerOpacity' || parsed.kind === 'macro')) return [0, 1];
+  if (parsed?.kind === 'param') {
+    const layer = project.layers.find((l) => l.id === parsed.layerId);
+    const definition = layer?.technique ? getTechnique(layer.technique.techniqueId) : null;
+    const def = definition
+      ? allParams(definition).find((d) => d.id === parsed.paramId)
+      : undefined;
+    if (def && def.type === 'number') return [def.min, def.max];
+  }
+  const values = samples.map((s) => s.v);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  return hi > lo ? [lo, hi] : [lo - 0.5, lo + 0.5];
 }
 
 const EVENT_GLYPH: Record<TakeEvent['kind'], string> = {
@@ -233,7 +289,7 @@ function TakeEditor({ take, project }: { take: PerformanceTake; project: Project
 
   return (
     <div className="perf-take-editor">
-      <div className="perf-take-ruler" style={{ width: LANE_W }}>
+      <div className="perf-take-ruler" style={{ marginLeft: LABEL_W }}>
         <span>0</span>
         <span>{(take.durationSec / 2).toFixed(1)}</span>
         <span>{take.durationSec.toFixed(1)}s</span>
@@ -247,7 +303,9 @@ function TakeEditor({ take, project }: { take: PerformanceTake; project: Project
           take={take}
           lane={lane}
           label={laneLabel(lane.target, project)}
+          project={project}
           playhead={inside ? playhead : null}
+          relSec={inside ? rel : null}
         />
       ))}
 
@@ -290,11 +348,12 @@ function EventRow({ take, playhead }: { take: PerformanceTake; playhead: number 
       <span className="perf-take-lane-label">EVENTS</span>
       <div
         className="perf-take-lane events"
-        style={{ width: LANE_W, height: LANE_H }}
+        style={{ height: LANE_H }}
         onPointerMove={(e) => {
           if (!drag.current) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const t = ((e.clientX - rect.left) / rect.width) * span;
+          const box = e.currentTarget;
+          const rect = box.getBoundingClientRect();
+          const t = ((e.clientX - rect.left - box.clientLeft) / box.clientWidth) * span;
           editTake(take.id, (x) => moveEvent(x, drag.current as string, t));
         }}
         onPointerUp={() => (drag.current = null)}
@@ -322,6 +381,10 @@ function EventRow({ take, playhead }: { take: PerformanceTake; playhead: number 
           </button>
         ))}
       </div>
+      {/* Empty, but the same width as a lane's meta column: without it the
+          event row stretches wider than the lanes below and a marker no longer
+          sits above the point it happened at. */}
+      <span className="perf-take-lane-meta" aria-hidden="true" />
     </div>
   );
 }
@@ -330,22 +393,34 @@ function LaneRow({
   take,
   lane,
   label,
+  project,
   playhead,
+  relSec,
 }: {
   take: PerformanceTake;
   lane: TakeLane;
   label: string;
+  project: Project;
   playhead: number | null;
+  relSec: number | null;
 }) {
   const drag = useRef<number | null>(null);
   const span = Math.max(take.durationSec, 1e-6);
-  const values = lane.samples.map((s) => s.v);
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
+  const [lo, hi] = laneDomain(lane.target, project, lane.samples);
   const range = hi - lo || 1;
-  const x = (t: number) => (t / span) * LANE_W;
-  const y = (v: number) => LANE_H - 3 - ((v - lo) / range) * (LANE_H - 6);
-  const path = lane.samples.map((s, i) => `${i === 0 ? 'M' : 'L'}${x(s.t).toFixed(1)},${y(s.v).toFixed(1)}`).join(' ');
+  const travel = LANE_H - 2 * LANE_PAD;
+  const x = (t: number) => (t / span) * LANE_VB;
+  const y = (v: number) => LANE_H - LANE_PAD - ((v - lo) / range) * travel;
+  /** Exact inverse of `y`, so a point does not jump the moment you grab it. */
+  const valueAtY = (offsetY: number) =>
+    Math.min(Math.max(lo + ((LANE_H - LANE_PAD - offsetY) / travel) * range, lo), hi);
+  const path = lane.samples
+    .map((s, i) => `${i === 0 ? 'M' : 'L'}${x(s.t).toFixed(1)},${y(s.v).toFixed(1)}`)
+    .join(' ');
+
+  // What this control is doing RIGHT NOW, on the row that draws it. The point
+  // of the strip is to answer that without your eye travelling to the fader.
+  const nowValue = relSec === null ? null : laneValueAt(lane, relSec);
 
   return (
     <div className="perf-take-row">
@@ -354,12 +429,15 @@ function LaneRow({
       </span>
       <div
         className="perf-take-lane"
-        style={{ width: LANE_W, height: LANE_H }}
+        style={{ height: LANE_H }}
         onPointerMove={(e) => {
           if (drag.current === null) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const t = ((e.clientX - rect.left) / rect.width) * span;
-          const v = lo + (1 - (e.clientY - rect.top) / rect.height) * range;
+          // Measure against the CONTENT box: the lane has a 1px border, and
+          // taking the border into the mapping shifts every drag by half of it.
+          const box = e.currentTarget;
+          const rect = box.getBoundingClientRect();
+          const t = ((e.clientX - rect.left - box.clientLeft) / box.clientWidth) * span;
+          const v = valueAtY(e.clientY - rect.top - box.clientTop);
           editTake(take.id, (k) => movePoint(k, lane.target, drag.current as number, t, v));
         }}
         onPointerUp={() => (drag.current = null)}
@@ -368,14 +446,24 @@ function LaneRow({
         {playhead !== null && (
           <span className="perf-take-playhead" style={{ left: `${playhead * 100}%` }} />
         )}
-        <svg width={LANE_W} height={LANE_H} aria-hidden="true">
-          <path d={path} />
+        <svg
+          viewBox={`0 0 ${LANE_VB} ${LANE_H}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path d={path} vectorEffect="non-scaling-stroke" />
         </svg>
+        {nowValue !== null && playhead !== null && (
+          <span
+            className="perf-take-now"
+            style={{ left: `${playhead * 100}%`, top: y(nowValue) }}
+          />
+        )}
         {lane.samples.map((s, i) => (
           <button
             key={i}
             className="perf-take-point"
-            style={{ left: x(s.t), top: y(s.v) }}
+            style={{ left: `${(s.t / span) * 100}%`, top: y(s.v) }}
             title={`${s.t.toFixed(2)}s → ${s.v.toFixed(3)} — drag to move`}
             onPointerDown={(e) => {
               drag.current = i;
@@ -385,6 +473,9 @@ function LaneRow({
         ))}
       </div>
       <span className="perf-take-lane-meta">
+        <em className="perf-take-now-value" title="value at the playhead">
+          {nowValue === null ? '—' : nowValue.toFixed(2)}
+        </em>
         {lane.samples.length}
         <button
           className="perf-take-mini danger"

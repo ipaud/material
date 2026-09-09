@@ -1050,10 +1050,18 @@
   padding: var(--sp-3) var(--sp-4);
   border-top: 1px solid var(--border-0);
 }
+/* Everything inside the editor lines up on one gutter, so the ruler, the
+   lanes and the tools all share the same left edge. */
+.perf-take-ruler,
+.perf-take-tools {
+  margin-left: 128px;
+}
 .perf-take-ruler {
   display: flex;
   justify-content: space-between;
-  margin-left: 128px;
+  /* The lane row is label + lane + meta; the ruler skips the label gutter and
+     stops short of the meta column so its ticks sit over the lane itself. */
+  margin-right: 64px;
   font-family: var(--font-mono);
   font-size: 8px;
   color: var(--text-2);
@@ -1077,21 +1085,32 @@
 }
 .perf-take-lane {
   position: relative;
-  flex: none;
+  /* Fluid: a Take is however long it is, and the strip is however wide the
+     window is. A fixed width made a 71-second Take unaimable. */
+  flex: 1 1 auto;
+  min-width: 0;
   background: var(--surface-2);
   border: 1px solid var(--border-0);
   border-radius: var(--radius-1);
   touch-action: none;
+}
+.perf-take-lane svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .perf-take-lane svg path {
   fill: none;
   stroke: var(--mod);
   stroke-width: 1;
 }
+/* Even size with a half-size negative margin, so the dot's visual centre IS
+   its anchor. At 5px with -3px it sat half a pixel off, and grabbing a point
+   nudged it by half a pixel's worth of its range before the pointer moved. */
 .perf-take-point {
   position: absolute;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   margin: -3px 0 0 -3px;
   padding: 0;
   background: var(--mod);
@@ -1143,10 +1162,37 @@
 .perf-take-lane-meta {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--sp-2);
+  width: 64px;
+  flex: none;
   font-family: var(--font-mono);
   font-size: 8px;
   color: var(--text-2);
+}
+/* The value at the playhead, on the row that draws it — so reading what a
+   control is doing needs no trip to the fader. */
+.perf-take-now-value {
+  font-style: normal;
+  color: var(--text-0);
+  min-width: 26px;
+  text-align: right;
+}
+/* Stored value beside the one a Take is playing — same two-number idiom the
+   layer fader uses when a signal drives it. */
+.perf-macro-stored {
+  font-style: normal;
+  color: var(--text-2);
+  margin-right: var(--sp-2);
+}
+.perf-take-now {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
 }
 .perf-take-lane-meta .perf-take-mini {
   min-height: 18px;
@@ -1155,6 +1201,5 @@
 .perf-take-tools {
   display: flex;
   gap: var(--sp-2);
-  margin-left: 128px;
   margin-top: var(--sp-2);
 }

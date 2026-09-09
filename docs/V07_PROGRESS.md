@@ -445,3 +445,43 @@ through `__dev`, relaunch before believing the probe.
 ### Safe to release?
 
 Yes.
+
+
+---
+
+## v0.7.1 — the Take editor, after playing it
+
+v0.7.0's F phase verified the editor with a five-second synthetic Take. It
+looked fine. A real 71-second performance over a real song made four problems
+obvious within a minute of looking at it, none of which any gate was asking
+about.
+
+| Found | Why it happened |
+|---|---|
+| Lane strip unaimable | `LANE_W = 320` regardless of Take length or window. At 71s that is 4.5 px/s; two Freeze events two bars apart drew ~11 px apart |
+| Lanes not comparable | Each auto-scaled to its own content, so a 0.4→0.5 lane looked as emphatic as a 0→1 one |
+| Value hunting | The lane drew the shape but not the number; the number lived on a fader elsewhere on screen |
+| Macro fader lied | A Take drives macros through an overlay that never writes the document, so the fader read 0.00 while the performance held 0.85 |
+
+Fixes: normalised viewBox with `vector-effect` for a fluid width, `LANE_H`
+26 → 44 for the new aspect, `laneDomain()` for control-range scaling, a value
+column and a playhead marker per lane, and the two-number idiom on the macro
+fader that the layer fader already used.
+
+### A bug the fix uncovered
+
+Grabbing a point nudged it before the pointer travelled. The renderer inset
+points by `LANE_PAD` and the drag handler mapped against the full box; the dot
+was also 5 px with a −3 px margin, so its visual centre sat half a pixel off
+its own anchor. Measured 4% of a control's range on contact, then 0.0133
+(exactly ½ px of 38), now 0 in time and one storage quantum in value.
+
+The lesson is the same one v0.7 kept teaching: **a renderer and its inverse
+have to be written as a pair.** They were fifty lines apart and silently
+disagreed.
+
+### Not built
+
+Zoom inside a lane, and beat-snapping a dragged event. The first only matters
+past a few minutes; the second is the first step toward quantised editing,
+which v0.7 deliberately does not have. Both in `docs/BACKLOG.md`.

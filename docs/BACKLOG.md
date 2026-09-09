@@ -252,18 +252,18 @@ line v0.7 exists to hold.
   a Take alive — re-evaluation against whatever it is replayed over — for a
   frozen recording.
 
-**Take editor UX — from playing a real 71-second performance**
+**Take editor UX**
 
-- The lane strip is a hardcoded 320px regardless of Take length or window
-  size. At 71 seconds that is 4.5 px per second: two Freeze events 2.5s apart
-  render almost touching, and dragging a point to a musical instant is
-  guesswork. It is legible; it is not aimable. Either scale with the window or
-  give the strip a zoom.
-- Each lane auto-scales to its own value range, so a lane with four points and
-  one with eighteen look equally dramatic. Reading the shape of a gesture is
-  fine; comparing two lanes by eye is misleading.
-- The editor sits below the layer faders it drives, so you cannot watch a
-  fader move against its own lane. Live, that is the thing you want to see.
+Three findings from playing a real 71-second performance were fixed in v0.7.1
+(fluid lane width, domain-scaled lanes, the playhead value on the row). What
+remains, and is deliberately not built:
+
+- Zoom or scroll inside a lane. At full window width a 71-second Take is
+  legible; a ten-minute one would not be. The answer when that bites is
+  probably a view window over the Take, not a scrollbar.
+- Snapping a dragged event to the beat grid. It is a real convenience and it is
+  also the first step toward quantised editing, which v0.7 deliberately does
+  not have.
 
 **Known debt**
 

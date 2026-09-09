@@ -6,6 +6,8 @@ import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
 import { isLookDirty } from '@/performance/lookCore';
 import { pinCurrentLook } from '@/projects/lookActions';
 import { performMacroValue, performToggleFreeze } from '@/performance/take/gestures';
+import { takePlayer } from '@/performance/take/player';
+import { playback } from '@/playback/PlaybackController';
 import { midiEngine, useMidiStore } from '@/midi/midiEngine';
 import { WebMidiTransport } from '@/midi/transport';
 import {
@@ -171,6 +173,23 @@ function MacroControl({ macro }: { macro: Macro }) {
   const midiStatus = useMidiStore((s) => (midiMapping ? s.status[midiMapping.id] : undefined));
   const dragging = useRef(false);
 
+  /**
+   * What a replaying Take is holding this macro at.
+   *
+   * A Take drives macros through an overlay that deliberately never writes the
+   * document, so the stored value stays where the performer left it — and the
+   * fader read 0.00 while the performance had it at 0.85. The layer fader
+   * already solves this by showing both numbers; a macro is no different.
+   */
+  const [live, setLive] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const resolved = takePlayer.resolvedAt(playback.getTime())?.macros.get(macro.id) ?? null;
+      setLive((prev) => (prev === null && resolved === null ? prev : resolved));
+    }, 120);
+    return () => clearInterval(timer);
+  }, [macro.id]);
+
   const learn = async () => {
     setMenuOpen(false);
     if (!midiEngine.isRunning) {
@@ -214,7 +233,10 @@ function MacroControl({ macro }: { macro: Macro }) {
             {macro.name}
           </span>
         )}
-        <span className="perf-macro-value mono">{macro.value.toFixed(2)}</span>
+        <span className="perf-macro-value mono">
+          {live !== null && <em className="perf-macro-stored">{macro.value.toFixed(2)}</em>}
+          {(live ?? macro.value).toFixed(2)}
+        </span>
       </div>
       <div className="perf-macro-sub mono">
         {midiMapping ? (
@@ -233,7 +255,7 @@ function MacroControl({ macro }: { macro: Macro }) {
         min={0}
         max={1}
         step={0.001}
-        value={macro.value}
+        value={live ?? macro.value}
         aria-label={`Macro ${macro.name}`}
         onPointerDown={() => {
           dragging.current = true;

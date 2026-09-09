@@ -1,5 +1,45 @@
 # Release Notes
 
+## v0.7.1 — THE TAKE EDITOR, AFTER PLAYING IT
+
+v0.7.0 shipped a Take editor that passed every test and was awkward to use.
+Recording a real 71-second performance over a real song showed why, and this
+release is the four things that showed up.
+
+**Lanes fill the window.** The strip was a fixed 320 pixels whatever the Take's
+length. At 71 seconds that is 4.5 pixels a second: two Freeze events two bars
+apart drew almost on top of each other, and a point could be seen but not
+aimed. Lanes are now fluid, and taller — 26 pixels was sized for a narrow box,
+and the same gesture in the same height reads as a flat wobble once it is four
+times wider.
+
+**A lane is drawn against its control's range, not its own.** Every lane used
+to auto-scale to whatever the gesture happened to cover, so one that moved 0.4
+to 0.5 looked exactly as emphatic as one that swept 0 to 1. Two lanes could not
+be compared by eye. Now a small gesture looks small, which is the truth.
+
+**The value is on the row that draws it.** Each lane shows what its control is
+doing at the playhead, with a marker on the curve at that point. Reading a
+performance no longer means looking at the lane and then hunting for the fader.
+
+**A macro fader shows what a Take is playing.** Takes drive macros through an
+overlay that deliberately never writes the document, so the fader read 0.00
+while the performance had it at 0.85. It now shows both numbers, the way the
+layer fader already did when a signal drives it.
+
+### Also fixed
+
+Grabbing a point nudged it before the pointer moved. The renderer inset points
+by three pixels and the drag handler did not, and the dot's own centre sat half
+a pixel off its anchor. Measured: 4% of a control's range on contact, now zero
+in time and one quantisation step in value.
+
+### Not changed
+
+No schema change, no new concepts, no new controls. The editor is still a
+ruler, a polyline per control and a tick per event — deliberately not a
+timeline. See `docs/BACKLOG.md` for what was left out and why.
+
 ## v0.7.0 — PERFORMANCE CAPTURE
 
 MATERIAL can record what you play.
