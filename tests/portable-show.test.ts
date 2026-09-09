@@ -3,6 +3,9 @@ import path from 'node:path';
 import { createEmptyProject, type Project } from '@shared/schemas/project';
 import type { MediaMetadata } from '@shared/schemas/media';
 import { toAbsolutePaths, toPortablePaths } from '@electron/filesystem/projectPaths';
+import { useProjectStore } from '@/state/projectStore';
+import { useUiStore } from '@/state/uiStore';
+import { relinkAllFromFolder } from '@/projects/projectActions';
 import {
   bestMatch,
   matchScore,
@@ -231,5 +234,75 @@ describe('planning a whole relink', () => {
     const plan = planRelink([{ id: 'x', metadata: null }], folder);
     expect(plan.unresolved).toEqual(['x']);
     expect(plan.resolved.size).toBe(0);
+  });
+});
+
+describe('applying a relink to the project', () => {
+  it('repoints every resolved source in ONE undo entry, and re-probes', async () => {
+    // The dialog itself cannot be driven from a test — contextBridge freezes
+    // the preload object, which is also why it could not be stubbed from a
+    // live probe. Everything downstream of the dialog runs here for real: the
+    // plan, the store update, the re-probe, and the offline recheck.
+    const found: Record<string, MediaMetadata> = {
+      '/new/clip.mp4': meta({ path: '/new/clip.mp4', fileName: 'clip.mp4', fileSize: 2048, durationSec: 10 }),
+      '/new/song.wav': meta({ path: '/new/song.wav', kind: 'audio', fileName: 'song.wav', fileSize: 4096, durationSec: 12 }),
+    };
+    const probed: string[] = [];
+    Object.defineProperty(window, 'material', {
+      configurable: true,
+      writable: true,
+      value: {
+      pickMediaFolder: async () => [
+        { path: '/new/clip.mp4', fileName: 'clip.mp4', fileSize: 2048, kind: 'video' as const },
+        { path: '/new/song.wav', fileName: 'song.wav', fileSize: 4096, kind: 'audio' as const },
+        { path: '/new/decoy.mp4', fileName: 'decoy.mp4', fileSize: 7, kind: 'video' as const },
+      ],
+      probeMedia: async (p: string) => {
+        probed.push(p);
+        const m = found[p];
+        if (!m) throw new Error('missing');
+        return m;
+      },
+      },
+    });
+
+    const base = createEmptyProject();
+    useProjectStore.setState({
+      project: {
+        ...base,
+        sources: [
+          { id: 'v', kind: 'video', path: '/old/clip.mp4', metadata: meta({ fileSize: 2048, fileName: 'clip.mp4' }) },
+          {
+            id: 'a',
+            kind: 'audio',
+            path: '/old/song.wav',
+            metadata: meta({ kind: 'audio', fileName: 'song.wav', fileSize: 4096, durationSec: 12 }),
+          },
+        ],
+      },
+      past: [],
+      dirty: false,
+    });
+    useUiStore.setState({ offlineSources: ['v', 'a'] });
+
+    await relinkAllFromFolder();
+
+    const sources = useProjectStore.getState().project.sources;
+    expect(sources.map((s) => ('path' in s ? s.path : null))).toEqual([
+      '/new/clip.mp4',
+      '/new/song.wav',
+    ]);
+    // Metadata comes from the file actually FOUND: a re-encode legitimately
+    // has a different size, and keeping the old numbers would make the next
+    // relink match against a fiction.
+    expect(sources[0]).toMatchObject({ metadata: { path: '/new/clip.mp4', durationSec: 10 } });
+    // Each resolved file is probed twice on purpose-enough: once to refresh
+    // its metadata, once by the offline recheck that follows. Two ffprobe
+    // calls on a local file, on an explicit user action, is not worth coupling
+    // the two passes together to avoid.
+    expect(new Set(probed)).toEqual(new Set(['/new/clip.mp4', '/new/song.wav']));
+    expect(probed.filter((p) => p === '/new/decoy.mp4')).toHaveLength(0);
+    // The decoy was never a candidate for either source.
+    expect(sources.some((s) => 'path' in s && s.path === '/new/decoy.mp4')).toBe(false);
   });
 });

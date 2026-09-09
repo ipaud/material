@@ -176,6 +176,18 @@ that is sometimes wrong is worse than a number you typed.
 **Stem separation / "vocals" band.** Not shipping a band-pass filter labelled
 as vocal isolation.
 
+## After v0.8
+
+v0.8 made a project portable: relative media paths, COLLECT MEDIA, RELINK ALL.
+A show is now an object you can carry.
+
+The pixel protocols come next, and they are their own version.
+`docs/V08_AUDIT.md` records what Syphon costs — a third renderer, the project's
+first native addon, and retiring "no pixel ever leaves" in writing rather than
+by accident. That trade is worth making now that there is something worth
+moving; it was not worth making to send a show to a second application on a
+machine the show could not be carried to.
+
 ## After v0.7
 
 v0.7 shipped Performance Capture: record what the performer plays, replay it

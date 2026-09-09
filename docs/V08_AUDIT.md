@@ -80,3 +80,32 @@ is the precondition for the others being worth having.
 
 Syphon after, as its own version, with the "no pixel leaves" property retired
 deliberately and in writing rather than by accident.
+
+---
+
+## Outcome
+
+The recommendation was taken. **v0.8.0 shipped the show file**, and the pixel
+protocols remain unbuilt and unbudgeted.
+
+What shipped: relative media paths at the disk boundary
+(`electron/filesystem/projectPaths.ts`), COLLECT MEDIA and RELINK ALL
+(`electron/filesystem/mediaFolder.ts`, `src/projects/relink.ts`). No format
+change, no native dependency, no new permission, and no pixel moved — every
+property this audit recorded survives intact.
+
+Verified end to end: import media from one folder, collect, rename the project
+folder, delete the original media, reopen. Paths resolved to the new location,
+zero sources offline, audio analysed, canvas rendering.
+
+One defect the work found: `collectMediaBeside` threw on the first unreadable
+file and abandoned the whole operation, leaving an empty `media/` directory as
+its only trace. Found by collecting a real project whose video had been
+deleted between sessions.
+
+**Known limit.** The Finder dialog inside `media:pick-folder` is not driven by
+any automated test: `contextBridge` freezes the preload object, so it cannot be
+stubbed from a live probe either. Everything on both sides of it is covered —
+the matcher purely, the folder walk against a real disk, and the apply /
+re-probe / recheck path with a stubbed preload — but the `showOpenDialog` call
+itself is verified only by having opened it by hand.

@@ -284,9 +284,10 @@ describe('release gates (18G)', () => {
     // recorded performance must be refused by v0.6.1 rather than opened with
     // the performance silently stripped.
     const pkg = JSON.parse(read('package.json')) as { version: string };
-    // v0.7.1 is Take-editor polish found by playing a real performance: no
-    // schema change, no new concepts, so the format stays at 5.
-    expect(pkg.version).toBe('0.7.1');
+    // v0.8 makes a project portable — relative media paths, collect, relink
+    // all. Paths are strings either way, so the format stays at 5 and a v0.7
+    // project written with absolute paths opens unchanged.
+    expect(pkg.version).toBe('0.8.0');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(5);
   });

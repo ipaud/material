@@ -1,5 +1,64 @@
 # Release Notes
 
+## v0.8.0 — A SHOW THAT TRAVELS
+
+A MATERIAL project could not leave the machine it was made on. Media paths were
+absolute, relink was one file at a time through a Finder dialog, and nothing
+bundled media with a project — so copying a four-layer show to a venue laptop
+meant five dialogs and hoping the files came too.
+
+This was hit for real while making the v0.7 creative test: the project pointed
+at a scratch directory and had to be repointed by hand before it would open
+anywhere.
+
+### Media travels with the project
+
+Paths are now stored **relative when the file lives at or below the project's
+own folder**. Move the folder — to a stick, to another machine — and the links
+follow. Media that lives elsewhere stays absolute, because a `../../..` chain
+out of the project directory is a fragile absolute path rather than
+portability.
+
+Nothing in the app sees relative paths: the conversion happens only when
+reading and writing the file.
+
+### COLLECT MEDIA
+
+One action copies everything the project uses into `<project>/media/` and
+repoints it. The folder becomes the whole show.
+
+Files already inside are left where they are — they already travel, and moving
+them would break a layout you chose. Two different files with the same name get
+separate copies. Re-collecting a show copies nothing twice.
+
+### RELINK ALL
+
+When something is offline, one button finds all of it in a single folder pick.
+It matches on what the project has recorded about each file since v3 — name,
+byte size, duration and kind — so a renamed file is found by its bytes and a
+re-encoded one by its name.
+
+A source whose best match ties with another candidate **stays offline and says
+so**. Nothing is ever silently repointed at whichever file sorted first.
+
+### Also fixed
+
+Collecting a show with one missing file used to throw on that file, abandon the
+whole operation, and leave an empty `media/` folder behind. It now gathers what
+it can and tells you what it could not.
+
+### Format
+
+No change. Version stays at 5 — a path is a string either way, and a v0.7
+project written with absolute paths opens exactly as it did.
+
+### Security
+
+Two channels were added and both open their own dialog, so the renderer never
+names a directory. The folder walk is bounded to three levels and 2000 files,
+skips dotfiles, and follows no symlinks. No new permission, no network, and no
+preload API beyond those two.
+
 ## v0.7.1 — THE TAKE EDITOR, AFTER PLAYING IT
 
 v0.7.0 shipped a Take editor that passed every test and was awkward to use.
