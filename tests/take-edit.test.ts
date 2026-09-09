@@ -30,6 +30,7 @@ function log(take: PerformanceTake, at: number): string[] {
       out.push(
         `baseline:${JSON.stringify(b.layerEnabled)}:${Object.keys(b.lanes).sort().join(',')}`,
       ),
+    advanceTo: () => undefined,
     recallLook: (id) => out.push(`look:${id}`),
     startMorph: (id, t) => out.push(`morph:${id}@${t}`),
     setFreeze: (on) => out.push(`freeze:${String(on)}`),

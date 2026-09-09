@@ -164,6 +164,53 @@ describe('replay reaches every control class', () => {
     expect(enabled()).toBe(true);
   });
 
+  it('a seek past a finished morph RETIRES it instead of leaving it armed', () => {
+    // The morph runs 6 → 8 relative (composition 6 → 8). A Look recalled after
+    // it must be what the composition shows at 11s.
+    //
+    // Without a clock nudge between reconstructed events, the morph stayed
+    // armed at progress 1 forever: its overlay covered the later recall, and
+    // the next transport tick COMMITTED the morph target into the document,
+    // destroying that recall. Found by playing a real 76-second performance,
+    // not by any gate.
+    const base = take();
+    const withLateRecall: PerformanceTake = {
+      ...base,
+      events: [
+        ...base.events,
+        {
+          id: 'sig_late',
+          t: 10,
+          order: 9,
+          kind: 'look.recall',
+          lookId: 'sig_look_a',
+          morph: null,
+          on: null,
+          layerId: null,
+          origin: 'user',
+        },
+      ],
+    };
+
+    takePlayer.start(withLateRecall, 11);
+    expect(morphRuntime.current, 'the morph must not still be armed').toBeNull();
+    expect(useProjectStore.getState().project.activeLookId).toBe('sig_look_a');
+    // Look A's scale, not Look B's — the recall wins, as it did when played.
+    const params = useProjectStore.getState().project.layers[0]!.technique!.params;
+    expect(params.scale).toBe(6);
+
+    // …and a tick afterwards cannot resurrect it.
+    morphRuntime.tick(11.5);
+    expect(useProjectStore.getState().project.layers[0]!.technique!.params.scale).toBe(6);
+  });
+
+  it('seeking INTO the morph still leaves it armed at the right progress', () => {
+    // The companion that fails if the fix retires morphs too eagerly.
+    takePlayer.start(take(), 7);
+    expect(morphRuntime.current).not.toBeNull();
+    expect(morphRuntime.progressAt(7)).toBeCloseTo(0.5, 9);
+  });
+
   it('a replayed morph writes no morph history and no dirty flag', () => {
     const t = take();
     useProjectStore.setState({ dirty: false, past: [] });

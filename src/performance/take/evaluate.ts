@@ -102,6 +102,22 @@ export interface TakeMorphSpec {
  */
 export interface TakePerformer {
   restoreBaseline(baseline: TakeBaseline): void;
+  /**
+   * Carry time-based state forward to a composition time.
+   *
+   * Reconstruction dispatches events in order but does not, on its own, let
+   * TIME pass between them — and a morph is a thing that finishes by time
+   * passing. A morph started at 42.9s over two bars is over by 47.9s, but a
+   * seek to 66s left it armed at progress 1 forever: its overlay then covered
+   * the Look the Take recalled at 60.7s, and the next transport tick committed
+   * the morph target into the document, destroying that recall. Reconstruction
+   * has to retire what it re-creates.
+   *
+   * Live playback ticks the morph runtime every frame anyway, so this is
+   * belt-and-braces there. Export needs nothing: its virtual morphs retire
+   * themselves through their own `applied` flag.
+   */
+  advanceTo(compositionSec: number): void;
   recallLook(lookId: string): void;
   /** `atComposition` is absolute — a morph's schedule is timeline state. */
   startMorph(lookId: string, atComposition: number, spec: TakeMorphSpec): void;
@@ -151,8 +167,12 @@ export function replayDiscreteUpTo(
   const rel = takeRelativeTime(take, compositionSec);
   if (rel === null) return;
   for (const event of eventsUpTo(sortedEvents(take), rel)) {
+    // Let time reach this event before it fires, so anything the previous
+    // events started has finished by the moment it actually finished.
+    performer.advanceTo(take.startSec + event.t);
     dispatch(event, take, performer);
   }
+  performer.advanceTo(compositionSec);
 }
 
 /**
@@ -182,6 +202,7 @@ export function replayDiscreteBetween(
   const events = sortedEvents(take);
   const crossed = t0 <= 0 ? eventsUpTo(events, t1) : eventsBetween(events, t0, t1);
   for (const event of crossed) {
+    performer.advanceTo(take.startSec + event.t);
     dispatch(event, take, performer);
   }
 }

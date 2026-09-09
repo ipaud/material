@@ -241,6 +241,7 @@ describe('discrete reconstruction', () => {
     const log: string[] = [];
     const performer: TakePerformer = {
       restoreBaseline: (b: TakeBaseline) => log.push(`baseline:${Object.keys(b.lanes).length}`),
+      advanceTo: () => undefined,
       recallLook: (id) => log.push(`look:${id}`),
       startMorph: (id, at, spec: TakeMorphSpec) =>
         log.push(`morph:${id}@${at}:${spec.durationValue}${spec.durationMode}`),
@@ -323,6 +324,7 @@ describe('explicit state, never a toggle', () => {
     const seen: boolean[] = [];
     const performer: TakePerformer = {
       restoreBaseline: () => undefined,
+      advanceTo: () => undefined,
       recallLook: () => undefined,
       startMorph: () => undefined,
       setFreeze: (on) => seen.push(on),

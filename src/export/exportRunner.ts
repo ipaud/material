@@ -309,6 +309,9 @@ export function createFrameEvaluator(
         takeLayerEnabled.set(id, enabled);
       }
     },
+    // Export needs no clock nudge: a virtual morph retires itself when the
+    // frame loop passes its end and sets `applied`.
+    advanceTo: () => undefined,
     recallLook: (lookId) => applyLookToWorking(lookById.get(lookId)),
     startMorph: (lookId, atComposition, spec: TakeMorphSpec) => {
       const look = lookById.get(lookId);

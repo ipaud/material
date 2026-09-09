@@ -57,6 +57,13 @@ export const livePerformer: TakePerformer = {
     morphRuntime.abortSilently();
   },
 
+  advanceTo(compositionSec: number): void {
+    // The morph runtime is the only Take-controlled state that finishes by
+    // time passing rather than by an event. Ticking it here is what retires a
+    // morph a seek re-created — see TakePerformer.advanceTo.
+    morphRuntime.tick(compositionSec);
+  },
+
   recallLook(lookId: string): void {
     silently(() => applyLook(lookId));
   },
