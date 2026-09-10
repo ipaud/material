@@ -1,5 +1,49 @@
 # Release Notes
 
+## v0.8.2 — INTERRUPTING A MORPH NO LONGER JUMPS
+
+Start a morph, change your mind halfway, morph somewhere else. Until now the
+picture **snapped back to where the first morph began** before setting off
+again — measured at 5.62 to 2.00 in a single frame on a two-second morph
+interrupted at its halfway point.
+
+Changing your mind mid-morph is the most ordinary live gesture there is, so
+this was never an edge case. It happened every time.
+
+The cause: morph state deliberately lives in an overlay and never touches the
+saved document until it completes, but an interrupting morph took the
+*document* as its starting point — the state from before the morph you were
+watching. It now starts from what is on screen, which is what `cancel and keep`
+has always committed.
+
+### And export was inventing morphs preview cannot make
+
+Preview holds exactly one morph; starting another replaces it. Export kept a
+list where every morph ran to its own end and applied its result, so overlapping
+morphs rendered something you could never have seen while performing. With a
+trigger firing four times per morph the two disagreed by 2.9.
+
+Export now holds one at a time too. An interrupted morph is cut short and does
+**not** apply its target, because it never got there.
+
+### What this changes for you
+
+If a trigger fires morphs faster than they finish, the value now climbs toward
+the Look forever without arriving — each morph only gets part of the way before
+the next replaces it. That is what you asked for. Export reaching the Look and
+holding was the bug.
+
+### How these were found
+
+By differencing preview against export directly: sampling the live parameter
+while the transport plays, running the real export evaluator over the same
+span, and subtracting. Three morph faults had survived since v0.3 with a fully
+green suite, because each side was self-consistent and nothing compared them to
+each other.
+
+Worst disagreements: 7.0 → 0.13, 7.0 → 0.06, and a 3.6 single-frame snap →
+0.002. The method is written down in `docs/GPU_TESTING.md`.
+
 ## v0.8.1 — A FINISHED MORPH SETTLES FIRST
 
 One fix, and it changes what some projects render.

@@ -290,7 +290,7 @@ describe('release gates (18G)', () => {
     // v0.8.1 fixes a preview/export divergence in repeating morph triggers.
     // Rendered output changes for projects that use one, which is exactly why
     // it gets a version someone can point at.
-    expect(pkg.version).toBe('0.8.1');
+    expect(pkg.version).toBe('0.8.2');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(5);
   });
