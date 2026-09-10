@@ -277,6 +277,23 @@ export function createFrameEvaluator(
       });
     },
   };
+  /**
+   * Commit every virtual morph whose window has closed.
+   *
+   * Split out of the per-frame loop so it can run BEFORE the trigger
+   * scheduler: a trigger firing at a morph's end instant has to see the state
+   * the morph arrived at, not the one it left.
+   */
+  const settleFinishedMorphs = (timeSec: number): void => {
+    virtualMorphs.sort((a, b) => a.startTime - b.startTime);
+    for (const vm of virtualMorphs) {
+      if (!vm.applied && timeSec >= vm.endTime) {
+        applyCoreToWorking(vm.target);
+        vm.applied = true;
+      }
+    }
+  };
+
   const scheduler = new TriggerScheduler(virtualTarget);
   scheduler.reset(startSec);
 
@@ -364,6 +381,11 @@ export function createFrameEvaluator(
     transition: ExportTransition | null;
   } => {
     const timeSec = compositionTimeAt(startSec, fps, frameIndex);
+    // A morph that has REACHED ITS END settles into the working copy before
+    // anything else at this instant — the same invariant `morphRuntime.start`
+    // enforces for preview. Without it a trigger firing at a morph's end
+    // captured the state the morph LEFT rather than the one it arrived at.
+    settleFinishedMorphs(timeSec);
     scheduler.advanceTo(timeSec, working.triggers, triggerCtx);
     if (take) {
       // Crossings, not reconstruction: the export walks time forwards from

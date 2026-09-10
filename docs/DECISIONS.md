@@ -1156,3 +1156,30 @@ that — never raw CPU float readbacks of live class targets).
   carrying a recorded performance instead of loading it and silently stripping
   the performance as an unknown key. A refused version is a fixable message; a
   dropped performance is not.
+
+## v0.8.1 — a finished morph settles first
+
+- **ADR — a morph that has reached its end commits before anything replaces
+  it.** Measured, not reasoned: a `bar`-sourced `morphToLook` trigger over a
+  one-bar duration at 120 BPM diverged between preview and export by 7.0 on a
+  parameter whose whole range is 0.2 to 6. Preview sawtoothed forever; export
+  arrived at the target and held. Two different pictures from one project.
+- **ADR — the invariant lives in `morphRuntime.start`, not in the tick
+  order.** The playback tick fires triggers before it ticks the morph runtime,
+  so a morph whose end coincided with the next trigger was destroyed at the
+  exact instant it finished and never committed. Swapping those two lines would
+  have fixed this caller; putting the guarantee in `start` fixes every caller,
+  and a morph can be started from a MIDI note, a pad, a Take replay or the
+  Looks panel.
+- **ADR — export settles finished virtual morphs before the scheduler.** The
+  mirror image of the same fault: the frame loop applied a finished morph's
+  target *after* running the trigger scheduler, so a trigger firing at that
+  instant captured `workingCore()` while the finished morph was still pending
+  and started the next one from the state before it.
+- **ADR — the two were found by comparing preview against export directly.**
+  Neither side is wrong on its own terms and neither had a failing test. The
+  divergence only exists between them, which is why the measurement was the
+  whole job: sample the live parameter at 25 Hz across eleven seconds, run the
+  real export evaluator over the same span, and difference them. Worst
+  disagreement went from 7.0 to 0.117, and the residual is the live sampler
+  landing between frames on a steep ramp.

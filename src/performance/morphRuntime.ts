@@ -144,6 +144,24 @@ class MorphRuntime {
     atTime = playback.getTime(),
   ): boolean {
     if (blockedByExport('Morph')) return false;
+    // A morph that has REACHED ITS END commits before anything replaces it.
+    //
+    // Without this, a repeating trigger — "morph to Look 2 every bar", over one
+    // bar — destroyed each morph at the exact instant it finished, because the
+    // playback tick fires triggers before it ticks the morph runtime. Nothing
+    // ever reached the document, so every new morph started from the original
+    // state and the picture sawtoothed forever.
+    //
+    // Measured against export on a bar trigger at 120 BPM: the two diverged by
+    // 7.0 on a parameter whose whole range is 0.2 to 6 — not a drift, two
+    // different pictures.
+    //
+    // The invariant belongs here rather than in the tick order, because a morph
+    // can be started from a MIDI note, a pad, a Take replay or the Looks panel,
+    // and all of them deserve the same guarantee.
+    if (this.active !== null && (this.progressAt(atTime) ?? 0) >= 1) {
+      this.complete(atTime);
+    }
     const { project } = useProjectStore.getState();
     const look = project.pinnedLooks.find((l) => l.id === targetLookId);
     const source = captureLookCore(project);
