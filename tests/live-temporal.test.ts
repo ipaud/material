@@ -287,7 +287,10 @@ describe('release gates (18G)', () => {
     // v0.8 makes a project portable — relative media paths, collect, relink
     // all. Paths are strings either way, so the format stays at 5 and a v0.7
     // project written with absolute paths opens unchanged.
-    expect(pkg.version).toBe('0.8.0');
+    // v0.8.1 fixes a preview/export divergence in repeating morph triggers.
+    // Rendered output changes for projects that use one, which is exactly why
+    // it gets a version someone can point at.
+    expect(pkg.version).toBe('0.8.1');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(5);
   });

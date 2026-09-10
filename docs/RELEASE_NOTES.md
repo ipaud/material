@@ -1,5 +1,42 @@
 # Release Notes
 
+## v0.8.1 — A FINISHED MORPH SETTLES FIRST
+
+One fix, and it changes what some projects render.
+
+If you have a trigger that morphs to a Look on a repeating beat or bar,
+**preview and export were showing you two different pictures.** Preview
+sawtoothed forever — climbing toward the Look, snapping back, climbing again —
+while export arrived at the Look and stayed there. On a parameter whose whole
+range is 0.2 to 6, the two disagreed by 7.0.
+
+Both sides had the same fault, mirrored. The playback tick fires triggers
+before it advances the morph runtime, so a morph whose end landed on the next
+trigger was destroyed at the exact instant it finished and never committed —
+every new morph then started over from the original state. Export applied a
+finished morph's result *after* running its trigger scheduler, so a trigger
+firing at that instant saw the state the morph left rather than the one it
+arrived at.
+
+A morph that has reached its end now settles before anything replaces it, on
+both sides. Preview and export agree to the sampling resolution.
+
+The guarantee lives in the morph runtime rather than in the playback tick,
+because a morph can be started from a MIDI note, a pad, a Take replay or the
+Looks panel, and all of them deserve it.
+
+### If you use a repeating morph trigger
+
+Your exports will change, and they will now match what you see. Nothing else
+does.
+
+### Known, measured, not yet fixed
+
+A morph **interrupted before it finishes** restarts from the saved document
+rather than from what is on screen, and preview and export disagree about the
+result by the same 7.0. That is a different fault with a semantic decision
+attached — see `docs/BACKLOG.md`.
+
 ## v0.8.0 — A SHOW THAT TRAVELS
 
 A MATERIAL project could not leave the machine it was made on. Media paths were
