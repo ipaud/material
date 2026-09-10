@@ -271,8 +271,29 @@ remains, and is deliberately not built:
   where every sample reverses direction takes ~7 s once, at record stop; a real
   ten-minute six-lane performance simplifies in well under a second. Not worth
   an interval tree until a real gesture provokes it.
-- `liveTarget.morphToLook` writes a `morphEvent` for a DETERMINISTIC trigger
-  morph, which the export also re-creates from the trigger itself. Benign
-  today — the duplicate interpolates from its own target, so it is visually a
-  no-op — and pre-dates v0.7. `ActiveMorph.record` is the mechanism that would
-  fix it.
+- ~~`liveTarget.morphToLook` writes a `morphEvent` for a DETERMINISTIC trigger
+  morph, which the export also re-creates from the trigger itself.~~
+  **Checked, and it is harmless.** Measured with a `bar` trigger and a
+  recorded event over the same window: the parameter path is identical either
+  way (2 → 2.875 → 5.5 → 8.125 → 9, monotonic, no backwards step), because both
+  virtual morphs interpolate between the same two states. They do not fight
+  over the transition either — the trigger-created one carries
+  `DEFAULT_MORPH_TRANSITION`, which is Smooth, and Smooth opens no pixel
+  window, so only the recorded event's style ever reaches a frame. The original
+  note called it benign without checking; the conclusion was right and the
+  reasoning in it was not.
+
+- **A repeating deterministic morph trigger sawtooths, and it is not clear that
+  is wrong.** A `bar`-sourced `morphToLook` fires every bar. In export each
+  firing captures `workingCore()` *before* the previous morph is applied in the
+  same frame, so the state snaps back to the original and climbs again:
+  2 → 9 over one bar, then 2 → 9 again. Live has the same shape for a different
+  reason — `morphRuntime.start` replaces the active morph, so the previous one
+  never commits and the new one captures the uncommitted document.
+
+  So preview and export probably agree, which is why this is a note and not a
+  bug. What is unverified is whether they agree *exactly*, and whether the
+  sawtooth is what anyone wants from "morph to Look 2 every bar". Worth
+  measuring against a real preview before changing anything: moving the applied
+  pass above `scheduler.advanceTo` would settle the state first, and would also
+  change the output of every existing project that uses such a trigger.
