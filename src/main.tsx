@@ -30,7 +30,11 @@ import * as layerActions from './projects/layerActions';
 import { getTechnique, listTechniques } from './techniques/registry';
 import { GeneratorSource } from './sources/generators/GeneratorSource';
 import { playback } from './playback/PlaybackController';
-import { createFrameEvaluator, runAnimationExport } from './export/exportRunner';
+import {
+  createFrameEvaluator,
+  createSecondaryLayerEvaluator,
+  runAnimationExport,
+} from './export/exportRunner';
 import { useExportStore } from './state/exportStore';
 import * as presetActions from './projects/presetActions';
 import { analyzeBuffer, sampleTrack } from './audio/analysis';
@@ -646,6 +650,7 @@ if (import.meta.env.DEV) {
       scopeStore: useScopeStore,
       playback,
       createFrameEvaluator,
+      createSecondaryLayerEvaluator,
       useExportStore,
       presetActions,
       analyzeBuffer,

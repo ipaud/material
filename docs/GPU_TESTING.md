@@ -471,8 +471,31 @@ worst |export − live|   before      after
 sampler landing between frames, not a divergence — check that it collapses to
 0.0000 outside the ramp before believing it is jitter.
 
+**Use ABSOLUTE composition time on both sides.** Taking a relative origin after
+the transport has already started shifts every live timestamp by however long
+the harness slept, and the symptom looks exactly like a bug: every STEP appears
+to fire early in preview by a constant amount. It cost a false positive on the
+Take pass — a 0.5 disagreement on a parameter and four `layer.enable`
+mismatches, all of which vanished when the origin was removed. A constant lead
+on steps, rather than symmetric noise on ramps, is the tell that the harness is
+wrong and not the app.
+
+**Expect one mismatch per discrete event.** Matching each export frame to the
+nearest live sample straddles a step: the export frame at the event time pairs
+with a live sample from a few milliseconds before it, where the event correctly
+had not fired yet. One mismatch per event is the matcher, not the app.
+
 **What makes a case worth differencing:** anything where preview keeps runtime
 state that export models differently. Morphs were the obvious one — preview has
 a single `active`, export had a list. Feedback, temporal history and calibration
 all have the same shape and are already covered by the export's own preroll
-gates; the ones without a gate are where to look next.
+gates.
+
+**Takes were differenced and are clean.** The signature fixture — four lanes,
+all five event kinds, a macro fanning out, and a `beat` modulation — agrees to
+**0.0000 wherever nothing is ramping**, across the primary layer's parameters
+and both secondary opacities. The reason is structural rather than lucky: a
+Take's two sides share one canonical evaluator, substitute at the same base
+seam, and dispatch through one `TakePerformer` shape. Morphs had two
+independently written models, which is exactly why they had three faults and
+Takes had none.
