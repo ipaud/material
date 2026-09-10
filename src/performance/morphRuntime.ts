@@ -164,11 +164,29 @@ class MorphRuntime {
     }
     const { project } = useProjectStore.getState();
     const look = project.pinnedLooks.find((l) => l.id === targetLookId);
-    const source = captureLookCore(project);
-    if (!look || !source) return false;
+    const document = captureLookCore(project);
+    if (!look || !document) return false;
     const { bpm, beatOffsetSec, beatsPerBar } = project.timeline;
     const startTime = nextBoundary(atTime, options.startQuantize, bpm, beatOffsetSec, beatsPerBar);
     const endTime = startTime + this.resolveDurationSec(options.duration);
+    /**
+     * A morph that INTERRUPTS another starts from what is on screen.
+     *
+     * The document is the wrong source while a morph is in flight: numeric
+     * state deliberately lives in the overlay and never touches the document
+     * until commit, so taking the document meant the picture snapped back to
+     * where the interrupted morph began. Measured on a plain two-second morph
+     * interrupted by hand at the halfway point: the value fell 5.62 to 2.00 in
+     * one frame, then climbed toward the new target. Changing your mind
+     * mid-morph is the most ordinary live gesture there is.
+     *
+     * Resolved at `startTime`, not at `atTime`, because a quantized morph
+     * begins at the next boundary and the outgoing one keeps running until
+     * then. `cancelKeep` already commits `resolveOverlay` for the same reason:
+     * the overlay is the state a performer would say they are looking at.
+     */
+    const source =
+      this.active !== null ? (this.resolveOverlay(startTime) ?? document) : document;
     this.active = {
       targetLookId,
       targetLabel: look.label,

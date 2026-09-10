@@ -1183,3 +1183,35 @@ that — never raw CPU float readbacks of live class targets).
   real export evaluator over the same span, and difference them. Worst
   disagreement went from 7.0 to 0.117, and the residual is the live sampler
   landing between frames on a steep ramp.
+
+## v0.8.2 — one morph at a time, starting from the screen
+
+- **ADR — a morph that interrupts another starts from the OVERLAY, not the
+  document.** Numeric morph state deliberately lives in the overlay and never
+  touches the document until commit, so taking the document as the source of an
+  interrupting morph snapped the picture back to where the interrupted one
+  began. Measured on a plain two-second morph interrupted by hand at the
+  halfway point: 5.62 to 2.00 in a single frame. Changing your mind mid-morph
+  is the most ordinary live gesture there is, so this was never an edge case.
+  `cancelKeep` already commits `resolveOverlay` for the same reason.
+- **ADR — resolved at `startTime`, not at `atTime`.** A quantized morph begins
+  at the next musical boundary and the outgoing one keeps running until then,
+  so the source is what will be on screen when the new morph actually starts.
+- **ADR — export holds ONE morph at a time, because preview can only hold
+  one.** `morphRuntime` keeps a single `active` morph that a new one replaces;
+  export kept a list where every entry lived to its own end and applied its
+  target. Overlapping virtual morphs produced a picture preview cannot make —
+  measured at 2.9 apart with a beat trigger and one-bar morphs. An interrupted
+  virtual morph is now truncated and marked applied WITHOUT taking its target,
+  because it never got there. That is precisely what being replaced means.
+- **ADR — the asymptote is the correct answer, not a bug.** With a trigger
+  firing four times per morph, each one only gets a quarter of the way before
+  the next replaces it, so the value climbs toward the target forever without
+  arriving. Export reaching the target and holding was the artefact; the
+  approach is what was asked for.
+- **ADR — all three morph faults were found by differencing preview against
+  export, and none had a failing test.** Neither side is wrong on its own
+  terms. The method is now written down in `docs/GPU_TESTING.md`: sample the
+  live parameter at 25 Hz across ten seconds, run the real export evaluator
+  over the same span, and difference them. Worst disagreements went 7.0 → 0.13,
+  7.0 → 0.06, and a 3.6 single-frame snap → 0.002.

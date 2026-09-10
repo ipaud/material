@@ -265,38 +265,6 @@ remains, and is deliberately not built:
   also the first step toward quantised editing, which v0.7 deliberately does
   not have.
 
-**An interrupted morph restarts from the document, not from the screen — and
-preview and export disagree about the result**
-
-Measured, not suspected. A `beat`-sourced `morphToLook` at 120 BPM fires every
-0.5s while the morph itself lasts one bar, so each one interrupts the last at
-25%:
-
-| t | export | preview |
-|---|---|---|
-| 3.0 | 5.5 | 2.000 |
-| 4.0 | 9 | 2.845 |
-| 6.0 | 9 | 2.000 |
-
-Worst disagreement 7.0, on a parameter whose whole range is 0.2 to 6. Preview
-never arrives anywhere — it flutters between 2 and 2.87 forever.
-
-Root cause is NOT the ordering fixed in v0.8.1. `morphRuntime.start` takes its
-source from `captureLookCore(project)` — the DOCUMENT — but while a morph is in
-flight the visible state is the overlay, which never touched the document. So
-interrupting a morph snaps the source back to where the previous one began.
-Export's `virtualTarget.morphToLook` has the same fault with `workingCore()`.
-
-The codebase already knows the right answer elsewhere: `cancelKeep` commits
-`resolveOverlay(atTime)`, i.e. what is on screen. An interrupting morph almost
-certainly wants the same source.
-
-Not fixed yet because it is a semantic change to a core creative feature, not
-an ordering bug: it alters what every interrupted morph does, needs the same
-change on both sides to keep them agreeing, and needs re-measuring against the
-normal cases (morph to completion, Take-replayed morph, cancel-and-keep) before
-it can be trusted.
-
 **Known debt**
 
 - `simplifyLane` is O(n^2) in the worst case. A pathological ten-minute lane

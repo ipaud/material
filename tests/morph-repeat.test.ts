@@ -153,6 +153,69 @@ describe('the settle-before-scheduler order is still deterministic', () => {
   });
 });
 
+describe('a morph that interrupts another starts from what is on screen', () => {
+  // A `beat` trigger at 120 BPM fires every 0.5s while the morph itself lasts
+  // one bar, so each one interrupts the last at 25%.
+  const beatTrigger: TriggerMapping = { ...everyBar, source: 'beat' };
+
+  function interruptingPath(fps: number, seconds: number) {
+    const p = project();
+    useProjectStore.setState({
+      project: { ...p, triggers: [beatTrigger] },
+      past: [],
+      future: [],
+      dirty: false,
+    });
+    const evaluate = createFrameEvaluator(0, fps);
+    const out: { t: number; scale: number }[] = [];
+    for (let f = 0; f <= seconds * fps; f++) {
+      const frame = evaluate(f);
+      out.push({ t: Number(frame.timeSec.toFixed(4)), scale: Number(frame.params.scale) });
+    }
+    return out;
+  }
+
+  it('climbs continuously instead of snapping back to the document', () => {
+    // The document is 2. Before the fix each interrupting morph took the
+    // document as its source, so the value fell back to 2 every 0.5s.
+    const rows = interruptingPath(30, 8);
+    const moving = rows.filter((r) => r.t >= 1);
+    for (let i = 1; i < moving.length; i++) {
+      const drop = moving[i - 1]!.scale - moving[i]!.scale;
+      expect(drop, `t=${moving[i]!.t}`).toBeLessThan(0.05);
+    }
+  });
+
+  it('approaches the target without ever arriving, which is what was asked for', () => {
+    // Each morph only gets a quarter of the way before the next replaces it.
+    // Climbing forever toward 9 is the honest consequence; reaching 9 and
+    // holding was export modelling overlapping morphs preview cannot make.
+    const rows = interruptingPath(30, 8);
+    expect(at(rows, 2)).toBeGreaterThan(3);
+    expect(at(rows, 4)).toBeGreaterThan(at(rows, 2)!);
+    expect(at(rows, 8)).toBeGreaterThan(at(rows, 4)!);
+    expect(at(rows, 8)).toBeLessThan(9);
+  });
+
+  it('holds only one morph at a time, as preview does', () => {
+    // Structural: an interrupted virtual morph is truncated and marked
+    // applied WITHOUT taking its target, because it never got there. Two
+    // overlapping virtual morphs would render something preview cannot.
+    const src = readFileSync(resolve(process.cwd(), 'src/export/exportRunner.ts'), 'utf8');
+    expect(src).toMatch(/PREVIEW CAN ONLY HOLD ONE MORPH/);
+    expect(src).toMatch(/vm\.endTime = atTime;\s*\n\s*vm\.applied = true;/);
+  });
+
+  it('stays deterministic and frame-rate independent while overlapping', () => {
+    const golden = JSON.stringify(interruptingPath(30, 6));
+    for (let i = 0; i < 4; i++) expect(JSON.stringify(interruptingPath(30, 6))).toBe(golden);
+    for (const t of [1, 2, 4, 6]) {
+      const values = [24, 25, 30, 60].map((fps) => at(interruptingPath(fps, 6), t));
+      expect(new Set(values).size, `t=${t} → ${values.join(', ')}`).toBe(1);
+    }
+  });
+});
+
 describe('preview enforces the same invariant', () => {
   it('a finished morph is completed before a new one replaces it', () => {
     // Structural: the guarantee lives in morphRuntime, not in one caller's
@@ -162,5 +225,13 @@ describe('preview enforces the same invariant', () => {
     const start = src.slice(src.indexOf('  start('), src.indexOf('  progressAt('));
     expect(start).toMatch(/this\.active !== null && \(this\.progressAt\(atTime\) \?\? 0\) >= 1/);
     expect(start).toMatch(/this\.complete\(atTime\)/);
+  });
+
+  it('an interrupting morph takes the overlay as its source, not the document', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/performance/morphRuntime.ts'), 'utf8');
+    const start = src.slice(src.indexOf('  start('), src.indexOf('  progressAt('));
+    // Resolved at startTime, not atTime: a quantized morph begins at the next
+    // boundary and the outgoing one keeps running until then.
+    expect(start).toMatch(/this\.active !== null \? \(this\.resolveOverlay\(startTime\) \?\? document\)/);
   });
 });

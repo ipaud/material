@@ -264,11 +264,37 @@ export function createFrameEvaluator(
       if (!look) return;
       const { bpm, beatsPerBar } = project.timeline;
       const barSec = bpm && bpm > 0 ? (60 / bpm) * beatsPerBar : 2;
+      // A morph that INTERRUPTS another starts from what the frame would have
+      // shown, not from the working copy — the same rule `morphRuntime.start`
+      // follows for preview. The working copy has not taken the in-flight
+      // morph's result yet, so using it snapped the source back to where the
+      // interrupted morph began.
+      const source = coreInFlightAt(atTime) ?? workingCore();
+      /**
+       * PREVIEW CAN ONLY HOLD ONE MORPH, so export must not hold more.
+       *
+       * `morphRuntime` keeps a single `active` morph and a new one replaces
+       * it. Export kept a LIST, and every entry lived to its own end and
+       * applied its target — so overlapping morphs produced a picture preview
+       * cannot make. Measured with a beat trigger and one-bar morphs: export
+       * reached the target and held while preview climbed asymptotically and
+       * never arrived, disagreeing by 2.9.
+       *
+       * An interrupted morph is truncated here and marked applied WITHOUT
+       * taking its target, because it never got there. That is exactly what
+       * being replaced means in preview.
+       */
+      for (const vm of virtualMorphs) {
+        if (!vm.applied && atTime > vm.startTime && atTime < vm.endTime) {
+          vm.endTime = atTime;
+          vm.applied = true;
+        }
+      }
       virtualMorphs.push({
         startTime: atTime,
         endTime: atTime + barSec,
         curve: 'easeInOut',
-        source: workingCore(),
+        source,
         target: lookToCore(look),
         applied: false,
         // A trigger-launched morph carries no recorded style (it never
@@ -284,6 +310,27 @@ export function createFrameEvaluator(
    * scheduler: a trigger firing at a morph's end instant has to see the state
    * the morph arrived at, not the one it left.
    */
+  /**
+   * The interpolated core of whichever virtual morph covers this instant, or
+   * null when none does. Latest-started wins, matching the frame loop, which
+   * lets the last one in the list overwrite `overlay`.
+   */
+  const coreInFlightAt = (timeSec: number): LookCore | null => {
+    let found: LookCore | null = null;
+    for (const vm of [...virtualMorphs].sort((a, b) => a.startTime - b.startTime)) {
+      if (timeSec < vm.startTime || timeSec >= vm.endTime) continue;
+      const raw = (timeSec - vm.startTime) / Math.max(vm.endTime - vm.startTime, 1e-6);
+      const eased = morphCurve(raw, vm.curve);
+      found = interpolateLookCore(
+        vm.source,
+        vm.target,
+        eased,
+        switchPoint(vm.transition.style !== 'smooth'),
+      ).core;
+    }
+    return found;
+  };
+
   const settleFinishedMorphs = (timeSec: number): void => {
     virtualMorphs.sort((a, b) => a.startTime - b.startTime);
     for (const vm of virtualMorphs) {

@@ -447,3 +447,32 @@ state DESTROYS that state. A 76-second recorded performance was lost this way,
 mid-session, and the loss was silent: the next probe simply read a different
 project. **Save the project to disk before touching source, or do not touch
 source while holding anything you would mind losing.**
+
+
+## Differencing preview against export
+
+Three morph faults shipped across v0.3–v0.8 with a full green suite, because
+each side was self-consistent and nothing compared them to each other. Neither
+had a failing test; the divergence only existed *between* them.
+
+**The method.** Sample the live resolved parameter at ~25 Hz while the
+transport plays, run the real `createFrameEvaluator` over the same composition
+span, then match each export frame to the nearest live sample within 25 ms and
+take the worst absolute difference.
+
+```
+worst |export − live|   before      after
+  finished morph replaced    7.0      0.13
+  interrupted morph          7.0      0.06
+  manual interruption   3.6 (snap)   0.002
+```
+
+**Read the residual.** A non-zero worst difference on a steep ramp is the live
+sampler landing between frames, not a divergence — check that it collapses to
+0.0000 outside the ramp before believing it is jitter.
+
+**What makes a case worth differencing:** anything where preview keeps runtime
+state that export models differently. Morphs were the obvious one — preview has
+a single `active`, export had a list. Feedback, temporal history and calibration
+all have the same shape and are already covered by the export's own preroll
+gates; the ones without a gate are where to look next.
