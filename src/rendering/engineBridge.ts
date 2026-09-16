@@ -570,6 +570,49 @@ function configureModulation(): void {
 }
 
 /** Connect stores to the render engine. Returns a cleanup function. */
+/**
+ * v0.8.3 — let an EXPORT follow a Look that changes what a layer is made of.
+ *
+ * The export evaluator keeps its own working copy of the project and never
+ * touches the store, which is exactly right for parameters — and exactly wrong
+ * for layer sources, because the bridge only ever reconciles sources from the
+ * store. A Look recalled mid-export that pointed a layer at a different
+ * generator changed the mosaic parameters and left the picture on the old
+ * generator. Measured on a piece whose three Looks were three Chladni plates:
+ * preview showed three figures, export showed one figure dressed three ways.
+ *
+ * So the export hands its working stack here and the SAME `syncLayerSource`
+ * the store path uses reconciles it, memo and all — which is what keeps the
+ * bridge's memory of what it configured truthful through the export.
+ *
+ * Generator sources only. A file or live source cannot be swapped inside a
+ * synchronous frame loop; a Look that asks for one is left where it was and
+ * the limitation is written down in docs/EXPORT_PIPELINE.md.
+ */
+export function syncLayersForExport(project: Project): void {
+  const selectedId = project.selectedLayerId ?? project.layers[0]?.id ?? null;
+  const rendered = new Set(renderedLayers(project.layers).map((l) => l.id));
+  engine.syncLayers(
+    project.layers.map((l) => ({
+      id: l.id,
+      enabled: rendered.has(l.id),
+      opacity: l.opacity,
+      blendMode: l.blendMode,
+      selected: l.id === selectedId,
+    })),
+  );
+  for (const layer of project.layers) {
+    const source = findSource(project, layer.sourceId);
+    if (source && source.kind !== 'generator') continue;
+    syncLayerSource(project, layer, null, null);
+  }
+}
+
+/** After an export: put every layer back to what the DOCUMENT says. */
+export function resyncFromStore(): void {
+  syncFromProject();
+}
+
 export function startEngineBridge(): () => void {
   const unsubProject = useProjectStore.subscribe(syncFromProject);
   let lastCameraLive = false;

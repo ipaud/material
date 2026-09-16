@@ -17,6 +17,8 @@ import { applyPulses } from '@/signals/pulseEngine';
 import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
 import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
+import { projectWithLayerLooks } from '@/performance/layerLook';
+import { resyncFromStore, syncLayersForExport } from '@/rendering/engineBridge';
 import { revealProgress, switchPoint } from '@/performance/transitionWindow';
 import { visualDemand } from '@/signals/visual/demand';
 import { CALIBRATION_PREROLL_SEC } from '@/signals/visual/calibration';
@@ -34,6 +36,7 @@ import { lookToCore } from '@/performance/lookCore';
 import { applyMacros } from '@/performance/macros';
 import { DEFAULT_MORPH_TRANSITION, isFileSource } from '@shared/schemas/project';
 import type {
+  Layer,
   LookCore,
   ModulationMapping,
   MorphCurve,
@@ -118,6 +121,17 @@ export function createFrameEvaluator(
     seed: number;
     looks: PinnedLook[];
     lookIndex: number;
+    /**
+     * v0.8.3 — the LAYER STACK, because a Look changes it too.
+     *
+     * v0.6D made a Look recall restore the whole composition — which layers
+     * exist, what each is made of, how it blends — and preview has followed
+     * that ever since. Export only ever applied the primary layer's core, so
+     * a Look that pointed a layer at a different generator changed its
+     * parameters and left the picture on the old source. This is the same
+     * `Layer[]` the store holds, advanced by the same `projectWithLayerLooks`.
+     */
+    layers: Layer[];
   } = {
     techniqueId: selectedLayerOf(project).technique?.techniqueId ?? null,
     params: { ...(selectedLayerOf(project).technique?.params ?? {}) },
@@ -127,6 +141,7 @@ export function createFrameEvaluator(
     seed: project.explore.lastSeed ?? 1,
     looks: project.pinnedLooks,
     lookIndex: -1,
+    layers: project.layers.map((l) => ({ ...l })),
   };
 
   const sourceCtx: SourceContext = {
@@ -197,6 +212,9 @@ export function createFrameEvaluator(
 
   const applyLookToWorking = (look: PinnedLook | undefined) => {
     if (!look) return;
+    // The stack first, then the core — the order `applyLook` uses live, so
+    // the core lands on the layer the Look says is selected.
+    working.layers = projectWithLayerLooks({ ...project, layers: working.layers }, look).layers;
     applyCoreToWorking(lookToCore(look));
   };
 
@@ -533,6 +551,8 @@ export function createFrameEvaluator(
    * those the performer actually did.
    */
   evaluateFrame.layerEnabled = (): ReadonlyMap<string, boolean> => takeLayerEnabled;
+  /** The composition as the working copy currently has it — sources included. */
+  evaluateFrame.layerStack = (): readonly Layer[] => working.layers;
   return evaluateFrame;
 }
 
@@ -874,12 +894,15 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     // v0.6B — each layer's own pixels, calibrated to that layer's own origin.
     // Two layers on one source share an origin key, so they share one envelope
     // and a Look stays playable across both.
-    const layerOrigins = new Map(
-      project0.layers.map((l) => [
-        l.id,
-        pixelOriginKey(project0.sources.find((s) => s.id === l.sourceId) ?? null),
-      ]),
-    );
+    const originsOf = (layers: readonly Layer[]): Map<string, string | null> =>
+      new Map(
+        layers.map((l) => [
+          l.id,
+          pixelOriginKey(project0.sources.find((s) => s.id === l.sourceId) ?? null),
+        ]),
+      );
+    // v0.8.3: rebuilt by followStack when a Look moves a layer to another source.
+    let layerOrigins = originsOf(project0.layers);
     const visualFor = (layerId: string): Record<string, number> => {
       // Until the canonical walk starts feeding it, a layer's analysis still
       // holds whatever the PREVIEW left there. Publishing that would make the
@@ -916,6 +939,19 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     const startFrame = Math.round(request.startSec * request.fps);
     let primeTemporal = true;
     let prerolled = false;
+    /**
+     * v0.8.3 — follow the stack. `layerStack()` returns the same array object
+     * until a Look recall replaces it, so identity is the cheapest possible
+     * "did anything change" and the bridge is asked only on those frames.
+     */
+    let syncedStack: readonly Layer[] = evaluate.layerStack();
+    const followStack = (): void => {
+      const stack = evaluate.layerStack();
+      if (stack === syncedStack) return;
+      syncedStack = stack;
+      layerOrigins = originsOf(stack);
+      syncLayersForExport({ ...project0, layers: [...stack] });
+    };
 
     /**
      * v0.4A: visual-signal CALIBRATION is history-dependent too, but unlike
@@ -956,6 +992,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         prerollLayers.set(selectedLayerOf(project0).id, frame.params);
         engine.setAuthorityLayerParams(prerollLayers);
         engine.setAuthorityLayerEnabled(evaluate.layerEnabled());
+        followStack();
         rendererSync.sync(frame.techniqueId, frame.params);
         engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
         engine.prepareFlowForExport(
@@ -1001,6 +1038,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       engine.setAuthorityLayerParams(layerParams);
       engine.setAuthorityLayerOpacity(evaluateLayers.opacityAt(timeSec));
       engine.setAuthorityLayerEnabled(evaluate.layerEnabled());
+      followStack();
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       // CE1H: optical flow is a source-derived pair and must advance per
@@ -1078,6 +1116,10 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     // it; the store/bridge were never touched, so this is the only state to
     // hand back.
     rendererSync.restore(liveInstance?.techniqueId ?? null, liveInstance?.params ?? {});
+    // The export may have walked the layer stack through several Looks; the
+    // bridge's memo now describes the LAST of them. Put every layer back to
+    // what the document says, through the same path the store uses.
+    resyncFromStore();
     engine.invalidate();
   }
 }
