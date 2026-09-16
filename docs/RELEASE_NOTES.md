@@ -1,5 +1,31 @@
 # Release Notes
 
+## v0.8.4 — EVERY LAYER'S HISTORY EXPORTS
+
+Two more found by the same piece, after v0.8.3 made the preview truthful.
+
+### A temporal technique on a non-selected layer never exported real history
+
+The export asked the *selected* layer whether temporal history was needed.
+With a mosaic selected and an Echo on the trail layer, the answer was no, and
+the Echo's frame atlas was never written during the export — it sampled
+whatever the preview had last left in it, every frame, deterministically.
+v0.6.1 fixed exactly this for feedback and left temporal on the old
+predicate. The set-wide one had existed, unused, since v0.6. Echo, slit-scan,
+step-print, time-field and temporal mosaic on any layer but the selected one
+now rebuild their history from exact seeks like the selected layer always
+did. Rendered output changes for every project that had one.
+
+### A generator param the record omits takes its definition default
+
+A voronoi written without `contrast` fed that uniform 0 and rendered a flat
+0.5. The definition's default is 1. The dark preview of the time hid it.
+
+### v0.8.3's version gate
+
+v0.8.3 was tagged with the app-version test still pinned to 0.8.2 — the bump
+came after the last full run. It is correct at 0.8.4; the tag stands.
+
 ## v0.8.3 — THE PREVIEW SHOWS WHAT THE EXPORT WRITES
 
 Three faults, all found by making a piece and comparing what was on screen

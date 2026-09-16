@@ -156,6 +156,17 @@ the host answered "no" while layer 3 ran Feedback Zoom, so the preroll was
 skipped, `prerolled` was still set, the first real frame declared itself
 not-first, and every export inherited the previous one's history.
 
+**v0.8.4 — the temporal gate was still the selected layer's.** The feedback
+gate took `exportRequirements()` in v0.6.1; the temporal one kept asking
+`selectedRuntime.isTemporalActive`. A secondary Echo's atlas was therefore
+never written during an export — `filled 0, seeks 0` for a whole run — and
+the technique sampled whatever the preview had last left in it, frame after
+frame, deterministically. Found because the leftover frames happened to be a
+transition the preview no longer showed. `isTemporalActiveAnywhere` had
+existed, unused, since v0.6. Any temporal technique (echo, slit-scan,
+step-print, time-field, mosaic-temporal) on a non-selected layer exported
+wrongly before v0.8.4.
+
 **Regression fixture, permanent:** four layers where the stateful technique is
 on a layer that is *not* selected, for feedback, simulation and motion. Each
 must repeat byte-identically and match full-vs-subrange. All three are 12/12

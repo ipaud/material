@@ -290,7 +290,11 @@ describe('release gates (18G)', () => {
     // v0.8.1 fixes a preview/export divergence in repeating morph triggers.
     // Rendered output changes for projects that use one, which is exactly why
     // it gets a version someone can point at.
-    expect(pkg.version).toBe('0.8.2');
+    // v0.8.3 made the preview show what the export writes (one sRGB encode at
+    // the canvas) — export bytes unchanged, format unchanged. v0.8.4 rebuilds
+    // temporal history for EVERY layer during export; rendered output changes
+    // for any project with a temporal technique on a non-selected layer.
+    expect(pkg.version).toBe('0.8.4');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(5);
   });
