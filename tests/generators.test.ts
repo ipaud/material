@@ -184,6 +184,16 @@ describe('structural gates', () => {
     expect(replica.includes('modulationRuntime')).toBe(false);
   });
 
+  it('a param the record omits takes the definition default, never 0', () => {
+    // v0.8.3: a voronoi written without `contrast` fed the uniform 0 and
+    // rendered flat 0.5. The preview of the time was too dark to show it.
+    const src = code('src', 'sources', 'generators', 'GeneratorSource.ts');
+    const loop = src.slice(src.indexOf('order.forEach((id, i) => {'), src.indexOf('bindTarget(renderer, target);'));
+    expect(loop).toContain('numOf(params[id], numOf(defaults[id], 0))');
+    expect(src).toContain('const defaults = generatorDefaults(this.generator);');
+    expect(generatorDefaults('voronoi').contrast).toBe(1);
+  });
+
   it('the CE1D-2 viewport regression stays fixed in generator rendering', () => {
     const src = code('src', 'sources', 'generators', 'GeneratorSource.ts');
     expect(src.includes('setRenderTarget')).toBe(true);

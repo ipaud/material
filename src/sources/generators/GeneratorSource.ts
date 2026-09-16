@@ -9,7 +9,7 @@ import type {
 } from '../SourceRuntime';
 import type { TemporalSource } from '@/rendering/temporal/TemporalFrameProvider';
 import { GENERATOR_FRAGMENTS, GENERATOR_PARAM_ORDER, GENERATOR_VERT } from './generatorShaders';
-import { getGenerator, type GeneratorKind } from './definitions';
+import { generatorDefaults, getGenerator, type GeneratorKind } from './definitions';
 import { SimulationRunner } from '@/rendering/simulation/SimulationRunner';
 import { cellularKernel, reactionDiffusionKernel, CA_RULES } from '@/rendering/simulation/kernels';
 
@@ -230,11 +230,15 @@ void main() {
     const prev = renderer.getRenderTarget();
     if (this.isStateless && this.material) {
       const order = GENERATOR_PARAM_ORDER[this.generator] ?? [];
+      // v0.8.3: a param the record omits takes the DEFINITION's default, not
+      // 0. A voronoi written without `contrast` rendered flat 0.5 — and the
+      // dark preview of the time hid it until the export showed a wash.
+      const defaults = generatorDefaults(this.generator);
       this.material.uniforms.uTime!.value = timeSec;
       this.material.uniforms.uSeed!.value = this.seed;
       order.forEach((id, i) => {
         const u = this.material!.uniforms[`p${i}`];
-        if (u) u.value = numOf(params[id], 0);
+        if (u) u.value = numOf(params[id], numOf(defaults[id], 0));
       });
       bindTarget(renderer, target);
       renderer.render(this.scene, this.camera);
