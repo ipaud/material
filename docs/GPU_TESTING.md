@@ -499,3 +499,37 @@ Take's two sides share one canonical evaluator, substitute at the same base
 seam, and dispatch through one `TakePerformer` shape. Morphs had two
 independently written models, which is exactly why they had three faults and
 Takes had none.
+
+**Parameters agreeing is not pixels agreeing.** The CHLADNI piece differenced
+clean at the parameter level and still exported a grey wash the preview never
+showed. Three findings came out of chasing it, in the order the evidence
+forced them:
+
+1. **Warm the preview before you capture it.** `seek(42)` + 400 ms of play is
+   a cold echo (0.8 s of history missing) and a cold bloom. The first
+   comparison was invalid for that reason alone. Play from ≥10 s before the
+   frame you compare.
+2. **Motion was frame-rate dependent** (see the v0.8.3 ADR). Found by sampling
+   `branchFor(TRAIL).lastResolved.copyRotation` on both paths: 11° live, 1.5°
+   exported, from the same seconds. Fixed; both read 1.52 now.
+3. **The preview showed linear light.** Layer-by-layer bisection (mute through
+   the Take's *baseline* — the document's `enabled` flag is overridden by it)
+   isolated GLOW; every number on that branch was identical on both paths;
+   the composite still differed. The gate below settled it in three minutes.
+
+## The 128-grey gate (v0.8.3)
+
+The cheapest possible colour-pipeline check, and the one that would have
+caught the preview's gamma the day the compositor shipped:
+
+1. A PNG with a 128 left half, a 64 right half, one white square.
+2. New project, import it, `directional-smear` at `amount: 0` (identity).
+3. Screenshot the preview; export one frame as a PNG sequence.
+4. Read the same three points in the file, the preview and the export.
+
+Pass: all three agree to within one code. Before v0.8.3 the preview read
+**55/13** against 128/64 in the file and the export — the sRGB EOTF of the
+file, exactly. Add a second layer of the same image at `0.5 screen` and both
+paths must read **149/78**: the blend happens in linear light and is encoded
+once. `tests/preview-color.test.ts` pins those numbers to the TS mirror of
+the transfer; only the running app can show the canvas is right.

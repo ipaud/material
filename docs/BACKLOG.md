@@ -142,6 +142,17 @@ because it changes exported pixels.
   `slit-scan.strips`, `echo.copies` and `step-print.copies` are allocation
   shaping parameters that are currently continuously modulatable. Measured
   cost is acceptable today; the guard is a correctness nicety, not a bug.
+- **Export: a Look switching a layer to a file or live source** — v0.8.3
+  made export follow a Look's layer stack for generator sources. A file
+  source would need seek-and-decode inside the frame loop (the same schedule
+  `prepareTemporalForExport` builds, per switch); a live source has no export
+  class at all. Today the parameters land and the picture stays on the source
+  the layer had.
+- **Export: secondary-layer technique / opacity / blend from a Look** —
+  `createSecondaryLayerEvaluator` is built once from the document. A Look that
+  changes a non-primary layer's technique or blend exports the document's
+  values. Would need the secondary evaluators to be rebuilt from
+  `evaluate.layerStack()` on the same identity change `followStack` watches.
 
 ## Deferred from v0.4 — Image / Motion Signals
 

@@ -1,6 +1,6 @@
 {
   "name": "material",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "MATERIAL \u2014 experimental moving-image design instrument",
   "main": "out/main/index.js",
   "type": "module",

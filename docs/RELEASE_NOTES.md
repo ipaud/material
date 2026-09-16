@@ -1,5 +1,54 @@
 # Release Notes
 
+## v0.8.3 — THE PREVIEW SHOWS WHAT THE EXPORT WRITES
+
+Three faults, all found by making a piece and comparing what was on screen
+with what came out of the file. None had a failing test. Each was invisible
+to the tests that existed because each side of it was self-consistent.
+
+### The preview was dark
+
+A 128-grey image previewed as 55 and exported as 128. Since the layer
+compositor arrived, every mid-tone on screen has been the *linear* value of
+what the export writes: every texture and target is an sRGB8 surface the GPU
+decodes on read and encodes on write, and the one destination that is not —
+the canvas — got a raw copy. White and black were exact, which is why nothing
+noticed.
+
+The transfer is now applied at exactly one place, the preview's canvas write.
+Export bytes do not change in this release. The preview gets brighter
+mid-tones, and they are the right ones: a two-layer `screen` at half opacity
+now reads 149 on both sides, the linear blend, encoded once.
+
+Anything you tuned by eye before this release was tuned against a darker
+picture than it exports. Open it and look again.
+
+### A Look that changes a layer's source now exports that source
+
+Preview recalled a Look's whole layer stack; export recalled only the primary
+layer's parameters. A piece whose three Looks were three Chladni plates
+exported as one plate dressed three ways. The export working copy now carries
+the stack, follows it through the bridge's own source reconciliation on the
+frames a Look lands, and puts the document back when it finishes. Generator
+sources only; a Look that switches a layer to a file or live source keeps its
+parameters and stays on the source it had (BACKLOG).
+
+### `motion.amount` is a velocity
+
+It was texels per measured frame, and a generator's frame is one display
+frame in preview and one export frame in export. The same figure read 2–4×
+larger exported, which pushed the calibration envelope into a different
+regime: 0.27 live against 0.00 exported for the same seconds, and a Look's
+echo rotation went from 11° to 1.5°. The signal is now rescaled to a
+reference frame of 1/30 s, so 30 fps export is the identity and every floor
+and fixture keeps its meaning.
+
+### Method
+
+`docs/GPU_TESTING.md` gains the **128-grey gate** — file, preview and export
+must agree at three points — and the lesson that parameter differencing is
+not pixel differencing. Warm the preview before you capture it.
+
 ## v0.8.2 — INTERRUPTING A MORPH NO LONGER JUMPS
 
 Start a morph, change your mind halfway, morph somewhere else. Until now the

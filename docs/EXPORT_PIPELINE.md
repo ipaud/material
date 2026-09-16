@@ -76,11 +76,33 @@ Phase 8 re-times capture to composition time (`RingBufferMode: 'timeline'`,
 already reserved in the API), which makes temporal techniques export-exact.
 Until then, temporal exports are flagged as preview-fidelity, not final.
 
-## Color
+## Color (corrected in v0.8.3)
 
-sRGB throughout: source textures are decoded as sRGB, the render target is
-sRGB, readback bytes go straight to the encoder. No Rec.709/linear/HDR
-handling yet — see `docs/DECISIONS.md`.
+What this section said until v0.8.3 — "sRGB throughout" — described the
+intent, not the pipeline. The pipeline is **linear working, sRGB storage**:
+
+- Source textures and every render target are tagged `SRGBColorSpace`. On
+  three r152+ that means `SRGB8_ALPHA8`: the GPU **decodes** on sample and
+  **encodes** on write. A shader handles linear light; a target stores sRGB
+  bytes.
+- Blending (compositor, echo, feedback, transitions) therefore happens in
+  linear light. Two 128-greys at half `screen` read 149, not 160.
+- Export reads the final SRGB8 target's bytes. It has always been right: a
+  128/64 grey PNG through an identity technique exports as 128/64.
+- The **canvas** is the one destination that is not an SRGB8 target. Until
+  v0.8.3 the preview blit was a raw `texture()` copy, so the screen showed the
+  decoded value — the same PNG previewed as **55/13**. Every mid-tone the
+  performer saw was gamma-crushed; white and black were exact, which is why
+  it survived every golden and every parameter-differencing pass.
+- v0.8.3 applies the sRGB transfer at exactly one place: the preview's canvas
+  write (`RenderEngine.blit(..., encode)`, and the transition compositor's
+  `uEncode` when its destination is the canvas). A blit into another SRGB8
+  target still passes no encode — the hardware does it. The single-opaque
+  fast path now draws into the layer's own target so it, too, goes through
+  that one write (measured at the display's full 120 Hz).
+
+Gate: the 128-grey round-trip in `docs/GPU_TESTING.md`. No Rec.709/HDR
+handling; the storage remains 8-bit sRGB.
 
 ## Frame-accurate video sampling (v0.2)
 
@@ -184,6 +206,32 @@ recalled by a Take and one recalled by a beat trigger are indistinguishable
 downstream. A morph launched by a Take pushes a `VirtualMorph` into the same
 list `morphEvents` populate — and appends no `morphEvent` of its own, because
 two records would replay one gesture twice.
+
+### The stack itself (v0.8.3)
+
+A v0.6D Look carries a *layer stack* — which source each layer reads, its
+technique, opacity and blend. Preview recalls the whole stack. Until v0.8.3
+export recalled only the primary layer's **core**: a Look that pointed the
+plate at a different generator changed the mosaic parameters and left the
+picture on the old generator. Found by making a piece whose three Looks were
+three Chladni plates — preview showed three figures, export showed one figure
+dressed three ways. No test had ever recalled a Look that switched a source.
+
+`working` now carries `layers`. `applyLookToWorking` runs
+`projectWithLayerLooks` first (the same function the live path uses) and
+`applyCoreToWorking` on the result, so the core lands on the layer the Look
+selects. The export loop watches `evaluate.layerStack()` by **identity** —
+the array is replaced only when a Look changed it — and on change calls
+`syncLayersForExport`, which reconciles every layer's source through the
+bridge's own `syncLayerSource` so its memo of what it configured stays
+truthful. `resyncFromStore()` in the `finally` puts the document back.
+
+Only **generator** sources swap. A file or live source cannot be seeked and
+decoded inside a frame, so a Look that switches a layer to one is honoured for
+parameters and left on the source it had. `createSecondaryLayerEvaluator`
+remains static for secondary-layer technique, opacity and blend: a Look that
+changes *those* on a non-primary layer still exports the document's values.
+Both are open in BACKLOG.md.
 
 ### Layer visibility
 

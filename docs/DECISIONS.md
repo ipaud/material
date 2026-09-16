@@ -2,6 +2,54 @@
 
 Meaningful deviations and choices not obvious from the spec.
 
+## ADR — One encode, at the canvas (v0.8.3)
+
+**Context.** Differencing a Take's preview against its export had been clean
+at the parameter level, yet a finished piece looked different exported: a
+grey wash the preview never showed. Bisecting by layer, then by branch state,
+found every number identical on both paths — opacities, blend, technique
+output — and the composite still differed. A 128/64 grey PNG through an
+identity technique settled it: file 128/64, export 128/64, **preview 55/13**.
+The preview had been showing linear light for every mid-tone since the layer
+compositor arrived.
+
+**Cause.** Every texture and target is `SRGBColorSpace` → `SRGB8_ALPHA8`:
+hardware decode on sample, encode on write. Export reads an SRGB8 target's
+bytes and is correct. The canvas is not SRGB8, and the final blit was a raw
+copy, so the screen received decoded values.
+
+**Options.** (a) Make the *export* match the preview by dropping colour
+management (`NoColorSpace` everywhere, raw-number blending). Rejected: it
+changes what every technique *sees* for file sources (raw 0.5 instead of
+linear 0.22 for a 128 grey), so every existing Look and every existing export
+changes. (b) Add three's `colorspace_fragment` to every technique shader.
+Rejected: shader packs are user-authored and the GLSL3 output-declaration
+rules make it fragile. (c) Encode once, at the canvas write. **Chosen.**
+
+**Decision.** `RenderEngine.blit` takes `encode`; the preview frame passes it,
+`renderStill` does not. The transition compositor takes the same flag. The
+single-opaque fast path draws into the layer's own target and goes through
+the same blit — the only path that wrote to the canvas directly. Export bytes
+are unchanged by this release; the preview gets brighter mid-tones and now
+matches them.
+
+**Consequence.** Everything designed by eye before v0.8.3 was designed
+against a darker picture than it exports. The CHLADNI piece is the first
+casualty: its flat grey GLOW layer was invisible in the preview and is a wash
+in the export. That is a piece to re-tune, not a renderer to change.
+
+## ADR — motion.amount is a velocity (v0.8.3)
+
+`motionAmount` was texels per *measured frame*. A generator's flow pair spans
+one display frame in preview and one export frame in export, so the same
+figure read 2–4× larger in export; calibration removes scale only above its
+span floor, and a slow figure sat in different regimes on the two paths
+(calibrated 0.27 live, 0.00 exported, for the same seconds). The flow field
+now records its pair spacing on the source's clock and the runtime rescales
+to a reference frame of 1/30 s before publishing. 30 fps export is the
+identity, so every floor and fixture tuned there keeps its meaning; aperture
+and saturation stay per measured frame because they describe the instrument.
+
 ## ADR — Runtime ownership (v0.6.1)
 
 **Context.** v0.6 shipped eleven defects. Nine were one shape: a host-level
