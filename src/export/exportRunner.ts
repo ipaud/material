@@ -1067,7 +1067,12 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       } else {
         engine.releaseTransitionSnapshot();
       }
-      if (engine.isTemporalActive) {
+      // v0.8.4: ANY layer's history, not the selected layer's. Asking the
+      // selected runtime answered "no" while a secondary Echo held an atlas
+      // the export never wrote — so it rendered whatever the preview had left
+      // there, deterministically. The feedback gate below got this fix in
+      // v0.6.1; this one did not.
+      if (engine.isTemporalActiveAnywhere) {
         await engine.prepareTemporalForExport(timeSec, primeTemporal);
         primeTemporal = false;
       }

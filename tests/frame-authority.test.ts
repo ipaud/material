@@ -197,6 +197,21 @@ describe('v0.6.1 — authority values have exactly one owner', () => {
     expect(req.slice(0, 800)).toContain('all.some((r) => r.needsFeedbackPreroll)');
     expect(req.slice(0, 800)).toContain('all.some((r) => r.needsTemporalHistory)');
   });
+
+  it('export temporal history asks the SET too (v0.8.4)', () => {
+    // The feedback gate got the v0.6.1 fix; the temporal gate kept asking the
+    // selected runtime. A secondary Echo's atlas was never written during an
+    // export, so it rendered whatever the preview had left there — measured:
+    // `filled 0, seeks 0` for a whole export, slot hashes identical to the
+    // preview's. The set-wide predicate had existed, unused, since v0.6.
+    const runner = read('src', 'export', 'exportRunner.ts');
+    const loop = runner.slice(runner.indexOf('engine.releaseTransitionSnapshot();'));
+    expect(loop.slice(0, 900)).toContain('if (engine.isTemporalActiveAnywhere) {');
+    expect(loop.slice(0, 900)).not.toContain('if (engine.isTemporalActive) {');
+    const engine = read('src', 'rendering', 'RenderEngine.ts');
+    const any = engine.slice(engine.indexOf('get isTemporalActiveAnywhere()'));
+    expect(any.slice(0, 200)).toContain('this.layerHost.anyLayerUsesTemporalHistory()');
+  });
 });
 
 describe('v0.6.1 — the transport follows the CURRENT first video layer', () => {
