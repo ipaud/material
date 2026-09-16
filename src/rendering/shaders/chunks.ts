@@ -73,3 +73,18 @@ float sdShape(int shapeId, vec2 p, float aspect) {
   return -length(q) * sign(q.y);
 }
 `;
+
+/**
+ * sRGB transfer (IEC 61966-2-1 OETF), linear → encoded. The canvas is the one
+ * destination in the pipeline that is not an SRGB8 target, so the last write
+ * before the screen applies this by hand; every render target encodes in
+ * hardware. Named to avoid three's own `LinearTosRGB`.
+ */
+export const GLSL_SRGB_OETF = /* glsl */ `
+vec3 srgbOetf(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  vec3 lo = c * 12.92;
+  vec3 hi = 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055;
+  return mix(lo, hi, step(vec3(0.0031308), c));
+}
+`;

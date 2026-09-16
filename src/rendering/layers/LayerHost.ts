@@ -478,6 +478,20 @@ export class LayerHost {
     return true;
   }
 
+  /**
+   * v0.8.3: the preview fast path draws into the layer's OWN target and hands
+   * the texture back, so the engine's one canvas write can apply the sRGB
+   * transfer. Drawing straight onto the canvas put the technique's raw
+   * (linear) output on screen — see RenderEngine.blit.
+   */
+  renderSingleOpaqueToOwnTarget(renderer: THREE.WebGLRenderer): THREE.Texture | null {
+    const index = this.singleOpaqueIndex();
+    if (index === null) return null;
+    const target = this.ensureTarget(index);
+    this.slots[index]!.runtime.renderLayerTo(target, { clear: true });
+    return target.texture;
+  }
+
   /** Draw straight into the bound target when the fast path applies. */
   renderSingleOpaqueToBoundTarget(
     renderer: THREE.WebGLRenderer,

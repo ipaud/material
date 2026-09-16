@@ -110,9 +110,11 @@ describe('v0.6.1 — one frame, one publication', () => {
 
   it('the host publishes after compositing, on every path that draws', () => {
     const engine = read('src', 'rendering', 'RenderEngine.ts');
-    // Both the direct fast path and the composite path publish.
-    const frame = engine.slice(engine.indexOf('  private renderFrame()'));
-    expect((frame.match(/this\.publishComposition\(\)/g) ?? []).length).toBe(2);
+    // v0.8.3: the fast path and the composite path share one canvas write
+    // (the encoding blit), so they share one publication after it.
+    const frame = engine.slice(engine.indexOf('  private renderFrame()'), engine.indexOf('  private blit('));
+    expect((frame.match(/this\.publishComposition\(\)/g) ?? []).length).toBe(1);
+    expect(frame.indexOf('this.publishComposition()')).toBeGreaterThan(frame.indexOf('this.blit(renderer, composed, /* encode */ true)'));
   });
 });
 

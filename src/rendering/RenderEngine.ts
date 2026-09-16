@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LayerHost } from './layers/LayerHost';
+import { GLSL_SRGB_OETF } from './shaders/chunks';
 import { LayerRuntimeImpl } from './layers/LayerRuntimeImpl';
 import type { LayerRuntime } from './layers/layerRuntime';
 import type { ParamRecord } from '@shared/schemas/project';
@@ -658,12 +659,12 @@ export class RenderEngine {
       // against 99 fps for the same single-mosaic project on v0.5.0. The
       // direct path restores it and makes the common case pixel-identical to
       // v0.5 by construction rather than by luck.
-      if (!this.transitionState && this.layerHost.renderSingleOpaqueToCanvas(renderer)) {
-        renderer.setScissorTest(false);
-        this.publishComposition();
-        return;
-      }
-      const composed = this.layerHost.composite(renderer, this.checkerboard);
+      //
+      // v0.8.3: the fast path still skips the compositor, but no longer draws
+      // onto the canvas itself — it draws into the layer's own target and the
+      // engine blits that with the sRGB transfer, like every other frame.
+      const single = this.transitionState ? null : this.layerHost.renderSingleOpaqueToOwnTarget(renderer);
+      const composed = single ?? this.layerHost.composite(renderer, this.checkerboard);
       renderer.setViewport(rectX, rectY, rectW, rectH);
       renderer.setScissor(rectX, rectY, rectW, rectH);
       renderer.setScissorTest(true);
@@ -676,9 +677,10 @@ export class RenderEngine {
             transition.progress,
             transition.params,
             this.compWidth / Math.max(this.compHeight, 1),
+            /* encode */ true,
           );
         } else {
-          this.blit(renderer, composed);
+          this.blit(renderer, composed, /* encode */ true);
         }
       }
       renderer.setScissorTest(false);
@@ -688,23 +690,36 @@ export class RenderEngine {
   }
 
 
-  /** Draw a texture over the current viewport, 1:1, no resampling beyond the
-   * viewport scale the user chose. */
+  /**
+   * Draw a texture over the current viewport, 1:1, no resampling beyond the
+   * viewport scale the user chose.
+   *
+   * `encode` is the ONE place preview pixels get the sRGB transfer, and it
+   * exists because of a measurement: a 128-grey PNG through an identity
+   * technique exported as 128 and previewed as 55. Every intermediate target
+   * is SRGB8 — the GPU decodes on sample and encodes on write, so the values a
+   * shader handles are linear and the bytes a target stores are sRGB. Export
+   * reads those bytes and is right. The canvas is not an sRGB target: a raw
+   * write lands linear light on screen, which is what the preview showed for
+   * every mid-tone until v0.8.3. A blit into another SRGB8 target (export,
+   * snapshot) must NOT encode — the hardware already does.
+   */
   private static readonly BLIT_CAMERA = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
   private blitScene: THREE.Scene | null = null;
   private blitMaterial: THREE.ShaderMaterial | null = null;
 
-  private blit(renderer: THREE.WebGLRenderer, texture: THREE.Texture): void {
+  private blit(renderer: THREE.WebGLRenderer, texture: THREE.Texture, encode = false): void {
     if (!this.blitScene || !this.blitMaterial) {
       this.blitMaterial = new THREE.ShaderMaterial({
         glslVersion: THREE.GLSL3,
         vertexShader: `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy * 2.0, 0.0, 1.0); }`,
-        fragmentShader: `precision highp float; uniform sampler2D uTex; in vec2 vUv; out vec4 fragColor;
-void main() { fragColor = texture(uTex, vUv); }`,
+        fragmentShader: `precision highp float; uniform sampler2D uTex; uniform float uEncode; in vec2 vUv; out vec4 fragColor;
+${GLSL_SRGB_OETF}
+void main() { vec4 c = texture(uTex, vUv); fragColor = vec4(uEncode > 0.5 ? srgbOetf(c.rgb) : c.rgb, c.a); }`,
         depthTest: false,
         depthWrite: false,
         transparent: true,
-        uniforms: { uTex: { value: null } },
+        uniforms: { uTex: { value: null }, uEncode: { value: 0 } },
       });
       this.blitScene = new THREE.Scene();
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.blitMaterial);
@@ -712,6 +727,7 @@ void main() { fragColor = texture(uTex, vUv); }`,
       this.blitScene.add(mesh);
     }
     this.blitMaterial.uniforms.uTex!.value = texture;
+    this.blitMaterial.uniforms.uEncode!.value = encode ? 1 : 0;
     renderer.render(this.blitScene, RenderEngine.BLIT_CAMERA);
   }
 

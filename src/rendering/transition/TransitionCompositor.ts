@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { bindTarget } from '@/rendering/bindTarget';
 import { disposeSceneGeometry } from '../disposeScene';
+import { GLSL_SRGB_OETF } from '../shaders/chunks';
 
 /**
  * CE1G — the pixel TRANSITION compositor.
@@ -72,6 +73,8 @@ uniform vec2 uCenter;
 uniform float uAngle;      // directional, degrees
 uniform float uAspect;
 uniform float uSeed;
+uniform float uEncode;
+${GLSL_SRGB_OETF}
 
 float tHash21(vec2 p) {
   p = fract(p * vec2(234.34, 435.345) + uSeed * 0.0013);
@@ -133,8 +136,8 @@ float revealMask(vec2 uv, float p) {
 void main() {
   float p = clamp(uProgress, 0.0, 1.0);
   // Endpoint law, enforced before any style math can add residue.
-  if (p <= 0.0) { gl_FragColor = texture2D(uFrom, vUv); return; }
-  if (p >= 1.0) { gl_FragColor = texture2D(uTo, vUv); return; }
+  if (p <= 0.0) { vec4 f = texture2D(uFrom, vUv); gl_FragColor = vec4(uEncode > 0.5 ? srgbOetf(f.rgb) : f.rgb, f.a); return; }
+  if (p >= 1.0) { vec4 t = texture2D(uTo, vUv); gl_FragColor = vec4(uEncode > 0.5 ? srgbOetf(t.rgb) : t.rgb, t.a); return; }
 
   vec2 uvA = vUv;
   vec2 uvB = vUv;
@@ -170,7 +173,8 @@ void main() {
   float m = uStyle == 8
     ? smoothstep(0.35, 0.65, p)                       // glitch reveals hard
     : clamp(revealMask(vUv, p), 0.0, 1.0);
-  gl_FragColor = vec4(mix(a.rgb, b.rgb, m), 1.0);
+  vec3 outRgb = mix(a.rgb, b.rgb, m);
+  gl_FragColor = vec4(uEncode > 0.5 ? srgbOetf(outRgb) : outRgb, 1.0);
 }
 `;
 
@@ -227,6 +231,7 @@ export class TransitionCompositor {
         uAngle: { value: 0 },
         uAspect: { value: 16 / 9 },
         uSeed: { value: 1 },
+        uEncode: { value: 0 },
       },
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.material);
@@ -269,9 +274,12 @@ export class TransitionCompositor {
     progress: number,
     params: TransitionParams,
     aspect: number,
+    /** True only when the destination is the canvas — see RenderEngine.blit. */
+    encode = false,
   ): void {
     if (!this.snapshot) return;
     const u = this.material.uniforms;
+    u.uEncode!.value = encode ? 1 : 0;
     u.uFrom!.value = this.snapshot.texture;
     u.uTo!.value = liveTexture;
     u.uProgress!.value = progress;

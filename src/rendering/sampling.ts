@@ -32,3 +32,19 @@ export function sampleToScale(
   const driven = baseScale * (1 - amount + amount * sample);
   return Math.min(Math.max(driven, minScale), maxScale);
 }
+
+/**
+ * sRGB transfer, linear → encoded (IEC 61966-2-1). TS mirror of
+ * `GLSL_SRGB_OETF` in shaders/chunks.ts — the canvas write applies it on the
+ * GPU; tests and CPU-side expectations use this.
+ */
+export function srgbOetf(linear: number): number {
+  const c = Math.min(Math.max(linear, 0), 1);
+  return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+/** Inverse: encoded → linear. What an SRGB8 texture sample returns. */
+export function srgbEotf(encoded: number): number {
+  const c = Math.min(Math.max(encoded, 0), 1);
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}

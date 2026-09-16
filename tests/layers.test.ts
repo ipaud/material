@@ -358,11 +358,15 @@ describe('structural — layers reuse the branch, they do not fork it (§7)', ()
   });
 
   it('one opaque Normal layer bypasses the compositor in preview', () => {
-    // The common case must not pay for a layer target, a background clear, a
-    // blend pass and a blit. Export already had this path; preview did not.
+    // The common case must not pay for a background clear and a blend pass.
+    // v0.8.3: it does pay for its own target and the blit, because the canvas
+    // write is where the sRGB transfer happens (tests/preview-color.test.ts)
+    // — measured at the display's full 120 Hz on a single mosaic layer.
     const src = read('src', 'rendering', 'RenderEngine.ts');
     const preview = src.slice(src.indexOf('if (!this.layerHost.isEmpty) {', src.indexOf('private renderFrame')));
-    expect(preview.slice(0, 1600)).toContain('this.layerHost.renderSingleOpaqueToCanvas(renderer)');
+    expect(preview.slice(0, 2200)).toContain('this.layerHost.renderSingleOpaqueToOwnTarget(renderer)');
+    // …and the compositor runs only when the fast path declined.
+    expect(preview.slice(0, 2200)).toContain('single ?? this.layerHost.composite(renderer, this.checkerboard)');
     // And the rule itself, where it now lives.
     const host = read('src', 'rendering', 'layers', 'LayerHost.ts');
     const fn = host.slice(host.indexOf('private singleOpaqueIndex()'));
