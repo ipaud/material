@@ -108,6 +108,31 @@ export const LK_APERTURE_TEXELS = 4;
  * instrument can express would be inventing a number. */
 export const MOTION_SATURATION_TEXELS = 8 * Math.SQRT2;
 
+/**
+ * v0.8.3 — `motionAmount` is published in texels per REFERENCE frame, 1/30 s.
+ *
+ * The field measures displacement between two consecutive source frames. For
+ * a file video that pair spans one source frame in preview and export alike.
+ * For a GENERATOR it spans one display frame in preview (1/60 or 1/120 s) and
+ * one export frame in export (1/30 s at 30 fps) — the same source velocity
+ * read 2-4x larger in export. Calibration removes scale only above its span
+ * floor, so a slow figure sat in different regimes on the two paths: measured
+ * on a Chladni plate, calibrated motion 0.27 in preview against 0.00 in export
+ * for the same two seconds, and a Look's echo rotation went from 11 to 1.5
+ * degrees. Rescaling to a fixed reference makes the number a velocity again.
+ * 30 fps is the identity, so every floor and fixture tuned at 30 keeps its
+ * meaning. Aperture and saturation stay per measured frame: they describe
+ * the instrument, not the source.
+ */
+export const MOTION_REFERENCE_FPS = 30;
+
+/** Scale that takes a per-frame displacement over `pairDtSec` to the
+ * reference frame. Unknown or degenerate spacing leaves the value alone. */
+export function referenceMotionScale(pairDtSec: number | null | undefined): number {
+  if (pairDtSec === null || pairDtSec === undefined || !(pairDtSec > 0)) return 1;
+  return 1 / MOTION_REFERENCE_FPS / pairDtSec;
+}
+
 /** Sum one plane of a packed readback into its four totals.
  *
  * The packed buffer holds `planes` tiles stacked vertically, so plane `p`

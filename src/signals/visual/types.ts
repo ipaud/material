@@ -185,9 +185,11 @@ export interface RawVisualStats {
   /** Mean gradient magnitude in luma per analysis texel — structure, measured
    * at the analysis grid rather than at source resolution. */
   edgeEnergy: number;
-  /** Mean flow magnitude in ANALYSIS TEXELS per frame — grid- and
-   * resolution-independent, so preview and export agree even when their
-   * analysis grids differ. */
+  /** Mean flow magnitude in ANALYSIS TEXELS per REFERENCE FRAME (1/30 s) —
+   * grid-, resolution- and frame-rate-independent, so preview and export
+   * agree even when their analysis grids or cadences differ. The reducer
+   * emits texels per measured frame; the layer runtime rescales by the flow
+   * pair's spacing (`referenceMotionScale`) before publishing. */
   motionAmount: number;
   /** 0.5 + 0.5 * (weighted mean unit direction x), so 0.5 is exactly still. */
   motionX: number;

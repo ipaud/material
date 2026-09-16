@@ -5,6 +5,7 @@ import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
 import { OpticalFlowField } from '../flow/OpticalFlowField';
 import { ImageStatsReducer } from '../analysis/ImageStatsReducer';
+import { referenceMotionScale } from '../analysis/reductionLadder';
 import { demandNeedsFlow } from '@/signals/visual/demand';
 import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import {
@@ -133,7 +134,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
       }
       this.updateCamera(target.width / Math.max(target.height, 1));
       if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
-      if (!this.exportMode) this.updateFlowService(renderer);
+      if (!this.exportMode) this.updateFlowService(renderer, undefined, this.sourceClock());
       this.syncScene();
       if (!this.exportMode) this.updateVisualStats(renderer);
       if (this.feedbackActive) {
@@ -177,7 +178,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
       this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
     }
     if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
-    if (!this.exportMode) this.updateFlowService(renderer);
+    if (!this.exportMode) this.updateFlowService(renderer, undefined, this.sourceClock());
     this.syncScene();
     if (!this.exportMode) this.updateVisualStats(renderer);
     if (this.feedbackActive) {
@@ -518,7 +519,14 @@ export class LayerRuntimeImpl implements LayerRuntime {
     return `${this.sourceTexture?.uuid ?? 'none'}:${this.sourceFrameCounter}:${this.generatorRevision}`;
   }
 
-  private updateFlowService(renderer: THREE.WebGLRenderer, frameKey?: string): void {
+  /** The clock the source frames advance on: wall time for a live sensor or a
+   * simulation generator stepping in preview, composition time otherwise. */
+  private sourceClock(): number {
+    const wall = this.liveSourceActive || (this.generator !== null && !this.generator.isStateless && !this.exportMode);
+    return wall ? performance.now() / 1000 : this.timeSec;
+  }
+
+  private updateFlowService(renderer: THREE.WebGLRenderer, frameKey?: string, atSec?: number): void {
     if (!this.flowIsNeeded()) {
       if (this.flow) {
         // Demand-driven (§77): nothing needs flow — release the targets.
@@ -531,7 +539,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
     const img = (this.sourceTexture as { image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number } } | null)?.image;
     const w = img?.videoWidth ?? img?.width ?? 0;
     const h = img?.videoHeight ?? img?.height ?? 0;
-    this.flow.update(renderer, this.sourceTexture, w, h, frameKey ?? this.sourceFrameKey());
+    this.flow.update(renderer, this.sourceTexture, w, h, frameKey ?? this.sourceFrameKey(), atSec);
   }
 
   /** Seek/loop discontinuity: invalidate the frame pair — for seekable
@@ -575,13 +583,13 @@ export class LayerRuntimeImpl implements LayerRuntime {
       // global frame of a full export (flow needs two frames, always).
       if (this.generator && this.exportPrevSourceSec !== null) {
         this.prepareGeneratorForExport(this.exportPrevSourceSec, width, height);
-        this.updateFlowService(renderer, `${frameKey}:pre`);
+        this.updateFlowService(renderer, `${frameKey}:pre`, this.exportPrevSourceSec);
         // Put the source back on THIS frame before the second tap, or the
         // pair holds the previous frame twice and the flow is zero.
         this.prepareGeneratorForExport(compositionTime, width, height);
       }
     }
-    this.updateFlowService(renderer, frameKey);
+    this.updateFlowService(renderer, frameKey, compositionTime);
     if (params) this.syncScene(params); // rebind ctx.flow after compute
   }
 
@@ -589,6 +597,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
   private visualStats: ImageStatsReducer | null = null;
   private visualDemand: ReadonlySet<VisualSignalId> = new Set();
   private latestVisual: RawVisualStats | null = null;
+  /** The reducer's own object, for its "same frame, same object" cache. */
+  private latestRaw: RawVisualStats | null = null;
   private lastVisualMs = 0;
   /** Preview analysis rate. Export is gated by frame key alone, so every
    * exported frame analyses exactly once. */
@@ -609,6 +619,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
       this.visualStats?.dispose();
       this.visualStats = null;
       this.latestVisual = null;
+      this.latestRaw = null;
     }
     // A HOST has no source texture, so there is nothing here to measure. The
     // demand belongs to the layer set: without a per-layer split the selected
@@ -681,9 +692,14 @@ export class LayerRuntimeImpl implements LayerRuntime {
       grid.height,
       frameKey ?? this.sourceFrameKey(),
     );
-    if (next !== this.latestVisual) {
-      this.latestVisual = next;
-      this.visualSink?.(next);
+    if (next !== this.latestRaw) {
+      this.latestRaw = next;
+      // v0.8.3: texels per REFERENCE frame, so a generator's velocity reads
+      // the same at 60 Hz preview and 30 fps export. See MOTION_REFERENCE_FPS.
+      const scale = referenceMotionScale(this.flow?.pairDtSec);
+      this.latestVisual =
+        next && scale !== 1 ? { ...next, motionAmount: next.motionAmount * scale } : next;
+      this.visualSink?.(this.latestVisual);
     }
   }
 

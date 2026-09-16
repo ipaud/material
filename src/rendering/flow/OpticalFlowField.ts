@@ -139,6 +139,10 @@ export class OpticalFlowField {
   private smoothFlow: THREE.WebGLRenderTarget | null = null;
   private lastFrameKey: string | null = null;
   private hasPrev = false;
+  /** v0.8.3: when each frame of the current pair was, in the caller's clock,
+   * so the field can say how much time its displacement spans. */
+  private lastAtSec: number | null = null;
+  private pairDt: number | null = null;
   /** Diagnostics: how many unique source frames produced a flow update. */
   updates = 0;
   /** Real LK solves since the last prime. The priming update CLEARS the field,
@@ -187,6 +191,8 @@ export class OpticalFlowField {
     this.smoothFlow = flow();
     this.hasPrev = false;
     this.lastFrameKey = null;
+    this.lastAtSec = null;
+    this.pairDt = null;
   }
 
   /** Signed RG flow texture (uv units per source frame), or null pre-prime. */
@@ -209,11 +215,19 @@ export class OpticalFlowField {
     srcW: number,
     srcH: number,
     frameKey: string,
+    /** When this frame is, on whatever clock drives the source (composition
+     * time for generators and files, wall time for live). Optional: a caller
+     * that has no clock gets per-measured-frame motion, as before. */
+    atSec?: number,
   ): void {
     if (!source || srcW < 2 || srcH < 2) return;
     this.allocate(srcW, srcH);
     if (frameKey === this.lastFrameKey) return; // same source frame: reuse
     this.lastFrameKey = frameKey;
+    if (atSec !== undefined && this.lastAtSec !== null && this.hasPrev && atSec > this.lastAtSec) {
+      this.pairDt = atSec - this.lastAtSec;
+    }
+    if (atSec !== undefined) this.lastAtSec = atSec;
 
     const draw = (target: THREE.WebGLRenderTarget, scene: THREE.Scene) => {
       const prev = renderer.getRenderTarget();
@@ -285,11 +299,19 @@ export class OpticalFlowField {
     return this.solves > 1;
   }
 
+  /** Seconds between the two frames of the current pair, or null when the
+   * caller gave no clock or the pair is not yet a measurement. */
+  get pairDtSec(): number | null {
+    return this.pairDt;
+  }
+
   /** Discontinuity (seek, loop, source switch, context restore): next
    * update primes fresh — no giant vectors from unrelated frames (§15). */
   reset(pairWillBeConstructed = false): void {
     this.hasPrev = false;
     this.lastFrameKey = null;
+    this.lastAtSec = null;
+    this.pairDt = null;
     // `ready` discards the first solve after a reset because in PREVIEW that
     // solve straddles the discontinuity. The export path is different: it
     // deliberately primes with the previous frame and then solves against this
