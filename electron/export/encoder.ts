@@ -25,6 +25,11 @@ interface ExportSession {
   id: string;
   config: ExportConfig;
   proc: ChildProcessByStdio<Writable, null, Readable>;
+  /** Where ffmpeg writes; renamed onto config.outPath only after a clean exit. */
+  tempPath: string;
+  /** Set once ffmpeg exits (any reason); writes after this must fail fast. */
+  exitCode: number | null;
+  exited: Promise<number>;
   framesWritten: number;
   stderrTail: string[];
   cancelled: boolean;
@@ -36,7 +41,27 @@ function sendProgress(win: BrowserWindow | null, event: ExportProgressEvent): vo
   win?.webContents.send(IPC.exportProgress, event);
 }
 
-function buildFfmpegArgs(config: ExportConfig): string[] {
+/** Sibling temp name that keeps the extension so ffmpeg still picks the muxer. */
+export function partialPathFor(outPath: string): string {
+  const ext = path.extname(outPath);
+  return `${outPath.slice(0, outPath.length - ext.length)}.partial${ext}`;
+}
+
+/** Rec.709 tags: swscale would otherwise convert with BT.601 and leave the file untagged. */
+const COLOR_ARGS = [
+  '-vf',
+  'scale=out_color_matrix=bt709:out_range=tv,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv',
+  '-colorspace',
+  'bt709',
+  '-color_primaries',
+  'bt709',
+  '-color_trc',
+  'bt709',
+  '-color_range',
+  'tv',
+];
+
+export function buildFfmpegArgs(config: ExportConfig, outFile: string = config.outPath): string[] {
   const args = [
     '-y',
     '-f',
@@ -67,6 +92,8 @@ function buildFfmpegArgs(config: ExportConfig): string[] {
       config.audioPath,
     );
   }
+
+  args.push(...COLOR_ARGS);
 
   if (config.format === 'h264') {
     args.push(
@@ -108,7 +135,7 @@ function buildFfmpegArgs(config: ExportConfig): string[] {
       '-shortest',
     );
   }
-  args.push(config.outPath);
+  args.push(outFile);
   return args;
 }
 
@@ -133,7 +160,8 @@ export async function startExport(
     }
   }
 
-  const proc = spawn(ffmpegPath, buildFfmpegArgs(config), {
+  const tempPath = config.format === 'png-sequence' ? config.outPath : partialPathFor(config.outPath);
+  const proc = spawn(ffmpegPath, buildFfmpegArgs(config, tempPath), {
     stdio: ['pipe', 'ignore', 'pipe'],
   });
 
@@ -141,10 +169,20 @@ export async function startExport(
     id: randomUUID(),
     config,
     proc,
+    tempPath,
+    exitCode: null,
+    exited: new Promise<number>((resolve) => {
+      proc.once('close', (c) => resolve(c ?? -1));
+    }),
     framesWritten: 0,
     stderrTail: [],
     cancelled: false,
   };
+  void session.exited.then((code) => {
+    session.exitCode = code;
+  });
+  // ffmpeg dying mid-export surfaces as EPIPE on stdin; the write path reports it.
+  proc.stdin.on('error', () => undefined);
   proc.stderr.on('data', (chunk: Buffer) => {
     const line = chunk.toString();
     session.stderrTail.push(line);
@@ -158,6 +196,7 @@ export async function startExport(
       message: err.message,
     });
     sessions.delete(session.id);
+    void fs.rm(session.tempPath, { force: true });
   });
   sessions.set(session.id, session);
   return { sessionId: session.id };
@@ -177,10 +216,22 @@ export async function writeExportFrame(
     throw new Error(`Frame size mismatch: got ${rawFrame.byteLength}, expected ${expected}`);
   }
   const buffer = Buffer.from(rawFrame.buffer, rawFrame.byteOffset, rawFrame.byteLength);
+  if (session.exitCode !== null) throw await ffmpegDied(session);
   await new Promise<void>((resolve, reject) => {
-    const ok = session.proc.stdin.write(buffer, (err) => (err ? reject(err) : undefined));
-    if (ok) resolve();
-    else session.proc.stdin.once('drain', resolve);
+    const { stdin } = session.proc;
+    const fail = (): void => reject(new Error('ffmpeg closed its input'));
+    const ok = stdin.write(buffer, (err) => (err ? reject(err) : undefined));
+    if (ok) {
+      resolve();
+      return;
+    }
+    stdin.once('drain', () => {
+      stdin.off('close', fail);
+      resolve();
+    });
+    stdin.once('close', fail);
+  }).catch(async (err: unknown) => {
+    throw session.exitCode !== null || session.cancelled ? await ffmpegDied(session) : err;
   });
   session.framesWritten++;
   if (session.framesWritten % 10 === 0) {
@@ -205,9 +256,7 @@ export async function finishExport(
     framesWritten: session.framesWritten,
   });
   session.proc.stdin.end();
-  const code = await new Promise<number>((resolve) => {
-    session.proc.on('close', (c) => resolve(c ?? -1));
-  });
+  const code = await session.exited;
   sessions.delete(sessionId);
   if (session.cancelled) {
     sendProgress(getWindow(), {
@@ -215,9 +264,11 @@ export async function finishExport(
       phase: 'cancelled',
       framesWritten: session.framesWritten,
     });
+    await discardPartial(session);
     throw new Error('Export cancelled');
   }
   if (code !== 0) {
+    await discardPartial(session);
     const detail = session.stderrTail.join('').slice(-500);
     sendProgress(getWindow(), {
       sessionId,
@@ -226,6 +277,9 @@ export async function finishExport(
       message: `FFmpeg exited with code ${code}`,
     });
     throw new Error(`FFmpeg failed (code ${code}): ${detail}`);
+  }
+  if (session.tempPath !== session.config.outPath) {
+    await fs.rename(session.tempPath, session.config.outPath);
   }
   sendProgress(getWindow(), {
     sessionId,
@@ -243,8 +297,27 @@ export async function cancelExport(rawSessionId: unknown): Promise<void> {
   session.cancelled = true;
   session.proc.kill('SIGKILL');
   sessions.delete(sessionId);
-  // Best-effort cleanup of a partial movie file (sequences keep their frames).
-  if (session.config.format !== 'png-sequence') {
-    await fs.rm(session.config.outPath, { force: true });
-  }
+  await session.exited; // the file is only safe to delete once ffmpeg is gone
+  await discardPartial(session);
+}
+
+/** Kill every live export and drop partial files (app quit, renderer crash). */
+export async function abortAllExports(): Promise<void> {
+  await Promise.all([...sessions.keys()].map((id) => cancelExport(id)));
+}
+
+/** Movies only: sequences keep the frames already written. */
+async function discardPartial(session: ExportSession): Promise<void> {
+  if (session.config.format === 'png-sequence') return;
+  await session.exited;
+  await fs.rm(session.tempPath, { force: true });
+}
+
+async function ffmpegDied(session: ExportSession): Promise<Error> {
+  const code = await session.exited;
+  const detail = session.stderrTail.join('').slice(-500);
+  await discardPartial(session);
+  return new Error(
+    session.cancelled ? 'Export cancelled' : `FFmpeg stopped (code ${code}): ${detail}`,
+  );
 }
