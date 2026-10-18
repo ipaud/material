@@ -4,6 +4,7 @@ import type { LayerRuntime } from './layerRuntime';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
 import { OpticalFlowField } from '../flow/OpticalFlowField';
+import { VideoIngest } from './VideoIngest';
 import { ImageStatsReducer } from '../analysis/ImageStatsReducer';
 import { referenceMotionScale } from '../analysis/reductionLadder';
 import { demandNeedsFlow } from '@/signals/visual/demand';
@@ -48,6 +49,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
   private readonly camera = new THREE.PerspectiveCamera(20, 1, 10, 100000);
 
   private sourceTexture: THREE.Texture | null = null;
+  /** Decoded copy of a video source for technique shaders; null for every other source. */
+  private videoIngest: VideoIngest | null = null;
   private materialTexture: THREE.Texture | null = null;
   private temporal: TemporalFrameProvider | null = null;
   private temporalEnabled = false;
@@ -232,6 +235,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
     this.rvfcCancel?.();
     this.rvfcCancel = null;
     this.sourceTexture = null;
+    this.videoIngest?.dispose();
+    this.videoIngest = null;
     // The renderer is the composition's, never this branch's.
     this.renderer = null;
   }
@@ -880,6 +885,21 @@ export class LayerRuntimeImpl implements LayerRuntime {
 
   private readonly blitCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
 
+  /** What technique shaders sample: the source itself, or its sRGB-correct copy for video. */
+  private techniqueSource(): THREE.Texture | null {
+    const source = this.sourceTexture;
+    const video = (source as { isVideoTexture?: boolean } | null)?.isVideoTexture === true;
+    if (!source || !video || !this.renderer) {
+      this.videoIngest?.dispose();
+      this.videoIngest = null;
+      return source;
+    }
+    const el = (source as { image?: { videoWidth?: number; videoHeight?: number } }).image;
+    this.videoIngest ??= new VideoIngest();
+    this.videoIngest.update(this.renderer, source, el?.videoWidth ?? 0, el?.videoHeight ?? 0);
+    return this.videoIngest.texture();
+  }
+
   private syncScene(paramsOverride?: ParamRecord): void {
     const showProcessed = !this.showOriginal;
     if (this.originalQuad) this.originalQuad.visible = !showProcessed;
@@ -904,7 +924,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
         // Deleting the seam rather than guarding it is what makes that a
         // structural fact: there is exactly one emitFrame call in the tree.
         this.techniqueRenderer.update(params, {
-          sourceTexture: this.sourceTexture,
+          sourceTexture: this.techniqueSource(),
           materialTexture: this.materialTexture,
           temporal: this.temporalEnabled && this.temporal ? this.temporal.getUniforms() : null,
           flow: this.flow?.texture() ?? null,
