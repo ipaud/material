@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { MOD_SOURCES } from '@/modulation/sources';
 import { targetLayerOf } from '@/modulation/layerRouting';
+import { TransferPreview } from './CurvePreview';
+import { usePlaybackStore } from '@/state/playbackStore';
 
 /** Grouped once, from the registry's own `group` field — the picker used to
  * hardcode a flat list, which does not survive a growing signal set. */
@@ -70,6 +72,8 @@ export function ModulationSection() {
   const mappings = useProjectStore((s) => s.project.modulations);
   const project = useProjectStore((s) => s.project);
   const layers = project.layers;
+  const clockSec = usePlaybackStore((s) => s.durationSec);
+  const timeRange = Math.max(Math.ceil(clockSec), 60);
   const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const patternSources = useProjectStore((s) => s.project.patternSources);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -200,7 +204,7 @@ export function ModulationSection() {
                   </div>
                 )}
                 <div className="param-row">
-                  <span className="param-label">Mapping</span>
+                  <span className="param-label" title="mode in the project file">Mode</span>
                   <div className="param-control">
                     <select
                       className="select"
@@ -211,8 +215,8 @@ export function ModulationSection() {
                         })
                       }
                     >
-                      <option value="add">Add — nudge from the current value</option>
-                      <option value="replace">Set — position within the range</option>
+                      <option value="add">Add — the signal pushes the parameter away from its own value</option>
+                      <option value="replace">Set — the signal chooses the value, between Out min and Out max</option>
                     </select>
                   </div>
                 </div>
@@ -239,7 +243,8 @@ export function ModulationSection() {
                     contribute nothing — the output range is where polarity
                     lives, since the evaluator clamps every signal to 0..1. */}
                 <ParameterSlider
-                  label="Min"
+                  label="Out min"
+                  hint="min — the output when the signal is at its lowest (-1…1)"
                   value={m.min}
                   min={-1}
                   max={1}
@@ -248,7 +253,8 @@ export function ModulationSection() {
                   onChange={(v) => updateMapping(m.id, { min: v })}
                 />
                 <ParameterSlider
-                  label="Max"
+                  label="Out max"
+                  hint="max — the output when the signal is at its highest (-1…1)"
                   value={m.max}
                   min={-1}
                   max={1}
@@ -261,21 +267,25 @@ export function ModulationSection() {
                     adapts a signal to its source automatically, this is a
                     choice about what to react to. */}
                 <ParameterSlider
-                  label="From"
+                  label="In min"
+                  hint="inMin — the signal level that counts as 'nothing'. Raise it so only strong hits react."
                   value={m.inMin ?? 0}
                   min={0}
-                  max={1}
-                  step={0.01}
+                  max={m.source === 'time.sec' ? timeRange : 1}
+                  step={m.source === 'time.sec' ? 0.1 : 0.01}
+                  {...(m.source === 'time.sec' ? { unit: 's' } : {})}
                   defaultValue={0}
                   onChange={(v) => updateMapping(m.id, { inMin: v })}
                 />
                 <ParameterSlider
-                  label="To"
-                  value={m.inMax ?? 1}
+                  label="In max"
+                  hint="inMax — the signal level that counts as 'full'."
+                  value={m.inMax ?? (m.source === 'time.sec' ? timeRange : 1)}
                   min={0}
-                  max={1}
-                  step={0.01}
-                  defaultValue={1}
+                  max={m.source === 'time.sec' ? timeRange : 1}
+                  step={m.source === 'time.sec' ? 0.1 : 0.01}
+                  {...(m.source === 'time.sec' ? { unit: 's' } : {})}
+                  defaultValue={m.source === 'time.sec' ? timeRange : 1}
                   onChange={(v) => updateMapping(m.id, { inMax: v })}
                 />
                 <div className="param-row">
@@ -306,6 +316,7 @@ export function ModulationSection() {
                     />
                   </div>
                 </div>
+                <TransferPreview mapping={m} />
                 <ValueBreakdown mapping={m} />
                 <div className="mod-actions">
                   {m.frozenValue === null ? (

@@ -22,7 +22,10 @@ export const MOD_SOURCES: ModSourceDef[] = [
   { id: 'flux', label: 'Flux', group: 'audio' },
   { id: 'onset', label: 'Onset', group: 'audio' },
   { id: 'transients', label: 'Transients', group: 'audio' },
-  { id: 'time', label: 'Time', group: 'time' },
+  { id: 'time', label: 'Time · 0–1 over the clip', group: 'time' },
+  // Raw seconds. Pair with the From/To window (in seconds) for a ramp that does not
+  // depend on how long the clip is: From 54, To 220 = enter at 0:54, full at 3:40.
+  { id: 'time.sec', label: 'Time · seconds', group: 'time' },
   { id: 'beat:bar', label: 'Beat · Bar', group: 'beat' },
   { id: 'beat:1/2', label: 'Beat · 1/2', group: 'beat' },
   { id: 'beat:1/4', label: 'Beat · 1/4', group: 'beat' },
@@ -87,6 +90,7 @@ export function evalSources(timeSec: number, ctx: SourceContext): Record<string,
   for (const id of audioTracks) {
     values[id] = ctx.analysis ? sampleTrack(ctx.analysis, id, timeSec) : 0;
   }
+  values['time.sec'] = Math.max(timeSec, 0);
   values.time = ctx.durationSec > 0 ? Math.min(Math.max(timeSec / ctx.durationSec, 0), 1) : 0;
   const divisions: MusicalDivision[] = ['bar', '1/2', '1/4', '1/8', '1/16'];
   for (const div of divisions) {

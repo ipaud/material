@@ -210,3 +210,21 @@ so this advice cannot rot.
 
 `onset` spending only 6% of the track above 0.2 is correct and desirable —
 it drives triggers, and a smeared onset track fires constantly.
+
+## Naming, absolute time and previews (post-0.8.4)
+
+The mapping panel now uses the project file's own names: **Mode** (`mode`: Add
+or Set), **Amount**, **Smoothing**, **Out min / Out max** (`min`, `max`),
+**In min / In max** (`inMin`, `inMax`), **Curve**, **Invert**. Add means the
+signal pushes the parameter away from its own value; Set means the signal
+chooses the value between Out min and Out max. Each control carries a tooltip.
+
+`time` is still 0–1 over the clip, so a ramp built on it stretches with the
+clip. The new source **`time.sec`** is raw composition seconds; pair it with
+In min / In max (shown in seconds) for a ramp that does not depend on the clip
+length: In min 54, In max 220 enters at 0:54 and is full at 3:40 for a 3 min or a
+15 min clip alike (`tests/time-seconds.test.ts`; checked in a real render).
+
+A small plot under each mapping shows the response (input window, invert, curve
+and output range, before smoothing), and a pulse trigger shows its
+attack / hold / decay envelope scaled by Amount.

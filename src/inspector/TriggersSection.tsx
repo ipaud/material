@@ -1,3 +1,4 @@
+import { EnvelopePreview } from './CurvePreview';
 import { selectedLayerOf } from '@shared/schemas/project';
 import { useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
@@ -319,6 +320,7 @@ export function TriggersSection() {
                         </select>
                       </div>
                     </div>
+                    <EnvelopePreview trigger={t} />
                   </>
                 )}
                 <div className="mod-actions">

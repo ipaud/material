@@ -9,6 +9,8 @@ interface ParameterSliderProps {
   step: number;
   defaultValue: number;
   unit?: string;
+  /** Tooltip on the label: what this control does, in a sentence. */
+  hint?: string;
   /** Marks the row as driven by a modulation mapping. */
   modulated?: boolean;
   /** Live modulated value, shown alongside the base value. */
@@ -50,6 +52,7 @@ export function ParameterSlider({
   step,
   defaultValue,
   unit,
+  hint,
   modulated,
   modulatedValue,
   onChange,
@@ -202,7 +205,7 @@ export function ParameterSlider({
 
   return (
     <div className={`param-row${modulated ? ' modulated' : ''}`}>
-      <span className="param-label" onDoubleClick={onDoubleClick}>
+      <span className="param-label" title={hint} onDoubleClick={onDoubleClick}>
         {label}
         {modulated && <span className="param-mod-dot" title="Driven by modulation" />}
       </span>
