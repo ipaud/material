@@ -533,3 +533,23 @@ file, exactly. Add a second layer of the same image at `0.5 screen` and both
 paths must read **149/78**: the blend happens in linear light and is encoded
 once. `tests/preview-color.test.ts` pins those numbers to the TS mirror of
 the transfer; only the running app can show the canvas is right.
+
+
+## Identity gate (per technique) — manual until a GL harness exists
+
+vitest has no GL context, so "every technique with neutral parameters keeps
+the mean luminance" cannot run in `npm test`. Run it by hand before a release:
+
+1. Make a project with a flat 120/255 grey PNG and a 0→255 ramp PNG as sources.
+2. For each registered technique (built-ins, shader packs, custom shaders),
+   set neutral parameters (amount/mix 0, or the documented identity preset) and
+   export a 1 s PNG sequence.
+3. Read the mean of the first and last frame. Pass = within ±2/255 of the
+   source (120 and the ramp's mean). Report the technique id of any failure.
+4. For feedback/temporal techniques also export 3 s and compare frame 1 and the
+   last frame — brightness must not drift (the 0.7.0 report was grey 120→167
+   after one pass and white after six).
+
+The 0.7.0 drift (~exponent 0.5 on encoded values) was not reproduced by code
+review of 0.8.4: every target is `SRGBColorSpace` and the only manual OETF is
+the preview blit. Confirm with the steps above on real hardware.

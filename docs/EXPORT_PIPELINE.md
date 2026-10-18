@@ -101,8 +101,30 @@ intent, not the pipeline. The pipeline is **linear working, sRGB storage**:
   fast path now draws into the layer's own target so it, too, goes through
   that one write (measured at the display's full 120 Hz).
 
-Gate: the 128-grey round-trip in `docs/GPU_TESTING.md`. No Rec.709/HDR
-handling; the storage remains 8-bit sRGB.
+Gate: the 128-grey round-trip in `docs/GPU_TESTING.md`. No HDR handling; the
+storage remains 8-bit sRGB.
+
+### Container colour tags (post-0.8.4)
+
+The exported pixels are sRGB-encoded RGB. Until this change ffmpeg converted them to
+YUV with swscale's default matrix (BT.601) and wrote **no** colour tags, so a
+player had to guess — and guessed BT.709 for HD, shifting every colour.
+Movie exports (H.264, ProRes 422/4444) now convert with the BT.709 matrix,
+limited range, and tag `colorspace`, `color_primaries`, `color_trc` and
+`color_range` as `bt709`/`tv` (`electron/export/encoder.ts`, `COLOR_ARGS`). The
+transfer is tagged `bt709`, the value Final Cut and Resolve expect for
+sRGB-authored HD material; the sRGB curve differs from it only in the darkest
+tones. PNG sequences stay untagged RGB. `tests/export-encoder.test.ts` probes a
+real export with ffprobe.
+
+### Atomic output (post-0.8.4)
+
+Movies are written to `<name>.partial.<ext>` beside the final path and renamed
+only after ffmpeg exits 0. Cancel, an ffmpeg crash, a failed finish and a
+renderer crash delete the partial and never touch a pre-existing file at the
+final path. Events go to `~/Library/Logs/MATERIAL/export.log` (start, every 100
+frames, finish/cancel, ffmpeg exit code, renderer/GPU process loss) with the
+process RSS; GPU-process loss also logs `app.getGPUFeatureStatus()`.
 
 ## Frame-accurate video sampling (v0.2)
 

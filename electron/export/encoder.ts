@@ -8,6 +8,7 @@ import type { BrowserWindow } from 'electron';
 import { detectEncoders, ffmpegPath } from '../media/ffmpeg';
 import { IPC, type ExportConfig, type ExportProgressEvent } from '../../shared/ipc';
 import { isApprovedMediaPath } from '../filesystem/mediaRegistry';
+import { logExport } from './exportLog';
 
 export const exportConfigSchema = z.object({
   format: z.enum(['png-sequence', 'h264', 'prores422', 'prores4444']),
@@ -178,8 +179,12 @@ export async function startExport(
     stderrTail: [],
     cancelled: false,
   };
+  logExport(
+    `export ${session.id} start ${config.format} ${config.width}x${config.height}@${config.fps} -> ${config.outPath}`,
+  );
   void session.exited.then((code) => {
     session.exitCode = code;
+    logExport(`export ${session.id} ffmpeg exit code=${code} frames=${session.framesWritten}`);
   });
   // ffmpeg dying mid-export surfaces as EPIPE on stdin; the write path reports it.
   proc.stdin.on('error', () => undefined);
@@ -234,6 +239,9 @@ export async function writeExportFrame(
     throw session.exitCode !== null || session.cancelled ? await ffmpegDied(session) : err;
   });
   session.framesWritten++;
+  if (session.framesWritten % 100 === 0) {
+    logExport(`export ${sessionId} frame=${session.framesWritten}`);
+  }
   if (session.framesWritten % 10 === 0) {
     sendProgress(getWindow(), {
       sessionId,
@@ -278,6 +286,7 @@ export async function finishExport(
     });
     throw new Error(`FFmpeg failed (code ${code}): ${detail}`);
   }
+  logExport(`export ${sessionId} finished frames=${session.framesWritten}`);
   if (session.tempPath !== session.config.outPath) {
     await fs.rename(session.tempPath, session.config.outPath);
   }
@@ -295,6 +304,7 @@ export async function cancelExport(rawSessionId: unknown): Promise<void> {
   const session = sessions.get(sessionId);
   if (!session) return;
   session.cancelled = true;
+  logExport(`export ${sessionId} cancelled frames=${session.framesWritten}`);
   session.proc.kill('SIGKILL');
   sessions.delete(sessionId);
   await session.exited; // the file is only safe to delete once ffmpeg is gone

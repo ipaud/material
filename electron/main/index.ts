@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, session, shell } from 'electron';
 import path from 'node:path';
 import {
   cameraIntentArmed,
@@ -10,6 +10,9 @@ import {
 } from '../ipc/handlers';
 import { closeOutputWindow, isOutputFrame } from './outputWindow';
 import { clearRecovery } from '../filesystem/recovery';
+import { abortAllExports } from '../export/encoder';
+import { logExport } from '../export/exportLog';
+import { exportLogPath, installExportLogFile, logGpuState } from './exportLogFile';
 import { buildAppMenu } from './menu';
 import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from './protocol';
 
@@ -50,6 +53,22 @@ function createWindow(): void {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
+
+  // A dead renderer cannot finish or cancel its export: stop ffmpeg, delete the
+  // partial, leave a log line, and tell the user instead of vanishing silently.
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    logGpuState(`renderer gone reason=${details.reason} exitCode=${details.exitCode}`);
+    void abortAllExports().finally(() => {
+      void dialog
+        .showMessageBox({
+          type: 'error',
+          message: 'MATERIAL stopped unexpectedly',
+          detail: `Reason: ${details.reason}. Any export in progress was cancelled and its partial file removed.\nLog: ${exportLogPath()}`,
+          buttons: ['Reload'],
+        })
+        .then(() => mainWindow?.reload());
+    });
+  });
 
   // A renderer that fails to load must never leave an invisible-but-running
   // app: `show: false` waits for 'ready-to-show', which never fires if the
@@ -201,6 +220,10 @@ app.whenReady().then(() => {
     displayCaptureAllowed(permission),
   );
 
+  installExportLogFile();
+  app.on('child-process-gone', (_e, details) => {
+    logGpuState(`child process gone type=${details.type} reason=${details.reason}`);
+  });
   registerIpcHandlers(() => mainWindow);
   buildAppMenu(() => mainWindow);
   createWindow();
@@ -221,7 +244,9 @@ let recoveryCleared = false;
 app.on('will-quit', (event) => {
   if (recoveryCleared) return;
   event.preventDefault();
-  void clearRecovery(SESSION_ID)
+  logExport('app quitting');
+  void abortAllExports()
+    .then(() => clearRecovery(SESSION_ID))
     .catch(() => undefined)
     .finally(() => {
       recoveryCleared = true;

@@ -1,7 +1,9 @@
 import { app, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { IPC, type MenuEventId } from '../../shared/ipc';
+import { configureAboutPanel } from './buildInfo';
 
 export function buildAppMenu(getWindow: () => BrowserWindow | null): void {
+  configureAboutPanel();
   const send = (id: MenuEventId) => () => {
     getWindow()?.webContents.send(IPC.menuEvent, id);
   };

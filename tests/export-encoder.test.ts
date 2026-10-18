@@ -110,3 +110,29 @@ live('export lifecycle (real ffmpeg)', () => {
     expect(readdirSync(dir)).toEqual(['c.mp4']);
   });
 });
+
+import { setExportLogSink } from '../electron/export/exportLog';
+
+live('export log (real ffmpeg)', () => {
+  it('records start, finish and cancel with memory', async () => {
+    const lines: string[] = [];
+    setExportLogSink((l) => lines.push(l));
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'mat-log-'));
+    const frame = new Uint8Array(64 * 64 * 4);
+    const base = {
+      format: 'h264', width: 64, height: 64, fps: 25, alpha: false,
+      audioPath: null, audioStartSec: 0, durationSec: 0.2,
+    };
+    const a = await startExport({ ...base, outPath: path.join(dir, 'a.mp4') }, () => null);
+    await writeExportFrame(a.sessionId, frame, () => null);
+    await finishExport(a.sessionId, () => null);
+    const b = await startExport({ ...base, outPath: path.join(dir, 'b.mp4') }, () => null);
+    await cancelExport(b.sessionId);
+    setExportLogSink(() => undefined);
+    const text = lines.join('\n');
+    expect(text).toMatch(/start h264 64x64@25/);
+    expect(text).toMatch(/finished frames=1/);
+    expect(text).toMatch(/cancelled/);
+    expect(text).toMatch(/rss=\d+MB/);
+  });
+});
