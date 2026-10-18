@@ -5,7 +5,18 @@ import { playback } from '@/playback/PlaybackController';
 import { laneValueAt, parseControlTarget } from '@/performance/take/model';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
-import { takeStats, deleteEvent, deleteLane, moveEvent, movePoint, simplifyTake, trimTake } from '@/performance/take/edit';
+import {
+  addPoint,
+  deleteEvent,
+  deleteLane,
+  deletePoint,
+  moveEvent,
+  movePoint,
+  setLaneInterp,
+  simplifyTake,
+  takeStats,
+  trimTake,
+} from '@/performance/take/edit';
 import { resolveAgainstProject } from '@/performance/take/evaluate';
 import { takeRecorder } from '@/performance/take/recorder';
 import { takePlayer } from '@/performance/take/player';
@@ -19,6 +30,9 @@ import {
   selectTake,
   stopTake,
   toggleArm,
+  addLaneToTake,
+  createManualTake,
+  keyframeTargets,
 } from '@/performance/take/takeActions';
 import type { PerformanceTake, Project, TakeEvent, TakeLane } from '@shared/schemas/project';
 
@@ -166,6 +180,17 @@ export function TakeStrip() {
           >
             {replaying ? '■ STOP TAKE' : '▶ TAKE'}
           </button>
+          <button
+            className="perf-big-btn quiet"
+            disabled={recording}
+            onClick={() => {
+              createManualTake();
+              setExpanded(true);
+            }}
+            title="Make an empty Take and draw lanes into it by hand — keyframes for layer opacity and parameters"
+          >
+            + NEW KEYFRAMES
+          </button>
           {recording && (
             <span className="perf-take-meter">
               {rec.laneCount}L · {rec.sampleCount}pt · {rec.eventCount}ev
@@ -310,6 +335,22 @@ function TakeEditor({ take, project }: { take: PerformanceTake; project: Project
       ))}
 
       <div className="perf-take-tools">
+        <select
+          className="perf-take-add-lane mono"
+          aria-label="Add lane"
+          value=""
+          onChange={(e) => e.target.value && addLaneToTake(take.id, e.target.value)}
+          title="Add a lane for a layer's opacity or a parameter. Double-click a lane to add a key; Alt-click a key to delete it."
+        >
+          <option value="">+ LANE…</option>
+          {keyframeTargets(project)
+            .filter((t) => !take.lanes.some((l) => l.target === t.target))
+            .map((t) => (
+              <option key={t.target} value={t.target}>
+                {t.label}
+              </option>
+            ))}
+        </select>
         <button
           className="perf-big-btn quiet"
           title="Re-simplify every lane, keeping the gesture within tolerance"
@@ -442,6 +483,13 @@ function LaneRow({
         }}
         onPointerUp={() => (drag.current = null)}
         onPointerLeave={() => (drag.current = null)}
+        onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).classList.contains('perf-take-point')) return;
+          const box = e.currentTarget;
+          const rect = box.getBoundingClientRect();
+          const t = ((e.clientX - rect.left - box.clientLeft) / (box.clientWidth || 1)) * span;
+          editTake(take.id, (k) => addPoint(k, lane.target, t));
+        }}
       >
         {playhead !== null && (
           <span className="perf-take-playhead" style={{ left: `${playhead * 100}%` }} />
@@ -466,6 +514,10 @@ function LaneRow({
             style={{ left: `${(s.t / span) * 100}%`, top: y(s.v) }}
             title={`${s.t.toFixed(2)}s → ${s.v.toFixed(3)} — drag to move`}
             onPointerDown={(e) => {
+              if (e.altKey) {
+                editTake(take.id, (k) => deletePoint(k, lane.target, i));
+                return;
+              }
               drag.current = i;
               e.currentTarget.setPointerCapture(e.pointerId);
             }}
@@ -473,6 +525,21 @@ function LaneRow({
         ))}
       </div>
       <span className="perf-take-lane-meta">
+        <select
+          className="perf-take-interp mono"
+          aria-label={`${label} interpolation`}
+          value={lane.interp ?? 'linear'}
+          title="How the value moves between keys"
+          onChange={(e) =>
+            editTake(take.id, (k) =>
+              setLaneInterp(k, lane.target, e.target.value as NonNullable<TakeLane['interp']>),
+            )
+          }
+        >
+          <option value="linear">LIN</option>
+          <option value="hold">HOLD</option>
+          <option value="smooth">SMOOTH</option>
+        </select>
         <em className="perf-take-now-value" title="value at the playhead">
           {nowValue === null ? '—' : nowValue.toFixed(2)}
         </em>

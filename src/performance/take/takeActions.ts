@@ -6,6 +6,10 @@ import { playback } from '@/playback/PlaybackController';
 import { uid } from '@/utils/id';
 import { takeRecorder } from './recorder';
 import { takePlayer } from './player';
+import { addLane } from './edit';
+import { layerOpacityTarget, macroTarget, paramTarget, parseControlTarget } from './model';
+import { getTechnique } from '@/techniques/registry';
+import { allParams } from '@/techniques/types';
 
 /**
  * v0.7 — Take-level operations: arm, record, replay, and the small library
@@ -265,4 +269,78 @@ export function deleteTake(takeId: string): void {
     takes: p.takes.filter((t) => t.id !== takeId),
     activeTakeId: p.activeTakeId === takeId ? null : p.activeTakeId,
   }));
+}
+
+
+// ---- Hand-authored keyframes ----------------------------------------------
+
+/**
+ * An empty Take to draw lanes into. Same object the recorder produces, so
+ * playback, export and the lane editor treat it identically; `durationSec`
+ * defaults to the composition length so keys can reach the end of the piece.
+ */
+export function createManualTake(durationSec?: number): string {
+  const clock = usePlaybackStore.getState().durationSec;
+  const length = Math.max(durationSec ?? (clock > 0 ? clock : 10), 1);
+  const project = useProjectStore.getState().project;
+  const take: PerformanceTake = {
+    id: uid('take'),
+    name: nextTakeName(project),
+    createdAt: new Date().toISOString(),
+    startSec: 0,
+    durationSec: length,
+    lanes: [],
+    events: [],
+    baseline: captureBaseline(project),
+  };
+  useProjectStore.getState().apply((p) => ({
+    ...p,
+    takes: [...p.takes, take],
+    activeTakeId: take.id,
+  }));
+  return take.id;
+}
+
+export interface KeyframeTarget {
+  target: string;
+  label: string;
+}
+
+/** Everything a lane can drive: layer opacities, macros and modulatable parameters. */
+export function keyframeTargets(project: Project): KeyframeTarget[] {
+  const out: KeyframeTarget[] = [];
+  project.layers.forEach((layer, i) => {
+    const name = layer.name || `Layer ${i + 1}`;
+    out.push({ target: layerOpacityTarget(layer.id), label: `${name} · Opacity` });
+    const def = layer.technique ? getTechnique(layer.technique.techniqueId) : null;
+    if (!def) return;
+    for (const p of allParams(def)) {
+      if (p.type === 'number' && p.modulatable) {
+        out.push({ target: paramTarget(layer.id, p.id), label: `${name} · ${p.label}` });
+      }
+    }
+  });
+  for (const m of project.macros) out.push({ target: macroTarget(m.id), label: `Macro · ${m.name}` });
+  return out;
+}
+
+/** The control's value right now: what a fresh lane should hold until keys move it. */
+function currentValue(project: Project, target: string): number {
+  const parsed = parseControlTarget(target);
+  if (!parsed) return 0;
+  if (parsed.kind === 'layerOpacity') {
+    return project.layers.find((l) => l.id === parsed.layerId)?.opacity ?? 1;
+  }
+  if (parsed.kind === 'macro') return project.macros.find((m) => m.id === parsed.macroId)?.value ?? 0;
+  const layer = project.layers.find((l) => l.id === parsed.layerId);
+  const stored = layer?.technique?.params[parsed.paramId];
+  if (typeof stored === 'number') return stored;
+  const def = layer?.technique ? getTechnique(layer.technique.techniqueId) : null;
+  const param = def ? allParams(def).find((p) => p.id === parsed.paramId) : null;
+  return param && param.type === 'number' ? param.default : 0;
+}
+
+export function addLaneToTake(takeId: string, target: string): void {
+  const project = useProjectStore.getState().project;
+  editTake(takeId, (take) => addLane(take, target, currentValue(project, target)));
 }

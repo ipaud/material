@@ -344,6 +344,14 @@ the performance as an unknown key.
 
 ## Keyframes
 
-The format reserves room for parameter automation (parameter, time, value,
-interpolation) predating v0.7. Nothing writes it — Takes are how MATERIAL
-records automation, and they record intent rather than baked values.
+Keyframes are **hand-authored Take lanes**: a Take is a set of `(t, v)` lanes
+addressed by scoped targets (`layer:<id>:opacity`, `param:<layerId>:<paramId>`,
+`macro:<id>`), replayed at the base of the evaluation chain, before modulation.
+A recorded performance and a drawn one are the same object. In the Perform
+strip, **+ NEW KEYFRAMES** makes an empty Take, **+ LANE** adds a lane that
+starts flat at the control's current value, double-click a lane to add a key,
+drag a key to move it, Alt-click a key to delete it. `lane.interp` (optional)
+chooses how values move between keys: `linear` (default; every recorded lane),
+`hold` or `smooth` (smoothstep). Bézier handles are still absent on purpose.
+The activity window multiplies the lane's opacity afterwards, so a lane cannot
+bring a layer back from outside its window.

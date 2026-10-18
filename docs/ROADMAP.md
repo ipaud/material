@@ -130,9 +130,8 @@ passes through one timestampable chokepoint (see the readiness table in
 PERFORMANCE.md), and recorded morphs prove the replay pattern. What is missing
 is a recorder and a replay path into the export evaluator.
 
-**Keyframes.** The project format still reserves parameter/time/value/
-interpolation. Needs a timeline lane and an evaluator that composes with
-modulation rather than fighting it.
+**Keyframes.** Shipped as hand-authored Take lanes (post-0.8.4): see
+docs/PROJECT_FORMAT.md. Open: a full-width timeline view and Bézier handles.
 
 **Tempo map.** v0.2 has one global BPM. Music that drifts, ritardandos and
 live drummers all want a tempo track. The beat grid is pure arithmetic over

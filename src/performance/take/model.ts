@@ -82,7 +82,10 @@ export function laneValueAt(lane: TakeLane, t: number): number | null {
   const b = s[hi] as { t: number; v: number };
   const span = b.t - a.t;
   if (span <= 0) return b.v;
-  return a.v + ((t - a.t) / span) * (b.v - a.v);
+  if (lane.interp === 'hold') return a.v;
+  const x = (t - a.t) / span;
+  const k = lane.interp === 'smooth' ? x * x * (3 - 2 * x) : x;
+  return a.v + k * (b.v - a.v);
 }
 
 /**

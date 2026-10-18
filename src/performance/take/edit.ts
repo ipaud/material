@@ -86,6 +86,35 @@ export function movePoint(
   return withLane(take, target, { ...lane, samples: normalise(samples) });
 }
 
+/** A new lane running flat-to-flat across the whole Take, ready for keys to be added. */
+export function addLane(
+  take: PerformanceTake,
+  target: string,
+  startValue: number,
+  endValue: number = startValue,
+): PerformanceTake {
+  if (laneOf(take, target)) return take;
+  const lane: TakeLane = {
+    target,
+    samples: normalise([
+      { t: 0, v: startValue },
+      { t: Math.max(take.durationSec, 0), v: endValue },
+    ]),
+  };
+  return { ...take, lanes: [...take.lanes, lane] };
+}
+
+export function setLaneInterp(
+  take: PerformanceTake,
+  target: string,
+  interp: NonNullable<TakeLane['interp']>,
+): PerformanceTake {
+  const lane = laneOf(take, target);
+  if (!lane) return take;
+  const { interp: _old, ...rest } = lane;
+  return withLane(take, target, interp === 'linear' ? rest : { ...rest, interp });
+}
+
 export function addPoint(
   take: PerformanceTake,
   target: string,

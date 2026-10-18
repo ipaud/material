@@ -1228,3 +1228,14 @@
   border: 1px solid var(--border-0);
   color: var(--text-1, inherit);
 }
+
+.perf-take-add-lane,
+.perf-take-interp {
+  height: 18px;
+  padding: 0 2px;
+  font-size: 9px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  color: var(--text-2);
+  cursor: pointer;
+}

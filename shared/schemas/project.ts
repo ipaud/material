@@ -631,6 +631,12 @@ export type Layer = z.infer<typeof layerSchema>;
  */
 export const takeLaneSchema = z.object({
   target: z.string(),
+  /**
+   * How values are read BETWEEN samples: absent/'linear' (what every recorded
+   * lane means), 'hold' (stay on a key until the next) or 'smooth' (smoothstep
+   * between keys). Optional so existing Takes are untouched.
+   */
+  interp: z.enum(['linear', 'hold', 'smooth']).optional(),
   /** Strictly increasing in `t`; `t` is seconds RELATIVE to the Take start. */
   samples: z
     .array(z.object({ t: z.number().nonnegative(), v: z.number() }))
