@@ -29,8 +29,9 @@ interface Status {
 }
 
 export async function runRender(win: BrowserWindow, cmd: Rendering): Promise<number> {
+  if (cmd.audio) await probeMedia(cmd.audio); // validates and approves it for the encoder
   await bridgeReady(win);
-  const job = { project: cmd.project, out: cmd.out, codec: cmd.codec, fps: cmd.fps, range: cmd.range };
+  const job = { project: cmd.project, out: cmd.out, codec: cmd.codec, audio: cmd.audio, fps: cmd.fps, range: cmd.range };
   const work = win.webContents.executeJavaScript(
     `window.__materialCli.render(${JSON.stringify(job)})`,
   ) as Promise<{ out: string; frames: number }>;

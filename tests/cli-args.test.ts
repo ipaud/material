@@ -13,6 +13,7 @@ describe('parseCli', () => {
       project: '/p/a.material',
       out: '/o/a.mov',
       codec: 'prores422hq',
+      audio: null,
       fps: null,
       range: null,
       jsonProgress: false,
@@ -25,6 +26,11 @@ describe('parseCli', () => {
       '--fps', '25', '--range', '10.5:20', '--json-progress',
     ]);
     expect(r).toMatchObject({ codec: 'h264', fps: 25, range: [10.5, 20], jsonProgress: true });
+  });
+
+  it('accepts the prores alias and an audio override', () => {
+    const r = parseCli(['render', '/p/a.material', '--out', '/o.mov', '--codec', 'prores', '--audio', 'x.wav'], '/w');
+    expect(r).toMatchObject({ codec: 'prores422hq', audio: '/w/x.wav' });
   });
 
   it('accepts --opt=value form', () => {

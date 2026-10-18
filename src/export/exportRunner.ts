@@ -67,6 +67,8 @@ export interface AnimationExportRequest {
   durationSec: number;
   outPath: string;
   includeAudio: boolean;
+  /** CLI: mux this file instead of the project's audio source. */
+  audioPathOverride?: string | null;
   alpha?: boolean;
 }
 
@@ -842,7 +844,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
   const alpha = request.alpha === true;
   const audioPath =
     request.includeAudio && request.format !== 'png-sequence'
-      ? (project.sources
+      ? (request.audioPathOverride ?? project.sources
           .filter(isFileSource)
           .find((s) => s.id === project.composition.audioSourceId)?.path ?? null)
       : null;

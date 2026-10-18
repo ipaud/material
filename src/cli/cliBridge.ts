@@ -22,6 +22,7 @@ export interface RenderJob {
   project: string;
   out: string;
   codec: 'prores422hq' | 'prores4444' | 'h264';
+  audio: string | null;
   fps: number | null;
   range: [number, number] | null;
 }
@@ -89,7 +90,8 @@ async function render(job: RenderJob): Promise<{ out: string; frames: number }> 
     startSec,
     durationSec: endSec - startSec,
     outPath: job.out,
-    includeAudio: hasAudio,
+    includeAudio: hasAudio || job.audio !== null,
+    audioPathOverride: job.audio,
   });
   const done = useExportStore.getState();
   if (done.phase !== 'done') throw new Error(done.message ?? `Export ${done.phase}`);

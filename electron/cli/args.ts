@@ -8,6 +8,8 @@ export type CliCommand =
       project: string;
       out: string;
       codec: CliCodec;
+      /** Replaces the audio muxed into the file (modulation still reads the project's own audio). */
+      audio: string | null;
       fps: number | null;
       range: [number, number] | null;
       jsonProgress: boolean;
@@ -45,7 +47,7 @@ export function parseCli(argv: readonly string[], cwd: string = process.cwd()): 
     const t = rest[i] as string;
     if (t === '--json-progress') jsonProgress = true;
     else if (t === '--json') continue; // analyze-audio is always JSON
-    else if (t === '--out' || t === '--codec' || t === '--fps' || t === '--range') {
+    else if (t === '--out' || t === '--codec' || t === '--fps' || t === '--range' || t === '--audio') {
       const value = rest[++i];
       if (value === undefined) return fail(`${t} needs a value`);
       opts.set(t, value);
@@ -63,7 +65,8 @@ export function parseCli(argv: readonly string[], cwd: string = process.cwd()): 
 
   const out = opts.get('--out');
   if (!out) return fail('render needs --out <file>');
-  const codec = (opts.get('--codec') ?? 'prores422hq') as CliCodec;
+  const rawCodec = opts.get('--codec') ?? 'prores422hq';
+  const codec = (rawCodec === 'prores' ? 'prores422hq' : rawCodec) as CliCodec;
   if (!CODECS.includes(codec)) return fail(`Unknown codec ${codec} (use ${CODECS.join(', ')})`);
   let fps: number | null = null;
   if (opts.has('--fps')) {
@@ -79,5 +82,6 @@ export function parseCli(argv: readonly string[], cwd: string = process.cwd()): 
     }
     range = [a, b];
   }
-  return { command: 'render', project: abs(file), out: abs(out), codec, fps, range, jsonProgress };
+  const audioOpt = opts.get('--audio');
+  return { command: 'render', project: abs(file), out: abs(out), codec, audio: audioOpt ? abs(audioOpt) : null, fps, range, jsonProgress };
 }
