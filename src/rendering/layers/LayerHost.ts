@@ -484,7 +484,7 @@ export class LayerHost {
    * transfer. Drawing straight onto the canvas put the technique's raw
    * (linear) output on screen — see RenderEngine.blit.
    */
-  renderSingleOpaqueToOwnTarget(renderer: THREE.WebGLRenderer): THREE.Texture | null {
+  renderSingleOpaqueToOwnTarget(_renderer: THREE.WebGLRenderer): THREE.Texture | null {
     const index = this.singleOpaqueIndex();
     if (index === null) return null;
     const target = this.ensureTarget(index);
