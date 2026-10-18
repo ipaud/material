@@ -71,6 +71,9 @@ describe('parseCli', () => {
     expect(parseCli(['analyze-audio', '/a/x.wav', '--json'])).toEqual({
       command: 'analyze-audio',
       audio: '/a/x.wav',
+      threshold: null,
     });
+    expect(parseCli(['analyze-audio', '/a/x.wav', '--threshold', '0.6'])).toMatchObject({ threshold: 0.6 });
+    expect(parseCli(['analyze-audio', '/a/x.wav', '--threshold', '2'])).toMatchObject({ command: 'error' });
   });
 });

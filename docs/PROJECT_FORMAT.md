@@ -355,3 +355,20 @@ chooses how values move between keys: `linear` (default; every recorded lane),
 `hold` or `smooth` (smoothstep). Bézier handles are still absent on purpose.
 The activity window multiplies the lane's opacity afterwards, so a lane cannot
 bring a layer back from outside its window.
+
+## Markers at scale (post-0.8.4)
+
+- `timeline.markers[].group` (optional): an EDL colour or a CSV column. A trigger
+  with source `group:<name>` fires for every marker whose group (else label) is
+  `<name>`, so 40 hits need one trigger, not 40.
+- **Import** (timeline toolbar, IMPORT): CSV `time,label[,group]` (seconds,
+  `m:ss.ms`, `h:m:s` or frame timecode; `,` `;` or tab; header optional); EDL
+  (`* LOC:` locators, colour becomes the group; cut points when there are none;
+  the *timecode zero* field subtracts a 01:00:00:00 start); FCPXML (`marker` and
+  `chapter-marker`, clip-relative times placed with the clip's offset/start).
+  Re-importing skips a marker that lands within 20 ms of one with the same label.
+- **ONSETS → MARKERS** adds one marker per onset at an adjustable threshold
+  (0.05–0.95; lower finds more hits). **SNAP TO ONSETS** moves every marker within
+  0.25 s of an onset onto it. CLI: `analyze-audio <file> --threshold N`.
+- Not done: drop-frame timecode (`;` is read as `:`), FCPXML nested compound clips
+  beyond the nearest clip, and exporting markers back out (see interop).

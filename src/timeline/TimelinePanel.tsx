@@ -8,6 +8,7 @@ import { runTempoDetection, tapTempoTap } from '@/audio/tempoActions';
 import { useUiStore } from '@/state/uiStore';
 import { uid } from '@/utils/id';
 import { Meters } from './Meters';
+import { MarkerTools } from './MarkerTools';
 import './timeline.css';
 
 function formatTime(sec: number): string {
@@ -131,6 +132,7 @@ export function TimelinePanel() {
         >
           +MARK
         </button>
+        <MarkerTools />
         <span className="label">BPM</span>
         <input
           className="timeline-num mono"

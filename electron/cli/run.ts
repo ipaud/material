@@ -76,7 +76,7 @@ export async function runAnalyze(
     await probeMedia(cmd.audio); // validates the path and approves it for the renderer
     await bridgeReady(win);
     const result = await win.webContents.executeJavaScript(
-      `window.__materialCli.analyzeAudio(${JSON.stringify(cmd.audio)})`,
+      `window.__materialCli.analyzeAudio(${JSON.stringify(cmd.audio)}, ${JSON.stringify(cmd.threshold)})`,
     );
     emit({ event: 'result', ...(result as Record<string, unknown>) });
     return EXIT.ok;

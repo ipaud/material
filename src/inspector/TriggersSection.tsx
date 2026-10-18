@@ -94,6 +94,11 @@ export function TriggersSection() {
   const sourceOptions = [
     ...SOURCE_OPTIONS,
     ...markers.map((m) => ({ value: `marker:${m.id}`, label: `Marker · ${m.label}` })),
+    // One option per group (explicit group, else the label): a single trigger for all of them.
+    ...[...new Set(markers.map((m) => m.group ?? m.label))].map((g) => ({
+      value: `group:${g}`,
+      label: `Group · ${g} (${markers.filter((m) => (m.group ?? m.label) === g).length})`,
+    })),
   ];
 
   return (

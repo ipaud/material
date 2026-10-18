@@ -98,12 +98,12 @@ async function render(job: RenderJob): Promise<{ out: string; frames: number }> 
   return { out: job.out, frames: done.totalFrames };
 }
 
-async function analyzeAudio(path: string): Promise<unknown> {
+async function analyzeAudio(path: string, threshold: number | null = null): Promise<unknown> {
   await audioEngine.load(path);
   const { analysis, durationSec, path: loaded } = useAudioStore.getState();
   if (!analysis || loaded !== path) throw new Error(`Could not analyse ${path}`);
   const tempo = detectTempo(analysis);
-  const onsets = Array.from(onsetEventTimes(analysis), (t) => Math.round(t * 1000) / 1000);
+  const onsets = Array.from(onsetEventTimes(analysis, threshold ?? undefined), (t) => Math.round(t * 1000) / 1000);
   return {
     file: path,
     durationSec,

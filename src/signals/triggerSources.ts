@@ -48,21 +48,26 @@ function gridUnitSec(source: string, ctx: TriggerContext): number | null {
 const ONSET_THRESHOLD = 0.3;
 const ONSET_MIN_SEPARATION_SEC = 0.12;
 
-const onsetCache = new WeakMap<AudioAnalysis, Float32Array>();
+const onsetCache = new WeakMap<AudioAnalysis, Map<number, Float32Array>>();
 
 /**
  * Discrete onset event times: local maxima of the onset track above threshold
  * with a minimum separation. Cached per analysis — pure and deterministic.
  */
-export function onsetEventTimes(analysis: AudioAnalysis): Float32Array {
-  const cached = onsetCache.get(analysis);
+export function onsetEventTimes(
+  analysis: AudioAnalysis,
+  threshold: number = ONSET_THRESHOLD,
+): Float32Array {
+  const byThreshold = onsetCache.get(analysis) ?? new Map<number, Float32Array>();
+  onsetCache.set(analysis, byThreshold);
+  const cached = byThreshold.get(threshold);
   if (cached) return cached;
   const track = analysis.tracks.onset;
   const times: number[] = [];
   let lastTime = -Infinity;
   for (let i = 1; i < track.length - 1; i++) {
     const v = track[i] as number;
-    if (v < ONSET_THRESHOLD) continue;
+    if (v < threshold) continue;
     if (v < (track[i - 1] as number) || v < (track[i + 1] as number)) continue;
     const t = i * analysis.hopSec;
     if (t - lastTime < ONSET_MIN_SEPARATION_SEC) continue;
@@ -70,7 +75,7 @@ export function onsetEventTimes(analysis: AudioAnalysis): Float32Array {
     lastTime = t;
   }
   const result = Float32Array.from(times);
-  onsetCache.set(analysis, result);
+  byThreshold.set(threshold, result);
   return result;
 }
 
@@ -104,6 +109,14 @@ export function eventTimesBetween(
       if (t > t1) break;
     }
     return out;
+  }
+  if (source.startsWith('group:')) {
+    // A group is its explicit `group`, else the marker's own label.
+    const name = source.slice(6);
+    return ctx.markers
+      .filter((m) => (m.group ?? m.label) === name && m.timeSec > t0 && m.timeSec <= t1)
+      .map((m) => m.timeSec)
+      .sort((a, b) => a - b);
   }
   if (source.startsWith('marker:')) {
     const id = source.slice(7);

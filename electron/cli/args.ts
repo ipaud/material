@@ -15,7 +15,7 @@ export type CliCommand =
       jsonProgress: boolean;
     }
   | { command: 'validate'; project: string }
-  | { command: 'analyze-audio'; audio: string }
+  | { command: 'analyze-audio'; audio: string; threshold: number | null }
   | { command: 'error'; message: string };
 
 const CODECS: readonly CliCodec[] = ['prores422hq', 'prores4444', 'h264'];
@@ -47,7 +47,7 @@ export function parseCli(argv: readonly string[], cwd: string = process.cwd()): 
     const t = rest[i] as string;
     if (t === '--json-progress') jsonProgress = true;
     else if (t === '--json') continue; // analyze-audio is always JSON
-    else if (t === '--out' || t === '--codec' || t === '--fps' || t === '--range' || t === '--audio') {
+    else if (t === '--out' || t === '--codec' || t === '--fps' || t === '--range' || t === '--audio' || t === '--threshold') {
       const value = rest[++i];
       if (value === undefined) return fail(`${t} needs a value`);
       opts.set(t, value);
@@ -58,7 +58,12 @@ export function parseCli(argv: readonly string[], cwd: string = process.cwd()): 
   const file = positional[0];
   if (command === 'analyze-audio') {
     if (!file) return fail('analyze-audio needs an audio file');
-    return { command, audio: abs(file) };
+    let threshold: number | null = null;
+    if (opts.has('--threshold')) {
+      threshold = Number(opts.get('--threshold'));
+      if (!(threshold > 0 && threshold < 1)) return fail('--threshold must be between 0 and 1');
+    }
+    return { command, audio: abs(file), threshold };
   }
   if (!file) return fail(`${command} needs a project file`);
   if (command === 'validate') return { command, project: abs(file) };

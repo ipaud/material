@@ -291,6 +291,8 @@ export const timelineMarkerSchema = z.object({
   id: z.string(),
   timeSec: z.number().nonnegative(),
   label: z.string().max(40),
+  /** Optional group (an EDL colour, a CSV column). A `group:<name>` trigger fires for all of them. */
+  group: z.string().max(40).optional(),
 });
 export type TimelineMarker = z.infer<typeof timelineMarkerSchema>;
 
