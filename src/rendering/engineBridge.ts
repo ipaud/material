@@ -353,6 +353,7 @@ function syncFromProject(): void {
       enabled: rendered.has(l.id),
       opacity: l.opacity,
       blendMode: l.blendMode,
+      input: l.input,
       selected: l.id === selectedId,
     })),
   );
@@ -483,6 +484,7 @@ function syncFromProject(): void {
       techniqueId: l.technique?.enabled === false ? null : (l.technique?.techniqueId ?? null),
       materialState: l.material,
       blendMode: l.blendMode,
+      input: l.input,
       enabled: true,
       opacity: l.opacity,
       source: describeSource(findSource(project, l.sourceId)),
@@ -648,6 +650,7 @@ export function syncLayersForExport(project: Project): void {
       enabled: rendered.has(l.id),
       opacity: l.opacity,
       blendMode: l.blendMode,
+      input: l.input,
       selected: l.id === selectedId,
     })),
   );

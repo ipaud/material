@@ -49,6 +49,10 @@ export class LayerRuntimeImpl implements LayerRuntime {
   private readonly camera = new THREE.PerspectiveCamera(20, 1, 10, 100000);
 
   private sourceTexture: THREE.Texture | null = null;
+  /** Serial layers: the composite beneath, for this frame (see LayerRuntime.setInputOverride). */
+  private inputOverride: THREE.Texture | null = null;
+  /** Bumped each frame the host sets the override: the accumulator's 'frame identity'. */
+  private overrideRevision = 0;
   /** Decoded copy of a video source for technique shaders; null for every other source. */
   private videoIngest: VideoIngest | null = null;
   private materialTexture: THREE.Texture | null = null;
@@ -131,9 +135,9 @@ export class LayerRuntimeImpl implements LayerRuntime {
     const prevTarget = renderer.getRenderTarget();
     try {
       // Neither setPixelRatio nor setViewport belongs here — see bindTarget.
-      if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
+      if (this.temporalEnabled && this.temporal && this.effectiveSource() && !this.exportMode) {
         const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
-        this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
+        this.temporal.advancePreview(renderer, temporalClock, this.effectiveSource()!);
       }
       this.updateCamera(target.width / Math.max(target.height, 1));
       if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
@@ -176,9 +180,9 @@ export class LayerRuntimeImpl implements LayerRuntime {
   renderLayerToCanvas(renderer: THREE.WebGLRenderer): void {
     // The scissor rect has the composition's aspect, not the canvas's.
     this.updateCamera(this.compWidth / Math.max(this.compHeight, 1));
-    if (this.temporalEnabled && this.temporal && this.sourceTexture && !this.exportMode) {
+    if (this.temporalEnabled && this.temporal && this.effectiveSource() && !this.exportMode) {
       const temporalClock = this.liveSourceActive ? performance.now() / 1000 : this.timeSec;
-      this.temporal.advancePreview(renderer, temporalClock, this.sourceTexture);
+      this.temporal.advancePreview(renderer, temporalClock, this.effectiveSource()!);
     }
     if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
     if (!this.exportMode) this.updateFlowService(renderer, undefined, this.sourceClock());
@@ -279,6 +283,35 @@ export class LayerRuntimeImpl implements LayerRuntime {
     this.watchSourceFrames();
     this.rebuildOriginalQuad();
     this.invalidate();
+  }
+
+  setInputOverride(texture: THREE.Texture | null): void {
+    this.inputOverride = texture;
+    if (texture) this.overrideRevision++;
+  }
+
+  advanceTemporalFromInput(): void {
+    // Preview pushes inside renderLayerTo; the export path draws without it, and
+    // a serial layer has no source to seek, so its history is fed frame by frame.
+    if (!this.exportMode || !this.inputOverride) return;
+    if (!this.temporalEnabled || !this.temporal || !this.renderer) return;
+    this.temporal.advancePreview(this.renderer, this.timeSec, this.inputOverride);
+  }
+
+  get needsFlowOrStats(): boolean {
+    return this.flowIsNeeded() || this.visualDemand.size > 0;
+  }
+
+  /** What this layer analyses and feeds its history from: the composite beneath, else its own source. */
+  private effectiveSource(): THREE.Texture | null {
+    return this.inputOverride ?? this.sourceTexture;
+  }
+
+  /** Pixel size of the effective source (a render target carries none on `.image`). */
+  private effectiveSize(): { w: number; h: number } {
+    if (this.inputOverride) return { w: this.compWidth, h: this.compHeight };
+    const img = (this.sourceTexture as { image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number } } | null)?.image;
+    return { w: img?.videoWidth ?? img?.width ?? 0, h: img?.videoHeight ?? img?.height ?? 0 };
   }
 
   /** 18D: live camera active — the loop renders every RAF while true.
@@ -521,6 +554,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
   }
 
   private sourceFrameKey(): string {
+    if (this.inputOverride) return `below:${this.overrideRevision}`;
     return `${this.sourceTexture?.uuid ?? 'none'}:${this.sourceFrameCounter}:${this.generatorRevision}`;
   }
 
@@ -541,10 +575,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
       return;
     }
     if (!this.flow) this.flow = new OpticalFlowField();
-    const img = (this.sourceTexture as { image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number } } | null)?.image;
-    const w = img?.videoWidth ?? img?.width ?? 0;
-    const h = img?.videoHeight ?? img?.height ?? 0;
-    this.flow.update(renderer, this.sourceTexture, w, h, frameKey ?? this.sourceFrameKey(), atSec);
+    const { w, h } = this.effectiveSize();
+    this.flow.update(renderer, this.effectiveSource(), w, h, frameKey ?? this.sourceFrameKey(), atSec);
   }
 
   /** Seek/loop discontinuity: invalidate the frame pair — for seekable
@@ -652,13 +684,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
   private visualGrid(): { width: number; height: number } | null {
     const flowRes = this.flow?.resolution;
     if (flowRes && flowRes.width > 1) return flowRes;
-    const img = (
-      this.sourceTexture as {
-        image?: { videoWidth?: number; width?: number; videoHeight?: number; height?: number };
-      } | null
-    )?.image;
-    const w = img?.videoWidth ?? img?.width ?? 0;
-    const h = img?.videoHeight ?? img?.height ?? 0;
+    const { w, h } = this.effectiveSize();
     if (w < 2 || h < 2) return null;
     const scale = Math.min(256 / Math.max(w, h), 1);
     return { width: Math.max(Math.round(w * scale), 8), height: Math.max(Math.round(h * scale), 8) };
@@ -684,7 +710,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
     if (!this.visualStats) this.visualStats = new ImageStatsReducer();
     const next = this.visualStats.analyse(
       renderer,
-      this.sourceTexture,
+      this.effectiveSource(),
       // `ready` and not merely present: the priming update clears the field,
       // and publishing that zero seeds the motion calibrator with a low
       // extreme it then takes ~10 s to give back (measured: calibrated motion
@@ -853,6 +879,24 @@ export class LayerRuntimeImpl implements LayerRuntime {
     this.dirty = true;
   }
 
+  /**
+   * A serial layer with no technique of its own shows its input unchanged. The
+   * quad may not exist (no source) and the accumulator ping-pongs between two
+   * targets, so it is created on demand and re-pointed every frame.
+   */
+  private pointOriginalQuadAt(texture: THREE.Texture): void {
+    if (!this.originalQuad) {
+      this.originalQuad = new THREE.Mesh(
+        new THREE.PlaneGeometry(this.compWidth, this.compHeight),
+        new THREE.MeshBasicMaterial({ map: texture }),
+      );
+      this.originalQuad.visible = false;
+      this.scene.add(this.originalQuad);
+      return;
+    }
+    (this.originalQuad.material as THREE.MeshBasicMaterial).map = texture;
+  }
+
   private rebuildOriginalQuad(): void {
     if (this.originalQuad) {
       this.scene.remove(this.originalQuad);
@@ -887,6 +931,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
 
   /** What technique shaders sample: the source itself, or its sRGB-correct copy for video. */
   private techniqueSource(): THREE.Texture | null {
+    // The composite beneath is a render target: already sRGB-decoded on sample.
+    if (this.inputOverride) return this.inputOverride;
     const source = this.sourceTexture;
     const video = (source as { isVideoTexture?: boolean } | null)?.isVideoTexture === true;
     if (!source || !video || !this.renderer) {
@@ -902,6 +948,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
 
   private syncScene(paramsOverride?: ParamRecord): void {
     const showProcessed = !this.showOriginal;
+    if (this.inputOverride) this.pointOriginalQuadAt(this.inputOverride);
     // No technique = the source passes through untouched, not a blank layer.
     if (this.originalQuad) this.originalQuad.visible = !showProcessed || !this.techniqueRenderer;
     if (this.techniqueRenderer) {

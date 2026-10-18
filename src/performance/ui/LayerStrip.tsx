@@ -5,6 +5,7 @@ import {
   selectLayer,
   setLayerActivity,
   setLayerBlend,
+  setLayerInput,
   toggleLayerSolo,
 } from '@/projects/layerActions';
 import { performLayerOpacity, performToggleLayerEnabled } from '@/performance/take/gestures';
@@ -180,6 +181,21 @@ function LayerCell({
               {BLEND_LABEL[m]}
             </option>
           ))}
+        </select>
+        <select
+          className="perf-layer-blend mono"
+          value={layer.input}
+          disabled={index === 0}
+          onChange={(e) => setLayerInput(layer.id, e.target.value as Layer['input'])}
+          aria-label={`${name} input`}
+          title={
+            index === 0
+              ? 'Input — the bottom layer has nothing beneath it'
+              : 'Input — SRC: this layer processes its own source and blends in parallel. BELOW: it processes the result of the layers beneath it (effects in series).'
+          }
+        >
+          <option value="source">SRC</option>
+          <option value="below">BELOW</option>
         </select>
         <button
           className={'perf-layer-btn' + (layer.activity ? ' on' : '')}

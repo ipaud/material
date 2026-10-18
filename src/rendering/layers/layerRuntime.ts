@@ -36,6 +36,17 @@ export interface LayerRuntime {
   setTime(timeSec: number): void;
   setParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void;
   setSource(texture: THREE.Texture | null): void;
+  /**
+   * Serial layers: the composite beneath this layer, for THIS frame. While set it
+   * is what the technique processes instead of the layer's own source. The host
+   * passes the same accumulator texture object back each frame; null returns the
+   * layer to its own source.
+   */
+  setInputOverride(texture: THREE.Texture | null): void;
+  /** EXPORT, serial layers: push this frame's input into the frame-history ring (no-op otherwise). */
+  advanceTemporalFromInput(): void;
+  /** This layer's technique reads optical flow or image statistics from its input. */
+  readonly needsFlowOrStats: boolean;
   setLiveSourceActive(active: boolean): void;
 
   // ---- render ---------------------------------------------------------------

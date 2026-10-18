@@ -99,6 +99,11 @@ export function setLayerActivity(
   });
 }
 
+/** 'below' chains this layer after the ones beneath it (series); 'source' is the original parallel stack. */
+export function setLayerInput(layerId: string, input: Layer['input']): void {
+  updateLayer(layerId, { input });
+}
+
 export function setLayerBlend(layerId: string, blendMode: BlendMode): void {
   updateLayer(layerId, { blendMode });
 }

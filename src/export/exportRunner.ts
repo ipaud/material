@@ -782,6 +782,9 @@ export function createExportRendererSync(
  * fresh decode for the first export frame (a project that just opened has no
  * decoded data at all).
  */
+/** Seconds of composite to replay before an export range so serial layers' history matches a full export. */
+const SERIAL_PREROLL_SEC = 3;
+
 async function seekVideoExact(
   video: HTMLVideoElement,
   timeSec: number,
@@ -996,8 +999,16 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
     const demand = exportDemand;
     const visualFrom =
       demand.size > 0 ? Math.max(0, startFrame - Math.ceil(CALIBRATION_PREROLL_SEC * request.fps)) : startFrame;
+    // A serial layer's input is the composite beneath it, so its history (frame
+    // ring, optical-flow pair, signals) can only be rebuilt by drawing that
+    // composite for the frames before the range. Feedback already walks from 0;
+    // the rest has finite memory (the frame ring spans ~2.3 s).
+    const serialWalk = engine.hasStatefulSerialLayers;
+    const serialFrom = serialWalk
+      ? Math.max(0, startFrame - Math.ceil(SERIAL_PREROLL_SEC * request.fps))
+      : startFrame;
     const walkGpuFrom = engine.isFeedbackTechnique ? 0 : visualFrom;
-    const walkFrom = Math.min(walkGpuFrom, visualFrom);
+    const walkFrom = Math.min(walkGpuFrom, visualFrom, serialFrom);
 
     if (startFrame > 0) {
       // A feedback technique additionally needs its SURFACE walked forward:
@@ -1006,7 +1017,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // source evolve.
       const probe = createFrameEvaluator(request.startSec, request.fps)(0);
       rendererSync.sync(probe.techniqueId, probe.params);
-      const walkGpu = engine.isFeedbackTechnique || demand.size > 0;
+      const walkGpu = engine.isFeedbackTechnique || demand.size > 0 || serialWalk;
       for (let f = 0; f < startFrame; f++) {
         if (useExportStore.getState().cancelRequested) break;
         const frame = evaluate(f); // advances smoothing + triggers
@@ -1016,7 +1027,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         // subrange disagreed with each other — the exact CE1H failure, one
         // layer along.
         const prerollLayers = new Map(evaluateLayers.paramsAt(frame.timeSec));
-        evaluateLayers.opacityAt(frame.timeSec); // walk opacity smoothing too
+        const walkOpacity = evaluateLayers.opacityAt(frame.timeSec); // walk opacity smoothing too
         if (!walkGpu || f < walkFrom) continue;
         prerollLayers.set(selectedLayerOf(project0).id, frame.params);
         engine.setAuthorityLayerParams(prerollLayers);
@@ -1039,6 +1050,17 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         }
         if (engine.isFeedbackTechnique) {
           engine.prepareFeedbackForExport(frame.timeSec, f === 0, frame.params);
+        }
+        if (serialWalk) {
+          // Draw the stack: this is what runs the serial layers' deferred
+          // preparation against the composite beneath them, exactly as a
+          // real frame will.
+          engine.setAuthorityLayerOpacity(walkOpacity);
+          engine.setTime(frame.timeSec);
+          if (video) {
+            await seekVideoExact(video, frame.timeSec, f === walkFrom);
+          }
+          engine.walkCompositeForExport(request.width, request.height, frame.params);
         }
       }
       prerolled = walkGpu;

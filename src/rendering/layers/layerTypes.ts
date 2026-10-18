@@ -13,4 +13,6 @@ export interface LayerRenderState {
   opacity: number;
   blendMode: BlendMode;
   selected: boolean;
+  /** 'below' = process the composite beneath this layer instead of its own source. */
+  input?: 'source' | 'below';
 }

@@ -42,3 +42,23 @@ describe('LayerStrip window fields', () => {
     expect(layer0().activity).toEqual({ start: 10, end: 20, fadeIn: 2, fadeOut: 3 });
   });
 });
+
+describe('LayerStrip input selector', () => {
+  it('chooses between the layer\'s own source and the layers beneath it', async () => {
+    const { addLayer, setLayerInput } = await import('@/projects/layerActions');
+    addLayer();
+    const second = useProjectStore.getState().project.layers[1]!;
+    render(<LayerStrip />);
+    const select = screen.getByLabelText(`${second.name || 'Layer 2'} input`) as HTMLSelectElement;
+    expect(select.value).toBe('source');
+    fireEvent.change(select, { target: { value: 'below' } });
+    expect(useProjectStore.getState().project.layers[1]!.input).toBe('below');
+    setLayerInput(second.id, 'source');
+    expect(useProjectStore.getState().project.layers[1]!.input).toBe('source');
+  });
+
+  it('the bottom layer has nothing beneath it, so its selector is disabled', () => {
+    render(<LayerStrip />);
+    expect(screen.getByLabelText('Layer 1 input')).toBeDisabled();
+  });
+});

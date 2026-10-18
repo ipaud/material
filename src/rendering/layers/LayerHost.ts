@@ -222,6 +222,45 @@ export class LayerHost {
     for (const s of this.slots) fn(s.runtime, s.id);
   }
 
+  /** Serial layer: its input is the composite beneath it (see Layer.input). */
+  isSerial(layerId: string): boolean {
+    return this.states.find((s) => s.id === layerId)?.input === 'below';
+  }
+
+  /** Does any visible serial layer carry state that must be advanced every frame? */
+  anySerialLayerIsStateful(): boolean {
+    return this.states.some(
+      (s, i) =>
+        s.input === 'below' &&
+        s.enabled &&
+        (this.slots[i]?.runtime.isFeedbackTechnique ||
+          this.slots[i]?.runtime.isTemporalActive ||
+          this.slots[i]?.runtime.needsFlowOrStats),
+    );
+  }
+
+  /** Per-layer work queued until that layer's input exists, keyed by kind (latest wins). */
+  private deferred = new Map<string, Map<string, () => void>>();
+
+  /**
+   * Run `work` for a layer's export preparation. An ordinary layer prepares now.
+   * A serial layer cannot: its input is the composite of the layers beneath it,
+   * which does not exist until the compositor reaches it this frame, so the work
+   * is queued and runs inside `composite()` right after the input is bound.
+   */
+  prepare(layerId: string, kind: string, work: () => void): void {
+    if (!this.isSerial(layerId)) {
+      work();
+      return;
+    }
+    let queue = this.deferred.get(layerId);
+    if (!queue) {
+      queue = new Map();
+      this.deferred.set(layerId, queue);
+    }
+    queue.set(kind, work);
+  }
+
   // ---- questions about the SET ----------------------------------------------
 
   /**
@@ -465,7 +504,7 @@ export class LayerHost {
     if (visible.length !== 1) return null;
     const only = visible[0] as number;
     const state = this.states[only];
-    if (!state || state.blendMode !== 'normal') return null;
+    if (!state || state.blendMode !== 'normal' || (state.input ?? 'source') !== 'source') return null;
     if (this.effectiveOpacityAt(only) < 1) return null;
     return only;
   }
@@ -539,9 +578,33 @@ export class LayerHost {
       const state = this.states[i]!;
       const target = this.ensureTarget(i);
       const params = paramsByLayer?.get(state.id);
-      if (params) slot.runtime.renderLayerToWithParams(target, params);
-      else slot.runtime.renderLayerTo(target, { clear: true });
+      const draw = (): void => {
+        if (params) slot.runtime.renderLayerToWithParams(target, params);
+        else slot.runtime.renderLayerTo(target, { clear: true });
+      };
+      const serial = state.input === 'below';
+      if (!serial) {
+        slot.runtime.setInputOverride(null);
+        draw();
+      }
       composed.push({
+        // A serial layer is drawn by the compositor, once the layers beneath it
+        // have been blended: its input is that accumulated result.
+        ...(serial
+          ? {
+              before: (backdrop: THREE.Texture) => {
+                slot.runtime.setInputOverride(backdrop);
+                const queued = this.deferred.get(state.id);
+                if (queued) {
+                  for (const work of queued.values()) work();
+                  queued.clear();
+                }
+                // Export steps history by hand; preview advances it inside the draw.
+                slot.runtime.advanceTemporalFromInput();
+                draw();
+              },
+            }
+          : {}),
         texture: target.texture,
         opacity: this.effectiveOpacityAt(i),
         blendMode: state.blendMode,

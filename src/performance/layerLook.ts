@@ -60,6 +60,7 @@ export function projectWithLayerLooks(project: Project, look: PinnedLook): Proje
         sourceId: null,
         technique: null,
         activity: null,
+        input: 'source' as const,
         material: entry.material,
       }),
       id: entry.id,

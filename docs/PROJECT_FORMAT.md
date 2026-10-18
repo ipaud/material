@@ -151,6 +151,10 @@ They are meant to be readable and diffable.
   to v0.5.0, verified against a v0.5.0 build rather than asserted.
 - **`layers` is capped at eight** (`MAX_LAYERS`; four before the activity
   windows, see docs/LAYERS.md).
+- **`layer.input`** (`"source"` default | `"below"`): what the layer's technique
+  processes. `"below"` = the composite of the layers beneath it this frame (effects
+  in series); see docs/LAYERS.md. Absent = `"source"`, no version bump. Not part of
+  a Look.
 - **`layer.activity`** (optional, `null` = always active): `{ start, end,
   fadeIn, fadeOut }` in composition seconds; `end: null` is open-ended and
   `end` must be after `start`. Files without it parse unchanged (no version

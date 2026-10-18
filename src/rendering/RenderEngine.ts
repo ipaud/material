@@ -321,13 +321,15 @@ export class RenderEngine {
     // Every layer's flow, not the host's: a layer using Motion on a source
     // the host never sees must still solve during export.
     this.layerHost.forEachRuntime((runtime, layerId) =>
-      runtime.prepareFlowForExport(
-        compositionTime,
-        `${layerId}:${frameKey}`,
-        isFirstFrame,
-        width,
-        height,
-        this.layerHost.authorityParamsSnapshot?.get(layerId),
+      this.layerHost.prepare(layerId, 'flow', () =>
+        runtime.prepareFlowForExport(
+          compositionTime,
+          `${layerId}:${frameKey}`,
+          isFirstFrame,
+          width,
+          height,
+          this.layerHost.authorityParamsSnapshot?.get(layerId),
+        ),
       ),
     );
     void params;
@@ -377,7 +379,9 @@ export class RenderEngine {
     // Each layer analyses its OWN source; the frame key is namespaced so two
     // layers cannot share a cache entry.
     this.layerHost.forEachRuntime((runtime, layerId) =>
-      runtime.updateVisualStatsForExport(`${layerId}:${frameKey}`),
+      this.layerHost.prepare(layerId, 'stats', () =>
+        runtime.updateVisualStatsForExport(`${layerId}:${frameKey}`),
+      ),
     );
   }
 
@@ -444,6 +448,11 @@ export class RenderEngine {
   }
 
   /** Temporal history ANYWHERE in the stack. */
+  /** A serial layer carries state (feedback, history, flow, signals) that a preroll must walk. */
+  get hasStatefulSerialLayers(): boolean {
+    return this.layerHost.anySerialLayerIsStateful();
+  }
+
   get isTemporalActiveAnywhere(): boolean {
     return this.layerHost.anyLayerUsesTemporalHistory();
   }
@@ -458,10 +467,12 @@ export class RenderEngine {
     // Feedback is per layer: each surface has its own history and must be
     // prerolled on its own.
     this.layerHost.forEachRuntime((runtime, layerId) =>
-      runtime.prepareFeedbackForExport(
-        compositionTime,
-        isFirstFrame,
-        this.layerHost.authorityParamsSnapshot?.get(layerId),
+      this.layerHost.prepare(layerId, 'feedback', () =>
+        runtime.prepareFeedbackForExport(
+          compositionTime,
+          isFirstFrame,
+          this.layerHost.authorityParamsSnapshot?.get(layerId),
+        ),
       ),
     );
     void params;
@@ -497,7 +508,11 @@ export class RenderEngine {
     // given it.
     const all: { logicalSlot: number; sourceTime: number }[] = [];
     const runtimes: LayerRuntime[] = [];
-    this.layerHost.forEachRuntime((r) => runtimes.push(r));
+    // A serial layer's history is fed frame by frame from the composite beneath it
+    // (LayerHost.composite); there is no source of its own to seek.
+    this.layerHost.forEachRuntime((r, layerId) => {
+      if (!this.layerHost.isSerial(layerId)) runtimes.push(r);
+    });
     for (const runtime of runtimes) {
       all.push(...(await runtime.prepareTemporalForExport(compositionTime, isFirstFrame)));
     }
@@ -902,6 +917,15 @@ void main() { vec4 c = texture(uTex, vUv); fragColor = vec4(uEncode > 0.5 ? srgb
   /** Drop any A snapshot held for export. */
   releaseTransitionSnapshot(): void {
     this.compositor.release();
+  }
+
+  /**
+   * Export preroll: draw the whole stack once and keep nothing. It exists to run
+   * the serial layers' preparation (feedback steps, flow pair, history ring)
+   * against the composite beneath them for frames BEFORE the exported range.
+   */
+  walkCompositeForExport(width: number, height: number, paramsOverride?: ParamRecord): void {
+    this.renderStill(width, height, paramsOverride, false);
   }
 
   renderStill(

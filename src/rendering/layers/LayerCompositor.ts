@@ -137,6 +137,12 @@ function target(width: number, height: number): THREE.WebGLRenderTarget {
 }
 
 export interface CompositeLayer {
+  /**
+   * Called with the accumulated backdrop (everything beneath this layer, this
+   * frame) just BEFORE the layer is blended. A serial layer draws its own
+   * `texture` here, using the backdrop as its input.
+   */
+  before?: (backdrop: THREE.Texture) => void;
   texture: THREE.Texture;
   opacity: number;
   blendMode: BlendMode;
@@ -218,6 +224,7 @@ export class LayerCompositor {
       renderer.clear();
 
       for (const layer of layers) {
+        layer.before?.(read.texture);
         const u = this.material.uniforms;
         u.uBackdrop!.value = read.texture;
         u.uLayer!.value = layer.texture;

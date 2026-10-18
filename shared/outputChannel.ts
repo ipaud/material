@@ -71,6 +71,8 @@ export interface OutputLayerInput {
   techniqueId: string | null;
   materialState: MaterialState | null;
   blendMode: string;
+  /** Serial layer (see Layer.input). Absent = 'source'. */
+  input?: 'source' | 'below';
   enabled: boolean;
   opacity: number;
   source: RenderInputsMsg['source'];

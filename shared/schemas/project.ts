@@ -595,6 +595,13 @@ export const layerSchema = z.object({
   technique: techniqueInstanceSchema.nullable().default(null),
   /** When the layer takes part; null = always. Not part of a Look: it is timeline structure. */
   activity: activityWindowSchema.nullable().default(null),
+  /**
+   * What the layer's technique processes. 'source' (default, every file written so
+   * far) = its own source, blended in PARALLEL with the others. 'below' = the
+   * composite of the layers beneath it this frame, so effects chain in SERIES.
+   * Structure, not look: a Look recall does not change it.
+   */
+  input: z.enum(['source', 'below']).default('source'),
   material: materialStateSchema,
 });
 export type Layer = z.infer<typeof layerSchema>;
@@ -900,6 +907,7 @@ export function emptyLayer(id: string, name = ''): Layer {
     sourceId: null,
     technique: null,
     activity: null,
+    input: 'source' as const,
     material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
   };
 }

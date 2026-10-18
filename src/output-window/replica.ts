@@ -181,6 +181,7 @@ export class OutputReplica {
         enabled: l.enabled,
         opacity: l.opacity,
         blendMode: l.blendMode as never,
+        ...(l.input ? { input: l.input } : {}),
         selected: l.techniqueId === msg.techniqueId,
       })),
     );

@@ -61,6 +61,58 @@ its feedback/simulation history keeps advancing (see "Mute, fade and solo");
 mute it if it should stop costing anything. UI: the **W** button on a layer
 cell in the Perform strip opens in / out / fade-in / fade-out fields.
 
+## Series: `input: "below"`
+
+`layer.input` is `"source"` (default; every file written before it) or
+`"below"`.
+
+- **`source`**: the layer's technique processes the layer's own source and the
+  result is blended over the layers beneath it, by blend mode and opacity. Layers
+  stack in **parallel**. Rendering is byte-identical to before the field existed
+  (75 frames of a three-layer project compared).
+- **`below`**: the technique processes the **composite of the layers beneath it,
+  as it stands at this frame**, and that result is then blended back over the
+  same composite. Effects chain in **series**: each one is applied to the result
+  of the previous ones, like separate passes but in one render. The layer's own
+  `sourceId` is ignored while `below`. The bottom layer has nothing beneath it, so
+  it sees the composition background and the UI disables the selector there.
+
+How it is drawn: `LayerCompositor.composite` blends layers bottom-first into two
+ping-pong accumulators. A serial layer carries a `before(backdrop)` hook; the
+compositor calls it with the accumulator holding everything beneath, the layer is
+drawn with that texture as its input, and only then is it blended. Layers with the
+default input are drawn eagerly, in the same order as before. **No extra buffer
+is allocated**: the accumulator that already existed is the input.
+
+An inactive serial layer (outside its window, or opacity 0) blends at exactly
+0, so the composite beneath passes through unchanged and with no colour drift:
+seven inactive serial layers over a flat grey left it at the same level
+(`scripts/serial-gate.mjs`).
+
+State on a serial layer follows its input, not a source:
+
+| State | How it is fed in export |
+|---|---|
+| Feedback | stepped inside the composite, after the input exists |
+| Optical flow, image signals | prepared inside the composite (the pair is the composite's) |
+| Frame history (echo, step print, slit scan…) | each frame the composite is pushed into the ring (no source to seek) |
+
+Because none of that can be recomputed from a source, an export that starts
+after 0 replays the stack first: feedback from 0, the rest for the 3 s before the
+range, drawing the whole composite each walked frame. The gate proves it:
+a 1 s range matches the same 25 frames of a 4 s export for serial feedback, echo and
+motion, and fails 20/25, 15/25 and 1/25 respectively with the replay turned off.
+
+Cost: measured at 1080p with seven layers and a mix of stateful techniques,
+50 frames: parallel 10.8 s, serial 5.3 s wall (both include ~1.5 s of app start).
+Serial was *faster* here because a serial history layer pushes the composite instead
+of seeking the video element again (a parallel one seeks per layer). One run each,
+not a benchmark. Unmeasured: a long piece, and preview frame rate with serial layers.
+
+Limits: a serial layer with no technique shows its input unchanged (a copy; with
+`add` blending that doubles it). The Output window mirrors `input`, but it was not
+run with serial layers.
+
 ## A layer with no technique
 
 A layer with a source and no technique passes the source through untouched
@@ -191,6 +243,8 @@ its atlas is not the editor's. Same rule as a morph opened mid-transition.
 ## What layers are not
 
 - Not nested, and not groupable.
-- Not a timeline: they do not have in and out points.
 - Not a routing matrix: a mapping reads one layer's signals, not a mix.
-- Not unlimited: four.
+- Not unlimited: eight.
+- No longer "not a timeline" or "parallel only": a layer has an activity window
+  (above) and an input (below). There are still no adjustment layers as a
+  separate kind: a serial layer IS the adjustment layer, and it carries a technique.
