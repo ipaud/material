@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useExportStore } from '@/state/exportStore';
+import { useUiStore } from '@/state/uiStore';
 import { useProjectStore } from '@/state/projectStore';
 import { isLiveSource } from '@shared/schemas/project';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { exportPngStill } from './exportStill';
 import { runAnimationExport } from './exportRunner';
 import type { ExportFormat } from '@shared/ipc';
+import {
+  defaultFps,
+  loadExportSettings,
+  saveExportSettings,
+  type ExportSettings,
+} from './exportSettings';
 import './export.css';
 
 type DialogFormat = 'png-still' | ExportFormat;
@@ -33,6 +40,7 @@ export function ExportDialog() {
   const [format, setFormat] = useState<DialogFormat>('h264');
   const [resolution, setResolution] = useState<string>('source');
   const [fps, setFps] = useState(30);
+  const [sourceFps, setSourceFps] = useState<number | null>(null);
   const [rangeMode, setRangeMode] = useState<'full' | 'custom'>('full');
   const [startSec, setStartSec] = useState(0);
   const [durationInput, setDurationInput] = useState<number | null>(null);
@@ -43,6 +51,62 @@ export function ExportDialog() {
   useEffect(() => {
     void window.material.getAppInfo().then((info) => setEncoders(info.availableEncoders));
   }, []);
+
+  const projectPath = useProjectStore((s) => s.projectPath);
+  const settingsKey = projectPath ?? `unsaved:${project.name}`;
+  const activeSourceId = project.composition.sourceId;
+
+  // Probe the source's frame rate once per open: the default must match the
+  // footage, not a fixed 30 that would silently resample 25 fps material.
+  useEffect(() => {
+    if (!dialogOpen) return;
+    let cancelled = false;
+    const source = project.sources.find((x) => x.id === activeSourceId);
+    const probe =
+      source && source.kind === 'video'
+        ? window.material.probeMedia(source.path).then((m) => m.frameRate)
+        : Promise.resolve(null);
+    void probe
+      .catch(() => null)
+      .then((rate) => {
+        if (cancelled) return;
+        setSourceFps(rate);
+        const saved = loadExportSettings(settingsKey);
+        if (saved) {
+          setFormat(saved.format);
+          setResolution(saved.resolution);
+          setFps(saved.fps);
+          setIncludeAudio(saved.includeAudio);
+          setAlpha(saved.alpha);
+        } else {
+          setFps(defaultFps(rate, FPS_OPTIONS));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // project.sources is deliberately not a dependency: re-probing mid-dialog would clobber edits.
+  }, [dialogOpen, settingsKey, activeSourceId]);
+
+  // "Saved" is news, not a decision: close the dialog and toast with a Finder shortcut.
+  useEffect(() => {
+    if (!dialogOpen || phase !== 'done' || !message) return;
+    const file = message;
+    closeDialog();
+    useUiStore.getState().pushToast('info', `Saved ${file.split('/').pop() ?? file}`, {
+      label: 'Show in Finder',
+      run: () => void window.material.showInFinder(file),
+    });
+  }, [dialogOpen, phase, message, closeDialog]);
+
+  // The footage's own rate (23.976, 29.97…) and any remembered rate stay selectable.
+  const fpsChoices = useMemo(
+    () =>
+      [...new Set([...FPS_OPTIONS, ...(sourceFps ? [defaultFps(sourceFps, FPS_OPTIONS)] : []), fps])].sort(
+        (a, b) => a - b,
+      ),
+    [sourceFps, fps],
+  );
 
   const { width, height } = useMemo(() => {
     if (resolution === '1080') return { width: 1920, height: 1080 };
@@ -55,7 +119,10 @@ export function ExportDialog() {
 
   if (!dialogOpen) return null;
 
-  const fullDuration = timelineDuration > 0 ? timelineDuration : 5;
+  // No media clock (generator-only project, or a video that failed to load): say
+  // so instead of presenting the 5 s placeholder as the real length.
+  const hasClock = timelineDuration > 0;
+  const fullDuration = hasClock ? timelineDuration : 5;
   const effectiveStart = rangeMode === 'full' ? 0 : startSec;
   const effectiveDuration =
     rangeMode === 'full' ? fullDuration : (durationInput ?? Math.max(fullDuration - startSec, 1));
@@ -80,6 +147,13 @@ export function ExportDialog() {
     }
     const outPath = await window.material.exportSaveDialog(format, project.name || 'material');
     if (!outPath) return;
+    saveExportSettings(settingsKey, {
+      format,
+      resolution: resolution as ExportSettings['resolution'],
+      fps,
+      includeAudio,
+      alpha,
+    });
     void runAnimationExport({
       format,
       width,
@@ -139,7 +213,7 @@ export function ExportDialog() {
                 <div className="export-field">
                   <span className="param-label">Frame Rate</span>
                   <select className="select" value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-                    {FPS_OPTIONS.map((f) => (
+                    {fpsChoices.map((f) => (
                       <option key={f} value={f}>
                         {f} fps
                       </option>
@@ -153,7 +227,11 @@ export function ExportDialog() {
                     value={rangeMode}
                     onChange={(e) => setRangeMode(e.target.value as 'full' | 'custom')}
                   >
-                    <option value="full">Full ({fullDuration.toFixed(1)}s)</option>
+                    <option value="full">
+                      {hasClock
+                        ? `Full (${fullDuration.toFixed(1)}s)`
+                        : `Default (${fullDuration.toFixed(1)}s — no media clock)`}
+                    </option>
                     <option value="custom">Custom</option>
                   </select>
                 </div>

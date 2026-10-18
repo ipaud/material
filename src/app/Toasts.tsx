@@ -26,6 +26,18 @@ export function Toasts() {
           onClick={() => dismissToast(toast.id)}
         >
           {toast.message}
+          {toast.action && (
+            <button
+              className="titlebar-action toast-action"
+              onClick={(e) => {
+                e.stopPropagation();
+                toast.action?.run();
+                dismissToast(toast.id);
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

@@ -6,6 +6,7 @@ import { usePerformanceKeys } from '@/hooks/usePerformanceKeys';
 import { useWorkspaceKeys } from '@/hooks/useWorkspaceKeys';
 import { TitleBar } from './TitleBar';
 import { Toasts } from './Toasts';
+import { MediaProxyDialog } from './MediaProxyDialog';
 import { ProjectRepairDialog } from './ProjectRepairDialog';
 import { RecoveryPrompt } from './RecoveryPrompt';
 import { ShortcutsOverlay } from './ShortcutsOverlay';
@@ -59,6 +60,7 @@ export function App() {
       <ExportDialog />
       <RecoveryPrompt />
       <ProjectRepairDialog />
+      <MediaProxyDialog />
       <ShortcutsOverlay />
     </div>
   );

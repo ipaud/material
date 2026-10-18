@@ -29,6 +29,9 @@ export const IPC = {
   appInfo: 'app:info',
   openMediaDialog: 'dialog:open-media',
   probeMedia: 'media:probe',
+  showInFinder: 'shell:show-in-finder',
+  findProxy: 'media:find-proxy',
+  createProxy: 'media:create-proxy',
   readProject: 'project:read',
   writeProject: 'project:write',
   openProjectDialog: 'project:open-dialog',
@@ -144,6 +147,12 @@ export interface MaterialApi {
   getAppInfo(): Promise<AppInfo>;
   openMediaDialog(): Promise<string[]>;
   probeMedia(path: string): Promise<MediaMetadata>;
+  /** Reveal a file or folder in Finder. */
+  showInFinder(path: string): Promise<void>;
+  /** H.264 proxy made earlier for a video the viewer cannot decode, if any. */
+  findProxy(path: string): Promise<string | null>;
+  /** Transcode (or reuse) the proxy; resolves with its path once complete. */
+  createProxy(path: string): Promise<string>;
   /** With `repair`, out-of-range numbers are clamped to their schema bounds. */
   readProject(path: string, repair?: boolean): Promise<ReadProjectResult>;
   writeProject(path: string, project: Project): Promise<void>;

@@ -28,10 +28,21 @@ export interface PendingRepair {
   repairable: boolean;
 }
 
+export interface PendingProxy {
+  path: string;
+  codec: string | null;
+}
+
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface AppToast {
   id: string;
   kind: 'error' | 'info';
   message: string;
+  action?: ToastAction;
 }
 
 interface UiStore {
@@ -43,6 +54,8 @@ interface UiStore {
   toasts: AppToast[];
   /** A project that failed schema validation, waiting on Repair / Cancel. */
   pendingRepair: PendingRepair | null;
+  /** A video the viewer cannot decode, waiting on "make a proxy". */
+  pendingProxy: PendingProxy | null;
   libraryWidth: number;
   inspectorWidth: number;
   timelineHeight: number;
@@ -61,9 +74,10 @@ interface UiStore {
   toggleTechniques: () => void;
   toggleDebugOverlay: () => void;
   setShowOriginal: (show: boolean) => void;
-  pushToast: (kind: AppToast['kind'], message: string) => void;
+  pushToast: (kind: AppToast['kind'], message: string, action?: ToastAction) => void;
   dismissToast: (id: string) => void;
   setPendingRepair: (pending: PendingRepair | null) => void;
+  setPendingProxy: (pending: PendingProxy | null) => void;
   setPanelSize: (panel: 'library' | 'inspector' | 'timeline', size: number) => void;
   setOfflineSources: (ids: string[]) => void;
   toggleBeatGrid: () => void;
@@ -86,6 +100,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showOriginal: false,
   toasts: [],
   pendingRepair: null,
+  pendingProxy: null,
   libraryWidth: 220,
   inspectorWidth: 280,
   timelineHeight: 96,
@@ -114,17 +129,18 @@ export const useUiStore = create<UiStore>((set) => ({
     }),
   toggleDebugOverlay: () => set((s) => ({ debugOverlay: !s.debugOverlay })),
   setShowOriginal: (show) => set({ showOriginal: show }),
-  pushToast: (kind, message) =>
+  pushToast: (kind, message, action) =>
     set((s) => {
       // Repeating the same message (a knob hitting a frozen target, say)
       // should not build a wall of identical cards over the controls.
       const withoutDuplicate = s.toasts.filter((t) => t.message !== message);
       return {
-        toasts: [...withoutDuplicate.slice(-2), { id: `toast_${toastCounter++}`, kind, message }],
+        toasts: [...withoutDuplicate.slice(-2), { id: `toast_${toastCounter++}`, kind, message, ...(action ? { action } : {}) }],
       };
     }),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setPendingRepair: (pendingRepair) => set({ pendingRepair }),
+  setPendingProxy: (pendingProxy) => set({ pendingProxy }),
 }));
 
 /** Surface an error to the user and the console. Never silently fail. */

@@ -1,4 +1,4 @@
-import { app, desktopCapturer, dialog, ipcMain, powerSaveBlocker, type BrowserWindow } from 'electron';
+import { app, desktopCapturer, dialog, ipcMain, powerSaveBlocker, shell, type BrowserWindow } from 'electron';
 import { isLivenessReason, reduceLiveness, type LivenessReason } from '../../shared/liveness';
 import { listDisplays } from '../main/displays';
 import { readSettings, updateSettings } from '../filesystem/settings';
@@ -26,6 +26,7 @@ import {
 } from '../../shared/constants/app';
 import { detectEncoders, ffmpegPath, ffprobePath } from '../media/ffmpeg';
 import { probeMedia } from '../media/probe';
+import { createProxy, findProxy } from '../media/proxy';
 import { readSanitizedSvg } from '../media/svg';
 import { readProjectFile, writeProjectFile } from '../filesystem/projects';
 import { collectMediaBeside, scanFolderForMedia } from '../filesystem/mediaFolder';
@@ -129,6 +130,19 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     });
     return result.canceled ? [] : result.filePaths;
   });
+
+  ipcMain.handle(IPC.showInFinder, (_event, rawPath: unknown) => {
+    const target = pathArgSchema.parse(rawPath);
+    if (!path.isAbsolute(target)) throw new Error('Path must be absolute');
+    shell.showItemInFolder(target);
+  });
+  const proxyDir = () => path.join(app.getPath('userData'), 'proxies');
+  ipcMain.handle(IPC.findProxy, (_event, rawPath: unknown) =>
+    findProxy(proxyDir(), pathArgSchema.parse(rawPath)),
+  );
+  ipcMain.handle(IPC.createProxy, (_event, rawPath: unknown) =>
+    createProxy(proxyDir(), pathArgSchema.parse(rawPath)),
+  );
 
   ipcMain.handle(IPC.probeMedia, async (_event, rawPath: unknown) => {
     const filePath = pathArgSchema.parse(rawPath);

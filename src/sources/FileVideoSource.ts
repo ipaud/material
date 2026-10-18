@@ -7,6 +7,7 @@ import {
   type SourceRuntime,
   type SourceRuntimeStatus,
 } from './SourceRuntime';
+import { playablePath, UnsupportedMediaError } from './mediaProxy';
 
 const CAPS: SourceCapabilities = {
   seekable: true,
@@ -63,6 +64,12 @@ export class FileVideoSource implements SourceRuntime {
     return new Promise((resolve, reject) => {
       this.video.addEventListener('loadedmetadata', () => {
         if (this.disposed) return;
+        // Chromium can open a ProRes .mov for its audio and report 0x0 video:
+        // no error event, a black viewer and a 0 s duration. Treat as undecodable.
+        if (this.video.videoWidth === 0 || this.video.videoHeight === 0) {
+          this.fail(reject);
+          return;
+        }
         const texture = new THREE.VideoTexture(this.video);
         texture.colorSpace = THREE.SRGBColorSpace;
         this.tex = texture;
@@ -76,20 +83,25 @@ export class FileVideoSource implements SourceRuntime {
         // the filesystem which it is before blaming the codec — "unsupported
         // codec?" on a file the user simply moved sends them hunting for the
         // wrong problem.
-        const fileName = this.path.split('/').pop() ?? this.path;
-        void window.material
-          .probeMedia(this.path)
-          .then(() => {
-            this.status = 'error';
-            reject(new Error(`Could not decode ${fileName} (unsupported codec?)`));
-          })
-          .catch(() => {
-            this.status = 'offline';
-            reject(new Error(`${fileName} is missing — relink it from the Library`));
-          });
+        this.fail(reject);
       });
-      this.video.src = mediaUrl(this.path);
+      this.video.src = mediaUrl(playablePath(this.path));
     });
+  }
+
+  /** Decide between "file is gone" and "engine cannot decode it", then reject. */
+  private fail(reject: (reason: Error) => void): void {
+    const fileName = this.path.split('/').pop() ?? this.path;
+    void window.material
+      .probeMedia(this.path)
+      .then((meta) => {
+        this.status = 'error';
+        reject(new UnsupportedMediaError(this.path, meta.videoCodec ?? null));
+      })
+      .catch(() => {
+        this.status = 'offline';
+        reject(new Error(`${fileName} is missing — relink it from the Library`));
+      });
   }
 
   texture(): THREE.Texture | null {

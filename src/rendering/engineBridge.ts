@@ -25,6 +25,7 @@ import { configureTriggers } from '@/signals/triggerRuntime';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import { FileImageSource } from '@/sources/FileImageSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
+import { setProxy, UnsupportedMediaError } from '@/sources/mediaProxy';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { TemporalSource } from './temporal/TemporalFrameProvider';
 import type { TechniqueRenderer } from '@/techniques/types';
@@ -211,7 +212,7 @@ function syncLayerSource(
       (err: unknown) => {
         if (generation === state.loadGeneration) {
           reportError('Load source', err);
-          branch.setSource(null);
+          abandonFailedRuntime(state, branch);
         }
       },
     );
@@ -233,13 +234,59 @@ function syncLayerSource(
       syncTransportVideo();
     },
     (err: unknown) => {
-      if (generation === state.loadGeneration) {
-        const message = err instanceof Error ? err.message : String(err);
-        reportError(message.includes('missing') ? 'Media offline' : 'Load video', err);
-        branch.setSource(null);
+      if (generation !== state.loadGeneration) return;
+      abandonFailedRuntime(state, branch);
+      syncTransportVideo();
+      if (err instanceof UnsupportedMediaError) {
+        void offerProxy(err);
+        return;
       }
+      const message = err instanceof Error ? err.message : String(err);
+      reportError(message.includes('missing') ? 'Media offline' : 'Load video', err);
     },
   );
+}
+
+/**
+ * A source that failed to load must not linger: its dead <video> element would
+ * otherwise stay in the layer state, be picked as the transport clock and keep
+ * a stale error listener alive. Back to "no source" is a clean state; the
+ * source key stays so the same failing file is not retried every frame.
+ */
+function abandonFailedRuntime(
+  state: LayerBridgeState,
+  branch: NonNullable<ReturnType<typeof engine.branchFor>>,
+): void {
+  state.runtime?.dispose();
+  state.runtime = null;
+  state.temporalSource = null;
+  branch.setSource(null);
+  branch.setTemporalSource(null);
+}
+
+/** Reuse a proxy made earlier, otherwise ask the user before transcoding. */
+async function offerProxy(err: UnsupportedMediaError): Promise<void> {
+  try {
+    const existing = await window.material.findProxy(err.path);
+    if (existing) {
+      setProxy(err.path, existing);
+      retryMediaPath(err.path);
+      return;
+    }
+  } catch {
+    // no proxy cache available: fall through to the dialog
+  }
+  useUiStore.getState().setPendingProxy({ path: err.path, codec: err.codec });
+}
+
+/** Forget what the bridge remembers about loading `path` so the next sync reloads it. */
+export function retryMediaPath(path: string): void {
+  const { project } = useProjectStore.getState();
+  for (const owner of project.layers) {
+    const source = findSource(project, owner.sourceId);
+    if (source && 'path' in source && source.path === path) bridgeState(owner.id).sourceKey = null;
+  }
+  syncFromProject();
 }
 
 function applyGeneratorParams(
@@ -488,7 +535,9 @@ function syncTransportVideo(): void {
   let first: HTMLVideoElement | null = null;
   for (const layer of project.layers) {
     const runtime = layerBridge.get(layer.id)?.runtime;
-    const video = runtime instanceof FileVideoSource ? runtime.video : null;
+    // A source that failed or is still connecting has no usable duration or frames.
+    const video =
+      runtime instanceof FileVideoSource && runtime.status === 'live' ? runtime.video : null;
     if (video) {
       first = video;
       break;
