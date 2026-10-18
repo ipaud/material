@@ -149,7 +149,15 @@ They are meant to be readable and diffable.
   renders nothing, deliberately, because a silent fallback makes "which source
   is this layer showing" unanswerable. Single-layer output is byte-identical
   to v0.5.0, verified against a v0.5.0 build rather than asserted.
-- **`layers` is capped at four** (`MAX_LAYERS`), measured rather than guessed.
+- **`layers` is capped at eight** (`MAX_LAYERS`; four before the activity
+  windows, see docs/LAYERS.md).
+- **`layer.activity`** (optional, `null` = always active): `{ start, end,
+  fadeIn, fadeOut }` in composition seconds; `end: null` is open-ended and
+  `end` must be after `start`. Files without it parse unchanged (no version
+  bump). It is timeline structure, so a Look does not carry it.
+- **`trigger.targetLayerId`** (optional): the layer a pulse drives. Absent =
+  the primary layer, which is what an untargeted trigger always did in the
+  export.
 - **Modulation gained two optional layer ids**, `targetLayerId` and
   `sourceLayerId`, both stored as ids and never indices so reordering the
   stack cannot re-point a route. Absent means "the bottom layer, from its own

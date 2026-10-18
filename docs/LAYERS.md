@@ -31,12 +31,35 @@ question about the SET is named for its scope: `anyLayerUsesFeedback()`,
 `requirementsFor(layerId)`, `exportRequirements()`. See
 [RENDER_RUNTIME](RENDER_RUNTIME.md).
 
-## The cap is four
+## The cap is eight
 
 Measured, not guessed. At 1920×1080 with four heavy techniques, each with its
 own generator, the composition holds vsync with ~0.4 ms of CPU per frame and
 about 50 MB of layer targets and accumulators. The limit is not the GPU: it is
 that an instrument you can play has a small number of things to reach for.
+
+### Raised from four to eight (post-0.8.4)
+
+Four was an instrument decision: four heavy layers hold vsync at 1080p. A long
+piece that stages many effects through activity windows (below) needs more
+layers than a performer can play at once, and export is not vsync-bound. Eight
+1080p flow-displace layers exported 50 frames in ~2.8 s wall time including
+app start (1 layer: 3.0 s, 4 layers: 2.3 s), i.e. no measurable slowdown at
+this size; live playback with more than ~4 heavy layers will still drop
+frames. Not measured: a 3:40 1080p25 piece.
+
+## Activity windows
+
+`layer.activity = { start, end, fadeIn, fadeOut }` (seconds). Outside
+`[start, end]` the layer's opacity is multiplied by exactly 0, so the layers
+beneath show untouched; inside, each fade is a smoothstep (`shared/activity.ts`).
+`end: null` stays on until the end. The gate multiplies LAST, after Take and
+modulation, in both the preview (`engineBridge` opacity sink) and the export
+(`createSecondaryLayerEvaluator.opacityAt`), so a windowed layer cannot be
+driven back on from outside its window. A layer at opacity 0 still renders and
+its feedback/simulation history keeps advancing (see "Mute, fade and solo");
+mute it if it should stop costing anything. UI: the **W** button on a layer
+cell in the Perform strip opens in / out / fade-in / fade-out fields.
 
 ## Blend
 

@@ -1,0 +1,159 @@
+{
+  "version": 5,
+  "name": "Staggered decay",
+  "selectedLayerId": "l1",
+  "layers": [
+    {
+      "id": "l1",
+      "name": "Base",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": "clip",
+      "technique": {
+        "id": "tech_l1",
+        "techniqueId": "echo",
+        "enabled": true,
+        "params": {}
+      },
+      "activity": {
+        "start": 0,
+        "end": 12,
+        "fadeIn": 0,
+        "fadeOut": 0
+      },
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      }
+    },
+    {
+      "id": "l2",
+      "name": "Smear",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": "clip",
+      "technique": {
+        "id": "tech_l2",
+        "techniqueId": "motion-rgb",
+        "enabled": true,
+        "params": {}
+      },
+      "activity": {
+        "start": 4,
+        "end": null,
+        "fadeIn": 2,
+        "fadeOut": 0
+      },
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      }
+    },
+    {
+      "id": "l3",
+      "name": "Grid (kick)",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": "clip",
+      "technique": {
+        "id": "tech_l3",
+        "techniqueId": "mosaic",
+        "enabled": true,
+        "params": {}
+      },
+      "activity": {
+        "start": 8,
+        "end": null,
+        "fadeIn": 2,
+        "fadeOut": 0
+      },
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {},
+        "assetPath": null
+      }
+    }
+  ],
+  "sources": [
+    {
+      "id": "clip",
+      "kind": "video",
+      "path": "/Users/pauavila/Desktop/DEV/MATERIAL/examples/staggered-decay/clip.mp4",
+      "metadata": null
+    },
+    {
+      "id": "kick",
+      "kind": "audio",
+      "path": "/Users/pauavila/Desktop/DEV/MATERIAL/examples/staggered-decay/kick.wav",
+      "metadata": null
+    }
+  ],
+  "composition": {
+    "sourceId": "clip",
+    "audioSourceId": "kick",
+    "width": 640,
+    "height": 360,
+    "background": "#000000"
+  },
+  "techniques": [],
+  "material": {
+    "materialId": "square",
+    "colorMode": "source",
+    "params": {},
+    "assetPath": null
+  },
+  "modulations": [
+    {
+      "id": "kick-to-l3",
+      "enabled": true,
+      "source": "bass",
+      "target": "scale",
+      "amount": 0.8,
+      "min": 0,
+      "max": 1,
+      "invert": false,
+      "smoothing": 0.1,
+      "curve": "linear",
+      "frozenValue": null,
+      "mode": "add",
+      "inMin": 0.5,
+      "inMax": 1,
+      "targetLayerId": "l3"
+    }
+  ],
+  "triggers": [],
+  "timeline": {
+    "inSec": null,
+    "outSec": null,
+    "loop": true,
+    "bpm": 120,
+    "beatOffsetSec": 0,
+    "beatsPerBar": 4,
+    "markers": []
+  },
+  "pinnedLooks": [],
+  "activeLookId": null,
+  "morphEvents": [],
+  "midiMappings": [],
+  "patternSources": [],
+  "macros": [],
+  "performancePads": [],
+  "takes": [],
+  "activeTakeId": null,
+  "performanceQuantize": "bar",
+  "explore": {
+    "lockedParams": [],
+    "lastSeed": null
+  }
+}

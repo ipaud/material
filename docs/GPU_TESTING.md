@@ -550,6 +550,6 @@ the mean luminance" cannot run in `npm test`. Run it by hand before a release:
    last frame — brightness must not drift (the 0.7.0 report was grey 120→167
    after one pass and white after six).
 
-The 0.7.0 drift (~exponent 0.5 on encoded values) was not reproduced by code
-review of 0.8.4: every target is `SRGBColorSpace` and the only manual OETF is
-the preview blit. Confirm with the steps above on real hardware.
+`npm run gate:identity` automates steps 1–3 through the headless CLI (needs a
+GPU and `npm run build`). On 0.8.4 it FAILS for mosaic, motion-* and
+flow-* (see docs/REVIEW_2026-10.md).

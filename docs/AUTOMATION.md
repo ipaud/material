@@ -265,3 +265,54 @@ Beyond determinism, which a dormant system satisfies trivially:
 
 `tests/take-signature.test.ts` runs all of them against a committed twelve-
 second performance fixture.
+
+
+## Headless CLI (post-0.8.4)
+
+The app doubles as a command line. It opens no visible window and exits with a
+status code; `render` drives a hidden window through the SAME export code the
+dialog uses (`runAnimationExport`), so a CLI render and a GUI export of the
+same range are the same pipeline.
+
+```
+MATERIAL render <project.material> --out <file> [--codec prores422hq|prores4444|h264]
+                [--fps N] [--range start:end] [--json-progress]
+MATERIAL validate <project.material>
+MATERIAL analyze-audio <audio> --json
+```
+
+Dev: `node_modules/electron/dist/Electron.app/Contents/MacOS/Electron out/main/index.js render …`
+(unset `ELECTRON_RUN_AS_NODE` if your shell sets it). Relative paths resolve
+against the working directory. stdout carries one JSON object per line
+(`progress`, `done`, `error`, `validate`, `result`); human messages go to stderr.
+
+| Exit | Meaning |
+|---|---|
+| 0 | ok |
+| 1 | usage error |
+| 2 | project invalid (every schema problem is listed) |
+| 3 | project valid but media files are missing |
+| 4 | the job failed |
+
+Defaults mirror the export dialog: fps = the source footage's rate (30 if
+unknown), size = the composition. A project with no media clock needs
+`--range`. A video the viewer cannot decode (e.g. ProRes) fails with a message
+instead of hanging. Not implemented: `--audio` override, `--codec prores`
+alias. Determinism: two renders of one project give identical frames
+(verified by frame md5). `MATERIAL_CLI_SHOW=1` shows the window for debugging.
+
+`npm run gate:identity` drives this CLI to check colour consistency (flat grey
+as video vs PNG through every technique).
+
+## Aiming triggers and mappings at one layer
+
+- A modulation mapping with `targetLayerId` drives only that layer's technique
+  parameter; other layers do not react. Its input window (`inMin`/`inMax`) works
+  as a threshold: with `inMin: 0.5` a soft hit does nothing.
+  (`tests/kick-to-one-layer.test.ts`, example `examples/staggered-decay`.)
+  UI: the **Layer** selector in a mapping's expanded detail.
+- A trigger with `targetLayerId` pulses only that layer; untargeted pulses act
+  on the primary layer only. Before this, the preview pulsed every layer that
+  had the parameter while the export pulsed only the primary one, and
+  secondary layers exported with no pulses at all. JSON only (no trigger UI
+  field yet).
