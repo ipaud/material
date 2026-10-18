@@ -276,7 +276,7 @@ same range are the same pipeline.
 
 ```
 MATERIAL render <project.material> --out <file> [--codec prores422hq|prores4444|h264]
-                [--fps N] [--range start:end] [--json-progress]
+                [--fps N] [--range start:end] [--audio <file>] [--json-progress]
 MATERIAL validate <project.material>
 MATERIAL analyze-audio <audio> --json
 ```
@@ -297,8 +297,10 @@ against the working directory. stdout carries one JSON object per line
 Defaults mirror the export dialog: fps = the source footage's rate (30 if
 unknown), size = the composition. A project with no media clock needs
 `--range`. A video the viewer cannot decode (e.g. ProRes) fails with a message
-instead of hanging. Not implemented: `--audio` override, `--codec prores`
-alias. Determinism: two renders of one project give identical frames
+instead of hanging. `--audio` replaces the audio muxed into the file (modulation
+still reads the project's own audio source); `--codec prores` means
+`prores422hq`. `analyze-audio` returns bpm, confidence, beat offset, onsets and
+suggested markers (checked on a 120 BPM kick track: 119.89). Determinism: two renders of one project give identical frames
 (verified by frame md5). `MATERIAL_CLI_SHOW=1` shows the window for debugging.
 
 `npm run gate:identity` drives this CLI to check colour consistency (flat grey
@@ -314,5 +316,5 @@ as video vs PNG through every technique).
 - A trigger with `targetLayerId` pulses only that layer; untargeted pulses act
   on the primary layer only. Before this, the preview pulsed every layer that
   had the parameter while the export pulsed only the primary one, and
-  secondary layers exported with no pulses at all. JSON only (no trigger UI
-  field yet).
+  secondary layers exported with no pulses at all. UI: the **Layer** selector
+  in a pulse trigger's expanded detail.

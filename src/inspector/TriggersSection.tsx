@@ -80,6 +80,7 @@ export function TriggersSection() {
   const triggers = useProjectStore((s) => s.project.triggers);
   const markers = useProjectStore((s) => s.project.timeline.markers);
   const modulations = useProjectStore((s) => s.project.modulations);
+  const layers = useProjectStore((s) => s.project.layers);
   const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -141,12 +142,47 @@ export function TriggersSection() {
                   FIRE
                 </button>
               )}
-              <button className="vp-btn" onClick={() => setExpanded(isOpen ? null : t.id)}>
+              <button
+                className="vp-btn"
+                aria-label={isOpen ? 'Collapse trigger' : 'Expand trigger'}
+                onClick={() => setExpanded(isOpen ? null : t.id)}
+              >
                 {isOpen ? '−' : '⋯'}
               </button>
             </div>
             {isOpen && (
               <div className="mod-detail">
+                {t.action === 'pulse' && layers.length > 1 && (
+                  <div className="param-row">
+                    <span className="param-label">Layer</span>
+                    <div className="param-control">
+                      <select
+                        className="select"
+                        aria-label="Trigger layer"
+                        title="Which layer this pulse drives. Other layers do not react to it."
+                        value={t.targetLayerId ?? ''}
+                        onChange={(e) => {
+                          const targetLayerId = e.target.value;
+                          useProjectStore.getState().apply((p) => ({
+                            ...p,
+                            triggers: p.triggers.map((x) => {
+                              if (x.id !== t.id) return x;
+                              const { targetLayerId: _drop, ...rest } = x;
+                              return targetLayerId ? { ...rest, targetLayerId } : rest;
+                            }),
+                          }));
+                        }}
+                      >
+                        <option value="">Primary layer</option>
+                        {layers.map((l, i) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name || `Layer ${i + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
                 {(t.action === 'pulse' || t.action === 'resetParam') && (
                   <div className="param-row">
                     <span className="param-label">Target</span>

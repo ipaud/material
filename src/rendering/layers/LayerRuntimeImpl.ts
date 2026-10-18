@@ -902,7 +902,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
 
   private syncScene(paramsOverride?: ParamRecord): void {
     const showProcessed = !this.showOriginal;
-    if (this.originalQuad) this.originalQuad.visible = !showProcessed;
+    // No technique = the source passes through untouched, not a blank layer.
+    if (this.originalQuad) this.originalQuad.visible = !showProcessed || !this.techniqueRenderer;
     if (this.techniqueRenderer) {
       this.techniqueRenderer.object3d.visible = showProcessed;
       if (showProcessed && this.materialState) {

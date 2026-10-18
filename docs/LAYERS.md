@@ -61,6 +61,14 @@ its feedback/simulation history keeps advancing (see "Mute, fade and solo");
 mute it if it should stop costing anything. UI: the **W** button on a layer
 cell in the Perform strip opens in / out / fade-in / fade-out fields.
 
+## A layer with no technique
+
+A layer with a source and no technique passes the source through untouched
+(it used to render nothing). A layer with no source still renders nothing,
+deliberately. A windowed layer outside its window keeps rendering at opacity 0
+so its feedback/simulation history is not lost; there is no "skip render when
+inactive" because that would change what a layer remembers when it re-enters.
+
 ## Blend
 
 `normal · add · screen · multiply · difference · lighten · darken`

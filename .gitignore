@@ -9,3 +9,5 @@ coverage/
 .vite/
 # local dev projects reference user media — never commit
 dev-projects/
+examples/staggered-decay/clip.mp4
+examples/staggered-decay/kick.wav
