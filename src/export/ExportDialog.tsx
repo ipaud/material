@@ -10,6 +10,7 @@ import type { ExportFormat } from '@shared/ipc';
 import {
   defaultFps,
   loadExportSettings,
+  probeSourceFps,
   saveExportSettings,
   type ExportSettings,
 } from './exportSettings';
@@ -61,14 +62,8 @@ export function ExportDialog() {
   useEffect(() => {
     if (!dialogOpen) return;
     let cancelled = false;
-    const source = project.sources.find((x) => x.id === activeSourceId);
-    const probe =
-      source && source.kind === 'video'
-        ? window.material.probeMedia(source.path).then((m) => m.frameRate)
-        : Promise.resolve(null);
-    void probe
-      .catch(() => null)
-      .then((rate) => {
+    const probe = probeSourceFps(useProjectStore.getState().project);
+    void probe.then((rate) => {
         if (cancelled) return;
         setSourceFps(rate);
         const saved = loadExportSettings(settingsKey);

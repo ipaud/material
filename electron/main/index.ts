@@ -12,6 +12,9 @@ import { closeOutputWindow, isOutputFrame } from './outputWindow';
 import { clearRecovery } from '../filesystem/recovery';
 import { abortAllExports } from '../export/encoder';
 import { logExport } from '../export/exportLog';
+import { parseCli, type CliCommand } from '../cli/args';
+import { EXIT, validateProject } from '../cli/validate';
+import { emit, runAnalyze, runRender } from '../cli/run';
 import { exportLogPath, installExportLogFile, logGpuState } from './exportLogFile';
 import { buildAppMenu } from './menu';
 import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from './protocol';
@@ -26,6 +29,10 @@ if (isDev) app.commandLine.appendSwitch('remote-debugging-port', '9223');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 let mainWindow: BrowserWindow | null = null;
+
+// `electron . render …` (dev) / `MATERIAL render …` (packaged). null = normal GUI launch.
+const cli: CliCommand | null = parseCli(process.argv.slice(process.defaultApp ? 2 : 1));
+const headless = cli !== null && cli.command !== 'error' && cli.command !== 'validate';
 
 registerMediaSchemeAsPrivileged();
 
@@ -52,7 +59,9 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  if (!headless) mainWindow.once('ready-to-show', () => mainWindow?.show());
+  // Debug aid: watch a CLI job in a real window (hidden-window behaviour differs).
+  else if (process.env.MATERIAL_CLI_SHOW) mainWindow.once('ready-to-show', () => mainWindow?.show());
 
   // A dead renderer cannot finish or cancel its export: stop ffmpeg, delete the
   // partial, leave a log line, and tell the user instead of vanishing silently.
@@ -76,10 +85,10 @@ function createWindow(): void {
   // is visible instead of silent.
   mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, url) => {
     console.error(`[main] renderer failed to load (${errorCode} ${errorDescription}): ${url}`);
-    mainWindow?.show();
+    if (!headless) mainWindow?.show();
   });
   setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+    if (!headless && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       console.error('[main] renderer never became ready — showing the window anyway');
       mainWindow.show();
     }
@@ -107,6 +116,24 @@ function createWindow(): void {
     // The editor is the authority — without it the replica has nothing to show.
     closeOutputWindow();
   });
+}
+
+/** CLI mode: no menu, no visible window, a process exit code instead of a UI. */
+async function runCliMode(command: CliCommand): Promise<number> {
+  if (command.command === 'error') {
+    process.stderr.write(`${command.message}\n`);
+    emit({ event: 'error', message: command.message });
+    return EXIT.usage;
+  }
+  if (command.command === 'validate') {
+    const { report, exit } = await validateProject(command.project);
+    emit({ event: 'validate', ...report });
+    return exit;
+  }
+  const win = mainWindow;
+  if (!win) return EXIT.failed;
+  await new Promise<void>((resolve) => win.webContents.once('did-finish-load', () => resolve()));
+  return command.command === 'render' ? runRender(win, command) : runAnalyze(win, command);
 }
 
 app.whenReady().then(() => {
@@ -225,6 +252,19 @@ app.whenReady().then(() => {
     logGpuState(`child process gone type=${details.type} reason=${details.reason}`);
   });
   registerIpcHandlers(() => mainWindow);
+  if (cli) {
+    if (headless) createWindow();
+    void runCliMode(cli)
+      .catch((err: unknown) => {
+        process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+        return EXIT.failed;
+      })
+      .then(async (code) => {
+        await abortAllExports();
+        app.exit(code);
+      });
+    return;
+  }
   buildAppMenu(() => mainWindow);
   createWindow();
 

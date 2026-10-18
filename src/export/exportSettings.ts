@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Project } from '@shared/schemas/project';
 
 /** What the export dialog remembers, per project (keyed by file path, else name). */
 export const exportSettingsSchema = z.object({
@@ -46,4 +47,15 @@ export function defaultFps(sourceFps: number | null, options: readonly number[])
   }
   const exact = options.find((o) => Math.abs(o - sourceFps) < 0.001);
   return exact ?? Math.round(sourceFps * 1000) / 1000;
+}
+
+/** Frame rate of the footage the composition is showing, or null (generator, still, unreadable). */
+export async function probeSourceFps(project: Project): Promise<number | null> {
+  const source = project.sources.find((x) => x.id === project.composition.sourceId);
+  if (!source || source.kind !== 'video') return null;
+  try {
+    return (await window.material.probeMedia(source.path)).frameRate;
+  } catch {
+    return null;
+  }
 }

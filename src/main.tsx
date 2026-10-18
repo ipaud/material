@@ -63,6 +63,7 @@ import { loadBuiltinPacks } from './shaders/builtinPack';
 import * as packRegistry from './shaders/packRegistry';
 import { refreshInstalledPacks } from './shaders/packManager';
 import './styles/global.css';
+import './cli/cliBridge';
 
 // Dev-only handle for QA tooling (CDP-driven tests).
 if (import.meta.env.DEV) {
