@@ -6,6 +6,7 @@ import { usePerformanceKeys } from '@/hooks/usePerformanceKeys';
 import { useWorkspaceKeys } from '@/hooks/useWorkspaceKeys';
 import { TitleBar } from './TitleBar';
 import { Toasts } from './Toasts';
+import { ProjectRepairDialog } from './ProjectRepairDialog';
 import { RecoveryPrompt } from './RecoveryPrompt';
 import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { WorkspaceRouter } from '@/workspaces/WorkspaceRouter';
@@ -57,6 +58,7 @@ export function App() {
       <Toasts />
       <ExportDialog />
       <RecoveryPrompt />
+      <ProjectRepairDialog />
       <ShortcutsOverlay />
     </div>
   );

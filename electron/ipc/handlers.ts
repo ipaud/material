@@ -157,11 +157,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     },
   );
 
-  ipcMain.handle(IPC.readProject, async (_event, rawPath: unknown) => {
+  ipcMain.handle(IPC.readProject, async (_event, rawPath: unknown, rawRepair: unknown) => {
     const filePath = pathArgSchema.parse(rawPath);
-    const project = await readProjectFile(filePath);
-    app.addRecentDocument(filePath);
-    return { path: filePath, project };
+    const outcome = await readProjectFile(filePath, rawRepair === true);
+    if (outcome.ok) app.addRecentDocument(filePath);
+    return { ...outcome, path: filePath };
   });
 
   ipcMain.handle(IPC.writeProject, async (_event, rawPath: unknown, rawProject: unknown) => {

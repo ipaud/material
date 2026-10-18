@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ProjectIssue } from '@shared/schemas/project';
 
 export type WorkspaceId = 'build' | 'explore' | 'perform' | 'output';
 
@@ -21,6 +22,12 @@ export function normalizeWorkspace(id: string): WorkspaceId {
   return LEGACY_WORKSPACES[id] ?? 'build';
 }
 
+export interface PendingRepair {
+  path: string;
+  issues: ProjectIssue[];
+  repairable: boolean;
+}
+
 export interface AppToast {
   id: string;
   kind: 'error' | 'info';
@@ -34,6 +41,8 @@ interface UiStore {
   debugOverlay: boolean;
   showOriginal: boolean; // A/B compare: hold to view source
   toasts: AppToast[];
+  /** A project that failed schema validation, waiting on Repair / Cancel. */
+  pendingRepair: PendingRepair | null;
   libraryWidth: number;
   inspectorWidth: number;
   timelineHeight: number;
@@ -54,6 +63,7 @@ interface UiStore {
   setShowOriginal: (show: boolean) => void;
   pushToast: (kind: AppToast['kind'], message: string) => void;
   dismissToast: (id: string) => void;
+  setPendingRepair: (pending: PendingRepair | null) => void;
   setPanelSize: (panel: 'library' | 'inspector' | 'timeline', size: number) => void;
   setOfflineSources: (ids: string[]) => void;
   toggleBeatGrid: () => void;
@@ -75,6 +85,7 @@ export const useUiStore = create<UiStore>((set) => ({
   debugOverlay: false,
   showOriginal: false,
   toasts: [],
+  pendingRepair: null,
   libraryWidth: 220,
   inspectorWidth: 280,
   timelineHeight: 96,
@@ -113,6 +124,7 @@ export const useUiStore = create<UiStore>((set) => ({
       };
     }),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  setPendingRepair: (pendingRepair) => set({ pendingRepair }),
 }));
 
 /** Surface an error to the user and the console. Never silently fail. */

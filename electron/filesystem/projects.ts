@@ -1,7 +1,13 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { PROJECT_EXTENSION } from '../../shared/constants/app';
-import { parseProject, projectSchema, type Project } from '../../shared/schemas/project';
+import {
+  parseProjectDetailed,
+  projectSchema,
+  repairProject,
+  type Project,
+  type ProjectIssue,
+} from '../../shared/schemas/project';
 import { approveMediaPath } from './mediaRegistry';
 import { toAbsolutePaths, toPortablePaths } from './projectPaths';
 
@@ -12,7 +18,11 @@ function assertProjectPath(filePath: string): void {
   }
 }
 
-export async function readProjectFile(filePath: string): Promise<Project> {
+export type ReadProjectOutcome =
+  | { ok: true; project: Project; repaired: ProjectIssue[] }
+  | { ok: false; issues: ProjectIssue[]; repairable: boolean };
+
+export async function readProjectFile(filePath: string, repair = false): Promise<ReadProjectOutcome> {
   assertProjectPath(filePath);
   let text: string;
   try {
@@ -29,14 +39,32 @@ export async function readProjectFile(filePath: string): Promise<Project> {
   // v0.8: media stored relative to the project file becomes absolute here, so
   // everything above this line works exactly as it did when paths were only
   // ever absolute.
-  const project = toAbsolutePaths(parseProject(raw), filePath);
+  const parsed = parseProjectDetailed(raw);
+  let valid: Project;
+  let repaired: ProjectIssue[] = [];
+  if (parsed.ok) {
+    valid = parsed.project;
+  } else if (repair) {
+    const fixed = repairProject(parsed.migrated);
+    if (!fixed.ok) return { ok: false, issues: fixed.issues, repairable: false };
+    valid = fixed.project;
+    repaired = fixed.repaired;
+  } else {
+    // Dry run so the dialog can promise "Repair and open" only when it works.
+    return {
+      ok: false,
+      issues: parsed.issues,
+      repairable: repairProject(parsed.migrated).ok,
+    };
+  }
+  const project = toAbsolutePaths(valid, filePath);
   // Re-approve referenced media so material:// can serve it after reopening.
   // Live sources (camera/screen/window) and generators have no file to
   // approve — only the file-backed variants carry a path.
   for (const source of project.sources) {
     if ('path' in source) approveMediaPath(source.path);
   }
-  return project;
+  return { ok: true, project, repaired };
 }
 
 /** Atomic write: temp file in the same directory, then rename. */

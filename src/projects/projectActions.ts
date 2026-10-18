@@ -53,9 +53,25 @@ export async function openProject(): Promise<void> {
   }
 }
 
-export async function openProjectFromPath(path: string): Promise<void> {
-  const result = await window.material.readProject(path);
+export async function openProjectFromPath(path: string, repair = false): Promise<void> {
+  const result = await window.material.readProject(path, repair);
+  if (!result.ok) {
+    // Leave the open project alone; the repair dialog decides what happens next.
+    useUiStore.getState().setPendingRepair({
+      path: result.path,
+      issues: result.issues,
+      repairable: result.repairable,
+    });
+    return;
+  }
+  useUiStore.getState().setPendingRepair(null);
   useProjectStore.getState().loadProject(result.path, result.project);
+  if (result.repaired.length > 0) {
+    const n = result.repaired.length;
+    useUiStore
+      .getState()
+      .pushToast('info', `Repaired ${n} value${n === 1 ? '' : 's'} — save to keep the fix`);
+  }
   await checkOfflineSources();
 }
 

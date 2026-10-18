@@ -7,7 +7,7 @@ export interface FolderMediaEntry {
   fileSize: number;
   kind: MediaKind;
 }
-import type { Project } from './schemas/project';
+import type { Project, ProjectIssue } from './schemas/project';
 import type { DisplayInfo, OutputDisplayStatus, OutputMode } from './display';
 import type { Preset } from './schemas/preset';
 import type { LoadedPack } from './schemas/shaderPack';
@@ -135,12 +135,17 @@ export type MenuEventId =
   | 'redo'
   | 'toggle-debug-overlay';
 
+export type ReadProjectResult =
+  | { ok: true; path: string; project: Project; repaired: ProjectIssue[] }
+  | { ok: false; path: string; issues: ProjectIssue[]; repairable: boolean };
+
 /** API surface exposed on window.material by the preload bridge. */
 export interface MaterialApi {
   getAppInfo(): Promise<AppInfo>;
   openMediaDialog(): Promise<string[]>;
   probeMedia(path: string): Promise<MediaMetadata>;
-  readProject(path: string): Promise<{ path: string; project: Project }>;
+  /** With `repair`, out-of-range numbers are clamped to their schema bounds. */
+  readProject(path: string, repair?: boolean): Promise<ReadProjectResult>;
   writeProject(path: string, project: Project): Promise<void>;
   /** Pick a folder in Finder and list the media in it (bounded depth). */
   pickMediaFolder(): Promise<FolderMediaEntry[] | null>;

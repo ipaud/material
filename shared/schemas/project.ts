@@ -989,6 +989,13 @@ function migrateV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
  * when the user saves. Unknown (newer) versions are refused, never guessed.
  */
 export function parseProject(raw: unknown): Project {
+  const candidate = migrateToCurrent(raw);
+  const result = projectSchema.safeParse(candidate);
+  if (!result.success) throw new Error(formatProjectIssues(result.error));
+  return result.data;
+}
+
+function migrateToCurrent(raw: unknown): Record<string, unknown> {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error('Project file is not a JSON object');
   }
@@ -1008,9 +1015,99 @@ export function parseProject(raw: unknown): Project {
   if (candidate.version !== PROJECT_FORMAT_VERSION) {
     throw new Error(`Unsupported project version: ${String(candidate.version)}`);
   }
-  const result = projectSchema.safeParse(candidate);
-  if (!result.success) throw new Error(formatProjectIssues(result.error));
-  return result.data;
+  return candidate;
+}
+
+/** One schema problem, shaped for a dialog rather than a toast. */
+export interface ProjectIssue {
+  /** `triggers[3].amount` */
+  path: string;
+  received?: unknown;
+  min?: number;
+  max?: number;
+  /** True when clamping to [min, max] fixes it. */
+  repairable: boolean;
+  /** `triggers[3].amount = 1.125 (max 1)` */
+  text: string;
+}
+
+export type ProjectParseResult =
+  | { ok: true; project: Project }
+  | { ok: false; issues: ProjectIssue[]; migrated: Record<string, unknown> };
+
+function formatPath(path: ReadonlyArray<PropertyKey>): string {
+  return path.reduce<string>(
+    (out, key) =>
+      typeof key === 'number' ? `${out}[${key}]` : out ? `${out}.${String(key)}` : String(key),
+    '',
+  );
+}
+
+function valueAt(root: unknown, path: ReadonlyArray<PropertyKey>): unknown {
+  let node = root;
+  for (const key of path) {
+    if (typeof node !== 'object' || node === null) return undefined;
+    node = (node as Record<PropertyKey, unknown>)[key];
+  }
+  return node;
+}
+
+function describeIssue(issue: z.core.$ZodIssue, migrated: unknown): ProjectIssue {
+  const path = formatPath(issue.path);
+  const received = valueAt(migrated, issue.path);
+  const numeric = issue.code === 'too_big' || issue.code === 'too_small';
+  const isNumber = numeric && issue.origin === 'number' && typeof received === 'number';
+  if (isNumber && issue.code === 'too_big') {
+    const max = Number(issue.maximum);
+    const bound = issue.inclusive === true ? `max ${max}` : `below ${max}`;
+    return { path, received, max, repairable: issue.inclusive === true, text: `${path} = ${received} (${bound})` };
+  }
+  if (isNumber && issue.code === 'too_small') {
+    const min = Number(issue.minimum);
+    const bound = issue.inclusive === true ? `min ${min}` : `above ${min}`;
+    return { path, received, min, repairable: issue.inclusive === true, text: `${path} = ${received} (${bound})` };
+  }
+  const where = path || 'project';
+  return { path, received, repairable: false, text: `${where}: ${issue.message}` };
+}
+
+/** Like parseProject but returns EVERY schema problem so the UI can list them. */
+export function parseProjectDetailed(raw: unknown): ProjectParseResult {
+  const migrated = migrateToCurrent(raw);
+  const result = projectSchema.safeParse(migrated);
+  if (result.success) return { ok: true, project: result.data };
+  return { ok: false, issues: result.error.issues.map((i) => describeIssue(i, migrated)), migrated };
+}
+
+/**
+ * Clamp every out-of-range number to its schema bound. Only succeeds when that
+ * alone makes the project valid; anything structural stays an error.
+ */
+export function repairProject(
+  migrated: Record<string, unknown>,
+):
+  | { ok: true; project: Project; repaired: ProjectIssue[] }
+  | { ok: false; issues: ProjectIssue[] } {
+  const draft = structuredClone(migrated);
+  const first = projectSchema.safeParse(draft);
+  if (first.success) return { ok: true, project: first.data, repaired: [] };
+  const repaired: ProjectIssue[] = [];
+  for (const issue of first.error.issues) {
+    const info = describeIssue(issue, draft);
+    if (!info.repairable || typeof info.received !== 'number') continue;
+    const target = valueAt(draft, issue.path.slice(0, -1));
+    const key = issue.path[issue.path.length - 1];
+    if (typeof target !== 'object' || target === null || key === undefined) continue;
+    const lo = info.min ?? -Infinity;
+    const hi = info.max ?? Infinity;
+    (target as Record<PropertyKey, unknown>)[key] = Math.min(hi, Math.max(lo, info.received));
+    repaired.push(info);
+  }
+  const second = projectSchema.safeParse(draft);
+  if (!second.success) {
+    return { ok: false, issues: second.error.issues.map((i) => describeIssue(i, draft)) };
+  }
+  return { ok: true, project: second.data, repaired };
 }
 
 /**

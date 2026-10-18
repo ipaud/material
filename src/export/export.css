@@ -139,3 +139,15 @@
   max-width: 260px;
   line-height: 1.4;
 }
+
+.repair-issues {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.6;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+}
