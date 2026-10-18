@@ -21,6 +21,8 @@ interface ParameterSliderProps {
 }
 
 const FINE_FACTOR = 0.1;
+/** Alt+arrow jumps this many steps. */
+const COARSE_STEPS = 10;
 
 function clampStep(value: number, min: number, max: number, step: number): number {
   const snapped = Math.round((value - min) / step) * step + min;
@@ -30,7 +32,10 @@ function clampStep(value: number, min: number, max: number, step: number): numbe
 
 function formatValue(value: number, step: number): string {
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
-  return value.toFixed(decimals);
+  const base = value.toFixed(decimals);
+  // A fine (Shift) value sits between grid points: show it instead of rounding it away.
+  if (Math.abs(Number(base) - value) < 1e-9) return base;
+  return String(Number(value.toFixed(4)));
 }
 
 /**
@@ -107,6 +112,88 @@ export function ParameterSlider({
     }
   }, [editText, min, max, step, onChange, onDragStart, onDragEnd]);
 
+  /** One undo-able nudge from the keyboard or wheel; `fine` snaps to a tenth of the step. */
+  const nudge = useCallback(
+    (direction: 1 | -1, mods: { shiftKey: boolean; altKey: boolean }) => {
+      const size = mods.altKey ? step * COARSE_STEPS : mods.shiftKey ? step * FINE_FACTOR : step;
+      const grid = mods.shiftKey ? step * FINE_FACTOR : step;
+      const next = clampStep(value + direction * size, min, max, grid);
+      onDragStart?.();
+      onChange(next);
+      onDragEnd?.();
+    },
+    [value, min, max, step, onChange, onDragStart, onDragEnd],
+  );
+
+  const setExact = useCallback(
+    (next: number) => {
+      onDragStart?.();
+      onChange(clampStep(next, min, max, step));
+      onDragEnd?.();
+    },
+    [min, max, step, onChange, onDragStart, onDragEnd],
+  );
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (editing || e.metaKey || e.ctrlKey) return;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        nudge(1, e);
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        nudge(-1, e);
+        break;
+      case 'Home':
+        setExact(min);
+        break;
+      case 'End':
+        setExact(max);
+        break;
+      case 'Backspace':
+      case 'Delete':
+        setExact(defaultValue);
+        break;
+      case 'Enter':
+        setEditText(formatValue(value, step));
+        setEditing(true);
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
+
+  // Native listener: React's wheel is passive and could not stop the panel scrolling.
+  const wheelRef = useRef(nudge);
+  wheelRef.current = nudge;
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (document.activeElement !== el || e.deltaY === 0) return;
+      e.preventDefault();
+      wheelRef.current(e.deltaY < 0 ? 1 : -1, e);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (editing) return;
+    const parsed = Number(e.clipboardData.getData('text').trim());
+    if (e.clipboardData.getData('text').trim() === '' || !Number.isFinite(parsed)) return;
+    e.preventDefault();
+    setExact(parsed);
+  };
+
+  const onCopy = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (editing) return;
+    e.clipboardData.setData('text/plain', formatValue(value, step));
+    e.preventDefault();
+  };
+
   const fraction = max > min ? (value - min) / (max - min) : 0;
   const modFraction =
     modulated && typeof modulatedValue === 'number' && max > min
@@ -122,6 +209,15 @@ export function ParameterSlider({
       <div
         ref={trackRef}
         className="param-track"
+        role="slider"
+        tabIndex={0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        onKeyDown={onKeyDown}
+        onPaste={onPaste}
+        onCopy={onCopy}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -154,6 +250,7 @@ export function ParameterSlider({
         ) : (
           <span
             className="param-value mono"
+            title="Click to type a value · ↑↓ step (Shift fine, Alt ×10) · ⌘C/⌘V copy/paste · Delete resets"
             onClick={(e) => {
               if (drag.current?.moved) return;
               e.stopPropagation();

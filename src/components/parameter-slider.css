@@ -256,3 +256,15 @@
 .inspector-section-header {
   padding: var(--sp-2) var(--sp-4);
 }
+
+.param-track:focus-visible {
+  outline: 1px solid var(--accent, currentColor);
+  outline-offset: 1px;
+}
+.param-value {
+  cursor: text;
+}
+.param-value:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
