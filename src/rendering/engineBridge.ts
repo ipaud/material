@@ -1,5 +1,6 @@
 import type { NumberParamDef } from '@/techniques/types';
 import { mappingsByTarget, sourceLayerOf } from '@/modulation/layerRouting';
+import { activityAt } from '@shared/activity';
 import { renderedLayers } from '@shared/schemas/project';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
@@ -692,9 +693,12 @@ export function startEngineBridge(): () => void {
     }
   });
   engine.setFrameSink(() => modulationRuntime.markFrame());
-  engine.setLayerStateSink((layerId, opacity) =>
-    modulationRuntime.resolveLayerState(layerId, { opacity }, engine.currentTimeSec),
-  );
+  engine.setLayerStateSink((layerId, opacity) => {
+    const resolved = modulationRuntime.resolveLayerState(layerId, { opacity }, engine.currentTimeSec);
+    // Activity window (shared/activity.ts): the same gate the export applies.
+    const layer = useProjectStore.getState().project.layers.find((l) => l.id === layerId);
+    return { ...resolved, opacity: resolved.opacity * activityAt(layer?.activity, engine.currentTimeSec) };
+  });
   engine.setParamTransform((base, t) => modulationRuntime.transform(base, t));
   // v0.6B: each branch resolves its OWN parameters, from the mappings pointed
   // at it and the layer each of those reads its signals from.

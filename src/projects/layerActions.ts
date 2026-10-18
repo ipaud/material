@@ -71,6 +71,34 @@ export function setLayerOpacity(layerId: string, opacity: number): void {
   updateLayer(layerId, { opacity: Math.min(Math.max(opacity, 0), 1) });
 }
 
+/**
+ * Set, patch or clear (null) a layer's activity window. A patch on a layer with
+ * no window starts one at 0; an end at or before the start is pushed one second
+ * past it, because the schema (rightly) refuses a window that closes before it opens.
+ */
+export function setLayerActivity(
+  layerId: string,
+  patch: Partial<NonNullable<Layer['activity']>> | null,
+): void {
+  const layer = useProjectStore.getState().project.layers.find((l) => l.id === layerId);
+  if (!layer) return;
+  if (patch === null) {
+    updateLayer(layerId, { activity: null });
+    return;
+  }
+  const merged = { start: 0, end: null, fadeIn: 0, fadeOut: 0, ...layer.activity, ...patch };
+  const start = Math.max(merged.start, 0);
+  const end = merged.end === null ? null : Math.max(merged.end, start + 1);
+  updateLayer(layerId, {
+    activity: {
+      start,
+      end,
+      fadeIn: Math.max(merged.fadeIn, 0),
+      fadeOut: Math.max(merged.fadeOut, 0),
+    },
+  });
+}
+
 export function setLayerBlend(layerId: string, blendMode: BlendMode): void {
   updateLayer(layerId, { blendMode });
 }

@@ -2,6 +2,7 @@ import { selectedLayerOf } from '@shared/schemas/project';
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { MOD_SOURCES } from '@/modulation/sources';
+import { targetLayerOf } from '@/modulation/layerRouting';
 
 /** Grouped once, from the registry's own `group` field — the picker used to
  * hardcode a flat list, which does not survive a growing signal set. */
@@ -67,6 +68,8 @@ function SourceMeter({ source }: { source: string }) {
 
 export function ModulationSection() {
   const mappings = useProjectStore((s) => s.project.modulations);
+  const project = useProjectStore((s) => s.project);
+  const layers = project.layers;
   const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
   const patternSources = useProjectStore((s) => s.project.patternSources);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -166,12 +169,36 @@ export function ModulationSection() {
                 {m.amount >= 0 ? '+' : ''}
                 {m.amount.toFixed(2)}
               </span>
-              <button className="vp-btn" onClick={() => setExpanded(isOpen ? null : m.id)}>
+              <button
+                className="vp-btn"
+                aria-label={isOpen ? 'Collapse mapping' : 'Expand mapping'}
+                onClick={() => setExpanded(isOpen ? null : m.id)}
+              >
                 {isOpen ? '−' : '⋯'}
               </button>
             </div>
             {isOpen && (
               <div className="mod-detail">
+                {layers.length > 1 && (
+                  <div className="param-row">
+                    <span className="param-label">Layer</span>
+                    <div className="param-control">
+                      <select
+                        className="select"
+                        aria-label="Mapping layer"
+                        value={targetLayerOf(project, m)}
+                        title="Which layer this mapping drives. Other layers do not react to it."
+                        onChange={(e) => updateMapping(m.id, { targetLayerId: e.target.value })}
+                      >
+                        {layers.map((l, i) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name || `Layer ${i + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
                 <div className="param-row">
                   <span className="param-label">Mapping</span>
                   <div className="param-control">

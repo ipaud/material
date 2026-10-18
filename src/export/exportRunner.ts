@@ -1,4 +1,5 @@
 import { selectedLayerOf } from '@shared/schemas/project';
+import { activityAt } from '@shared/activity';
 import { applyLayerModulations, isLayerTarget } from '@/modulation/layerState';
 import { mappingsByTarget, sourceLayerOf } from '@/modulation/layerRouting';
 import { engine } from '@/rendering/RenderEngine';
@@ -13,7 +14,7 @@ import { allParams, type TechniqueRenderer } from '@/techniques/types';
 import { evalSources, type SourceContext } from '@/modulation/sources';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
 import { applyModulations, SmoothingState, shapedUnitValue } from '@/modulation/evaluator';
-import { applyPulses } from '@/signals/pulseEngine';
+import { applyPulses, triggersForLayer } from '@/signals/pulseEngine';
 import { TriggerScheduler, type ActionTarget } from '@/signals/scheduler';
 import type { TriggerContext } from '@/signals/triggerSources';
 import { interpolateLookCore, morphCurve } from '@/performance/interpolate';
@@ -536,7 +537,13 @@ export function createFrameEvaluator(
     const modulated = applyModulations(baseParams, mappings, sources, definition, smoothing, dt);
     return {
       timeSec,
-      params: applyPulses(modulated, activeTriggers, timeSec, triggerCtx, definition),
+      params: applyPulses(
+        modulated,
+        triggersForLayer(activeTriggers, primaryId, primaryId),
+        timeSec,
+        triggerCtx,
+        definition,
+      ),
       techniqueId,
       transition,
     };
@@ -604,6 +611,7 @@ export function createSecondaryLayerEvaluator(
   const opacityEntries = project.layers.map((l) => ({
     layerId: l.id,
     stored: { opacity: l.opacity },
+    activity: l.activity,
     mappings: (byTarget.get(l.id) ?? []).filter((m) => isLayerTarget(m.target)),
     signalSource: new Map(
       (byTarget.get(l.id) ?? []).map((m) => [m.id, sourceLayerOf(project, m)]),
@@ -624,17 +632,27 @@ export function createSecondaryLayerEvaluator(
     for (const e of opacityEntries) {
       const played = resolved?.opacity.get(e.layerId);
       const stored = played === undefined ? e.stored : { opacity: played };
+      // The window multiplies LAST, after Take and modulation, so an outside-window
+      // layer is exactly 0 whatever else is driving its opacity.
+      const gate = activityAt(e.activity, timeSec);
       if (e.mappings.length === 0) {
-        out.set(e.layerId, stored.opacity);
+        out.set(e.layerId, stored.opacity * gate);
         continue;
       }
       const sources = evalSources(timeSec, { ...ctx, visual: visualFrom(e) });
       out.set(
         e.layerId,
-        applyLayerModulations(stored, e.mappings, sources, e.smoothing, dt).opacity,
+        applyLayerModulations(stored, e.mappings, sources, e.smoothing, dt).opacity * gate,
       );
     }
     return out;
+  };
+  const triggerCtx: TriggerContext = {
+    bpm: project.timeline.bpm,
+    beatOffsetSec: project.timeline.beatOffsetSec,
+    beatsPerBar: project.timeline.beatsPerBar,
+    analysis,
+    markers: project.timeline.markers,
   };
   const paramsAt = (timeSec: number): Map<string, ParamRecord> => {
     const resolved = take ? resolveTakeAt(take, timeSec) : null;
@@ -650,19 +668,28 @@ export function createSecondaryLayerEvaluator(
       const definition = getTechnique(e.technique.techniqueId);
       if (!definition) continue;
       const sources = evalSources(timeSec, { ...ctx, visual: visualFrom(e) });
+      const modulated = applyModulations(
+        applyMacros(
+          { ...e.technique.params, ...(resolved?.params.get(e.layerId) ?? {}) },
+          macros,
+          definition,
+        ),
+        e.mappings,
+        sources,
+        definition,
+        e.smoothing,
+        dt,
+      );
+      // Pulses aimed at this layer. Before, a secondary layer exported WITHOUT
+      // them while the preview applied them, so the file differed from the screen.
       out.set(
         e.layerId,
-        applyModulations(
-          applyMacros(
-            { ...e.technique.params, ...(resolved?.params.get(e.layerId) ?? {}) },
-            macros,
-            definition,
-          ),
-          e.mappings,
-          sources,
+        applyPulses(
+          modulated,
+          triggersForLayer(project.triggers, e.layerId, primaryLayerId),
+          timeSec,
+          triggerCtx,
           definition,
-          e.smoothing,
-          dt,
         ),
       );
     }

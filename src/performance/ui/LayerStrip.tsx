@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { engine } from '@/rendering/RenderEngine';
-import { selectLayer, setLayerBlend, toggleLayerSolo } from '@/projects/layerActions';
 import {
-  performLayerOpacity,
-  performToggleLayerEnabled,
-} from '@/performance/take/gestures';
+  selectLayer,
+  setLayerActivity,
+  setLayerBlend,
+  toggleLayerSolo,
+} from '@/projects/layerActions';
+import { performLayerOpacity, performToggleLayerEnabled } from '@/performance/take/gestures';
 import { blendModeSchema, type BlendMode, type Layer } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 
@@ -64,6 +66,8 @@ function LayerCell({
   dimmed: boolean;
 }) {
   const [live, setLive] = useState<number | null>(null);
+  const [windowOpen, setWindowOpen] = useState(false);
+  const name = layer.name || `Layer ${index + 1}`;
   const dragging = useRef(false);
   const techniqueLabel = layer.technique
     ? (getTechnique(layer.technique.techniqueId)?.name ?? layer.technique.techniqueId)
@@ -138,9 +142,7 @@ function LayerCell({
         }}
       >
         <span className="perf-layer-fill" style={{ width: `${layer.opacity * 100}%` }} />
-        {live !== null && (
-          <span className="perf-layer-live" style={{ width: `${live * 100}%` }} />
-        )}
+        {live !== null && <span className="perf-layer-live" style={{ width: `${live * 100}%` }} />}
         <span className="perf-layer-value mono">
           {layer.opacity.toFixed(2)}
           {live !== null && <em> {live.toFixed(2)}</em>}
@@ -179,7 +181,88 @@ function LayerCell({
             </option>
           ))}
         </select>
+        <button
+          className={'perf-layer-btn' + (layer.activity ? ' on' : '')}
+          onClick={() => setWindowOpen((open) => !open)}
+          aria-expanded={windowOpen}
+          aria-label={`${name} window`}
+          title="Activity window — when this layer takes part (seconds). Outside it the layer contributes nothing."
+        >
+          W
+        </button>
       </div>
+      {windowOpen && (
+        <div className="perf-layer-window" role="group" aria-label={`${name} activity window`}>
+          <WindowField
+            label="in"
+            aria={`${name} window start`}
+            value={layer.activity?.start ?? 0}
+            onCommit={(v) => setLayerActivity(layer.id, { start: v ?? 0 })}
+          />
+          <WindowField
+            label="out"
+            aria={`${name} window end`}
+            value={layer.activity?.end ?? null}
+            onCommit={(v) => setLayerActivity(layer.id, { end: v })}
+            allowEmpty
+          />
+          <WindowField
+            label="↗"
+            aria={`${name} fade in`}
+            value={layer.activity?.fadeIn ?? 0}
+            onCommit={(v) => setLayerActivity(layer.id, { fadeIn: v ?? 0 })}
+          />
+          <WindowField
+            label="↘"
+            aria={`${name} fade out`}
+            value={layer.activity?.fadeOut ?? 0}
+            onCommit={(v) => setLayerActivity(layer.id, { fadeOut: v ?? 0 })}
+          />
+          {layer.activity && (
+            <button
+              className="perf-layer-btn"
+              onClick={() => setLayerActivity(layer.id, null)}
+              title="Remove the window: the layer is active for the whole piece"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Seconds, typed. Empty means "no end" where allowed (open-ended window). */
+function WindowField({
+  label,
+  aria,
+  value,
+  onCommit,
+  allowEmpty = false,
+}: {
+  label: string;
+  aria: string;
+  value: number | null;
+  onCommit: (value: number | null) => void;
+  allowEmpty?: boolean;
+}) {
+  return (
+    <label className="perf-window-field mono">
+      {label}
+      <input
+        type="number"
+        min={0}
+        step={0.1}
+        aria-label={aria}
+        placeholder={allowEmpty ? 'end' : '0'}
+        value={value ?? ''}
+        onChange={(e) => {
+          if (e.target.value === '') return allowEmpty ? onCommit(null) : undefined;
+          const n = Number(e.target.value);
+          if (Number.isFinite(n)) onCommit(n);
+        }}
+      />
+    </label>
   );
 }

@@ -59,6 +59,7 @@ export function projectWithLayerLooks(project: Project, look: PinnedLook): Proje
         blendMode: 'normal' as const,
         sourceId: null,
         technique: null,
+        activity: null,
         material: entry.material,
       }),
       id: entry.id,

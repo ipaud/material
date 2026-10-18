@@ -25,6 +25,20 @@ import {
  * arrived at t.
  */
 
+/**
+ * The triggers that act on ONE layer. A trigger aimed at a layer (`targetLayerId`)
+ * pulses only that layer; an untargeted one keeps its original meaning and acts on
+ * the primary layer only. Before this, preview pulsed every layer that happened to
+ * have a parameter with that id while the export pulsed only the primary one.
+ */
+export function triggersForLayer(
+  triggers: readonly TriggerMapping[],
+  layerId: string,
+  primaryLayerId: string,
+): TriggerMapping[] {
+  return triggers.filter((t) => (t.targetLayerId ?? primaryLayerId) === layerId);
+}
+
 /** Bounded lookback: envelope window plus a few cooldown chains. */
 function lookbackSec(mapping: TriggerMapping): number {
   const window = envelopeDuration(mapping);

@@ -1203,3 +1203,28 @@
   gap: var(--sp-2);
   margin-top: var(--sp-2);
 }
+
+.perf-layer-window {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 3px 4px 4px;
+  border-top: 1px solid var(--border-0);
+}
+.perf-window-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--text-2);
+}
+.perf-window-field input {
+  width: 44px;
+  height: 16px;
+  padding: 0 2px;
+  font-size: 10px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  color: var(--text-1, inherit);
+}

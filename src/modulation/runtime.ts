@@ -8,7 +8,7 @@ import { visualDemand } from '@/signals/visual/demand';
 import { publishVisualSignals } from '@/signals/visual/publish';
 import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import { applySourceModulations, applyModulations, SmoothingState } from './evaluator';
-import { applyPulses } from '@/signals/pulseEngine';
+import { applyPulses, triggersForLayer } from '@/signals/pulseEngine';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { applyMacros } from '@/performance/macros';
@@ -294,7 +294,7 @@ class ModulationRuntime {
     const { triggers, ctx } = getTriggerState();
     return applyPulses(
       modulated,
-      triggers,
+      triggersForLayer(triggers, layerId, this.primaryLayerId ?? layerId),
       timeSec,
       ctx,
       definition,
@@ -477,7 +477,11 @@ class ModulationRuntime {
       dt,
     );
     const { triggers, ctx } = getTriggerState();
-    const effectiveTriggers = overlay ? overlay.triggers : triggers;
+    const effectiveTriggers = triggersForLayer(
+      overlay ? overlay.triggers : triggers,
+      this.primaryLayerId ?? '',
+      this.primaryLayerId ?? '',
+    );
     return applyPulses(
       modulated,
       effectiveTriggers,

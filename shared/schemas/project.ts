@@ -275,6 +275,12 @@ export const triggerMappingSchema = z.object({
   attackSec: z.number().min(0).default(0),
   holdSec: z.number().min(0).default(0),
   decaySec: z.number().min(0).default(0.18),
+  /**
+   * Which LAYER a pulse drives. Absent = the primary (bottom/selected) layer,
+   * which is what every trigger written before this field did in the export.
+   * Stored as a layer ID, never an index, like `targetLayerId` on mappings.
+   */
+  targetLayerId: z.string().optional(),
   /** Signed: negative amount pulses the parameter downward (polarity). */
   amount: z.number().min(-1).max(1).default(0.35),
   curve: z.enum(['linear', 'exponential', 'easeOut']).default('easeOut'),
@@ -534,13 +540,14 @@ export type Composition = z.infer<typeof compositionSchema>;
 /**
  * v0.6 — how many visual branches may be active at once.
  *
- * A cap, not a limitation waiting to be lifted. Four keeps the GPU budget
- * predictable, the layer strip readable at a glance and the Output mirror
- * honest; past that MATERIAL stops being an instrument you can play and starts
- * being a compositor you operate. The number was chosen from measurement, not
- * from what an array makes easy — see docs/LAYERS.md.
+ * Four in v0.6, chosen for a live instrument: four heavy layers hold vsync at
+ * 1080p and the strip stays readable. Raised to eight so a long piece can stage
+ * seven effects through activity windows in ONE render instead of seven passes
+ * (export is not vsync-bound). Past roughly four heavy layers a live set will
+ * drop frames: the cap bounds the file, not what the GPU can play. Measurements
+ * in docs/LAYERS.md.
  */
-export const MAX_LAYERS = 4;
+export const MAX_LAYERS = 8;
 
 export type BlendMode = z.infer<typeof blendModeSchema>;
 
@@ -549,6 +556,24 @@ export type BlendMode = z.infer<typeof blendModeSchema>;
  * composition. Everything here is CONFIG — no runtime, no textures, no GPU
  * state ever reaches a project file.
  */
+/**
+ * When this layer takes part, in composition seconds (see shared/activity.ts).
+ * Outside the window its opacity is multiplied by exactly 0, so the layers
+ * beneath show untouched; inside, fades ramp the opacity 0→1 and 1→0. Absent
+ * (null) = always active, which is what every v5 file already means.
+ */
+export const activityWindowSchema = z
+  .object({
+    start: z.number().min(0),
+    end: z.number().min(0).nullable().default(null),
+    fadeIn: z.number().min(0).default(0),
+    fadeOut: z.number().min(0).default(0),
+  })
+  .refine((w) => w.end === null || w.end > w.start, {
+    message: 'activity end must be after start',
+    path: ['end'],
+  });
+
 export const layerSchema = z.object({
   id: z.string().min(1),
   name: z.string().max(48).default(''),
@@ -566,6 +591,8 @@ export const layerSchema = z.object({
   /** Exactly one technique instance per layer — a layer is a branch, not a
    * stack. Effect chains inside a layer are deliberately out of scope. */
   technique: techniqueInstanceSchema.nullable().default(null),
+  /** When the layer takes part; null = always. Not part of a Look: it is timeline structure. */
+  activity: activityWindowSchema.nullable().default(null),
   material: materialStateSchema,
 });
 export type Layer = z.infer<typeof layerSchema>;
@@ -864,6 +891,7 @@ export function emptyLayer(id: string, name = ''): Layer {
     blendMode: 'normal',
     sourceId: null,
     technique: null,
+    activity: null,
     material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
   };
 }

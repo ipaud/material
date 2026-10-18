@@ -31,7 +31,7 @@ const fixture = (name: string) =>
 
 describe('the layer cap is a product decision, not an array length', () => {
   it('is bounded, and the schema enforces it', () => {
-    expect(MAX_LAYERS).toBeLessThanOrEqual(4);
+    expect(MAX_LAYERS).toBeLessThanOrEqual(8);
     expect(MAX_LAYERS).toBeGreaterThanOrEqual(3);
     const base = createEmptyProject();
     const tooMany = {
