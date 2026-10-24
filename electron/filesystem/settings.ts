@@ -18,6 +18,10 @@ const settingsSchema = z.object({
   version: z.literal(1).default(1),
   lastOutputDisplayId: z.number().nullable().default(null),
   lastOutputMode: z.enum(['windowed', 'fullscreen']).default('fullscreen'),
+  /** One request to GitHub at launch (at most once a day) to see if a newer MATERIAL exists. Off = never. */
+  autoUpdateCheck: z.boolean().default(true),
+  /** ms since epoch of the last automatic check */
+  lastUpdateCheck: z.number().nullable().default(null),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;

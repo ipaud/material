@@ -11,7 +11,9 @@ hand.
 SOURCE → TECHNIQUE → MATERIAL → MODULATION → OUTPUT
 ```
 
-Everything runs locally. No accounts, no cloud, no telemetry, no media upload.
+Everything runs locally. No accounts, no cloud, no telemetry, no media upload. The one thing it does
+on its own over the network is ask GitHub, at most once a day, whether a newer MATERIAL exists
+([how updates work](docs/UPDATES.md); one menu item turns it off).
 
 ## Requirements
 

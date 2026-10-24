@@ -1,8 +1,12 @@
 import { app, Menu, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { IPC, type MenuEventId } from '../../shared/ipc';
 import { configureAboutPanel } from './buildInfo';
+import { checkForUpdates, setAutoCheck } from './updater';
 
-export function buildAppMenu(getWindow: () => BrowserWindow | null): void {
+export function buildAppMenu(
+  getWindow: () => BrowserWindow | null,
+  autoUpdateCheck: boolean,
+): void {
   configureAboutPanel();
   const send = (id: MenuEventId) => () => {
     getWindow()?.webContents.send(IPC.menuEvent, id);
@@ -13,6 +17,13 @@ export function buildAppMenu(getWindow: () => BrowserWindow | null): void {
       label: app.name,
       submenu: [
         { role: 'about' },
+        { label: 'Check for Updates…', click: () => void checkForUpdates(getWindow, true) },
+        {
+          label: 'Check for Updates Automatically',
+          type: 'checkbox',
+          checked: autoUpdateCheck,
+          click: (item) => void setAutoCheck(item.checked),
+        },
         { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },

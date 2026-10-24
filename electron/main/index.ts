@@ -17,6 +17,8 @@ import { EXIT, validateProject } from '../cli/validate';
 import { emit, runAnalyze, runRender } from '../cli/run';
 import { exportLogPath, installExportLogFile, logGpuState } from './exportLogFile';
 import { buildAppMenu } from './menu';
+import { startAutoCheck } from './updater';
+import { readSettings } from '../filesystem/settings';
 import { registerMediaProtocolHandler, registerMediaSchemeAsPrivileged } from './protocol';
 
 const isDev = !app.isPackaged;
@@ -136,7 +138,7 @@ async function runCliMode(command: CliCommand): Promise<number> {
   return command.command === 'render' ? runRender(win, command) : runAnalyze(win, command);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerMediaProtocolHandler();
 
   // Web MIDI: Chromium ≥M119 routes ALL Web MIDI access through the
@@ -265,8 +267,9 @@ app.whenReady().then(() => {
       });
     return;
   }
-  buildAppMenu(() => mainWindow);
+  buildAppMenu(() => mainWindow, (await readSettings()).autoUpdateCheck);
   createWindow();
+  startAutoCheck(() => mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

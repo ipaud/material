@@ -312,6 +312,11 @@ export async function cancelExport(rawSessionId: unknown): Promise<void> {
 }
 
 /** Kill every live export and drop partial files (app quit, renderer crash). */
+/** True while an export is writing, so an update never offers to restart in the middle of one. */
+export function hasActiveExports(): boolean {
+  return sessions.size > 0;
+}
+
 export async function abortAllExports(): Promise<void> {
   await Promise.all([...sessions.keys()].map((id) => cancelExport(id)));
 }

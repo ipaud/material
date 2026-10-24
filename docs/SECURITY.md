@@ -1,7 +1,8 @@
 # Security model
 
 MATERIAL is a local, offline-first desktop application. It has no accounts, no
-network services and no telemetry. This document states what it does with
+network services and no telemetry. The only request it makes by itself is the
+[update check](UPDATES.md). This document states what it does with
 content it did not write, which since v0.5 includes shader packs.
 
 ## The renderer has no ambient authority
@@ -103,3 +104,23 @@ a way to read the disk.
 No preload API beyond those two. No new permission. No network. Media paths
 stored relative to the project resolve in the main process, which already owned
 every path in the app; the renderer's view is unchanged and still absolute.
+
+## Updates
+
+The app can replace itself with a newer release. What that trusts, and what it checks:
+
+- It asks `api.github.com` for the latest release of `ipaud/material`. A release that is a draft or a
+  pre-release, or whose tag is not `x.y.z`, is ignored.
+- It will only download an asset whose URL starts with `https://github.com/ipaud/material/releases/download/`.
+  Anything else in the release is ignored.
+- The download must be exactly the size the release lists and match its SHA-256 (the asset's `digest`, or a
+  `SHA-256:` line in the release text). A mismatch deletes the file.
+- What it unpacks must have the bundle id `com.pauavila.material`, the version the release names, and a valid
+  bundle signature (`codesign --verify --strict`).
+- It never installs without asking, and it leaves the current app untouched until the new one has passed all of
+  the above. The swap runs in a small shell script that gets every path through the environment, not spliced
+  into its text.
+
+**What it does not protect against:** the checksum comes from the same GitHub account as the download. Someone who
+can publish a release on `ipaud/material` can publish an update, and the app is not signed with an Apple Developer
+ID that would let macOS tell the difference. Treat the GitHub account as the key to every installed copy.

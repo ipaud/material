@@ -1,5 +1,19 @@
 # Release Notes
 
+## v0.8.5 — IT UPDATES ITSELF
+
+MATERIAL now tells you when a newer version exists and can install it for you.
+
+- **Check for Updates…** in the MATERIAL menu, and a quiet check at launch (at most once a day). If there is a new
+  release it asks; **Update now** downloads it (progress on the Dock icon), verifies it, and offers **Restart now**
+  or **On next quit**.
+- **Check for Updates Automatically** in the same menu turns the launch check off. That check is the only
+  network request MATERIAL makes by itself.
+- Works without an Apple Developer ID: the app verifies size, SHA-256, bundle id, version and signature of what it
+  downloads, and swaps the bundle in after it quits. If it cannot (for example it runs from a read-only location)
+  it sends you to the download page. Details: [UPDATES](UPDATES.md), [SECURITY](SECURITY.md#updates).
+- The restart prompt never offers to restart while an export is running.
+
 ## v0.8.4 — EVERY LAYER'S HISTORY EXPORTS
 
 Two more found by the same piece, after v0.8.3 made the preview truthful.
