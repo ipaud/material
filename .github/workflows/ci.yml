@@ -1,0 +1,66 @@
+# Typecheck, lint and the unit tests on macOS and Windows, then a real Windows build whose app is started
+# against a generated audio file (it needs ffmpeg, the renderer and the CLI bridge to answer).
+name: ci
+on:
+  push:
+    branches: [main, windows]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  windows-build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:win
+      - name: Install ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Start the app on a real audio file
+        shell: pwsh
+        run: |
+          $ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
+          if (-not $ffmpeg) { $ffmpeg = "C:\ProgramData\chocolatey\bin\ffmpeg.exe" }
+          & $ffmpeg -v error -f lavfi -i "sine=frequency=440:duration=3" -y smoke.wav
+          Get-ChildItem release | Select-Object Name, Length
+          $p = Start-Process -FilePath ".\release\win-unpacked\MATERIAL.exe" `
+            -ArgumentList @("analyze-audio", "$PWD\smoke.wav") `
+            -RedirectStandardOutput out.txt -RedirectStandardError err.txt -PassThru -Wait
+          "exit code: $($p.ExitCode)"
+          Get-Content out.txt
+          Get-Content err.txt
+          if ($p.ExitCode -ne 0) { exit 1 }
+          if (-not (Select-String -Path out.txt -Pattern '"durationSec"')) { throw "no analysis in the output" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MATERIAL-windows
+          path: |
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error

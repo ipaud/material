@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useUiStore, type WorkspaceId } from '@/state/uiStore';
 import { useOutputStore } from '@/state/outputStore';
+import { hasCommand, isMac } from '@/utils/platform';
 
 const ORDER: WorkspaceId[] = ['build', 'explore', 'perform', 'output'];
 
@@ -17,7 +18,7 @@ const ORDER: WorkspaceId[] = ['build', 'explore', 'perform', 'output'];
 export function useWorkspaceKeys(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey && e.shiftKey && !e.altKey && !e.ctrlKey && e.code === 'KeyF') {
+      if (hasCommand(e) && e.shiftKey && !e.altKey && (isMac ? !e.ctrlKey : true) && e.code === 'KeyF') {
         const { status, mode } = useOutputStore.getState();
         if (status.state !== 'open') return;
         e.preventDefault();
@@ -26,7 +27,7 @@ export function useWorkspaceKeys(): void {
           .selectMode(mode === 'fullscreen' ? 'windowed' : 'fullscreen');
         return;
       }
-      if (!e.metaKey || !e.altKey || e.ctrlKey || e.shiftKey) return;
+      if (!hasCommand(e) || !e.altKey || (isMac && e.ctrlKey) || e.shiftKey) return;
       if (!e.code.startsWith('Digit')) return;
       const index = Number(e.code.slice(5)) - 1;
       const target = ORDER[index];

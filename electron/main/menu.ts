@@ -3,6 +3,8 @@ import { IPC, type MenuEventId } from '../../shared/ipc';
 import { configureAboutPanel } from './buildInfo';
 import { checkForUpdates, setAutoCheck } from './updater';
 
+const isMac = process.platform === 'darwin';
+
 export function buildAppMenu(
   getWindow: () => BrowserWindow | null,
   autoUpdateCheck: boolean,
@@ -11,27 +13,31 @@ export function buildAppMenu(
   const send = (id: MenuEventId) => () => {
     getWindow()?.webContents.send(IPC.menuEvent, id);
   };
+  const updateItems: MenuItemConstructorOptions[] = [
+    { label: 'Check for Updates…', click: () => void checkForUpdates(getWindow, true) },
+    {
+      label: 'Check for Updates Automatically',
+      type: 'checkbox',
+      checked: autoUpdateCheck,
+      click: (item) => void setAutoCheck(item.checked),
+    },
+  ];
+  const macAppMenu: MenuItemConstructorOptions = {
+    label: app.name,
+    submenu: [
+      { role: 'about' },
+      ...updateItems,
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit' },
+    ],
+  };
 
   const template: MenuItemConstructorOptions[] = [
-    {
-      label: app.name,
-      submenu: [
-        { role: 'about' },
-        { label: 'Check for Updates…', click: () => void checkForUpdates(getWindow, true) },
-        {
-          label: 'Check for Updates Automatically',
-          type: 'checkbox',
-          checked: autoUpdateCheck,
-          click: (item) => void setAutoCheck(item.checked),
-        },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
+    ...(isMac ? [macAppMenu] : []),
     {
       label: 'File',
       submenu: [
@@ -44,6 +50,7 @@ export function buildAppMenu(
         { label: 'Save As…', accelerator: 'Shift+CmdOrCtrl+S', click: send('save-project-as') },
         { type: 'separator' },
         { label: 'Export…', accelerator: 'CmdOrCtrl+E', click: send('export') },
+        ...(isMac ? [] : ([{ type: 'separator' }, { role: 'quit' }] as MenuItemConstructorOptions[])),
       ],
     },
     {
@@ -74,6 +81,15 @@ export function buildAppMenu(
       ],
     },
     { role: 'windowMenu' },
+    // Windows / Linux: no app-name menu, so Quit lives in File and updates and About in Help.
+    ...(isMac
+      ? []
+      : [
+          {
+            label: 'Help',
+            submenu: [...updateItems, { type: 'separator' }, { role: 'about' }],
+          } as MenuItemConstructorOptions,
+        ]),
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

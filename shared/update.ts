@@ -53,6 +53,43 @@ export interface PickOptions {
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
+function notesOf(body: string): string {
+  return body
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !/^#{1,6}\s/.test(l) && !/sha-?256/i.test(l))
+    .slice(0, 4)
+    .join('\n')
+    .slice(0, 400);
+}
+
+export interface Notice {
+  version: string;
+  name: string;
+  pageUrl: string;
+  notes: string;
+}
+
+/**
+ * Platforms where the app cannot swap itself in (Windows, for now): just the news that a newer release exists, and
+ * where to get it. Same rules as pickRelease about drafts, pre-releases and tags.
+ */
+export function pickNotice(json: unknown): Notice | null {
+  if (typeof json !== 'object' || json === null) return null;
+  const r = json as Record<string, unknown>;
+  if (r.draft === true || r.prerelease === true) return null;
+  const tag = str(r.tag_name);
+  const parsed = tag ? parseVersion(tag) : null;
+  if (!parsed) return null;
+  const version = parsed.join('.');
+  return {
+    version,
+    name: str(r.name) ?? `MATERIAL ${version}`,
+    pageUrl: str(r.html_url) ?? `https://github.com/${REPO}/releases`,
+    notes: notesOf(str(r.body) ?? ''),
+  };
+}
+
 function str(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
@@ -84,13 +121,7 @@ export function pickRelease(json: unknown, opts: PickOptions): ReleaseInfo | nul
   const sha256 = digest && HEX64.test(digest) ? digest : fromBody && HEX64.test(fromBody) ? fromBody : null;
   if (!sha256) return null;
 
-  const notes = body
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l && !/^#{1,6}\s/.test(l) && !/sha-?256/i.test(l))
-    .slice(0, 4)
-    .join('\n')
-    .slice(0, 400);
+  const notes = notesOf(body);
   return {
     version,
     name: str(r.name) ?? `MATERIAL ${version}`,

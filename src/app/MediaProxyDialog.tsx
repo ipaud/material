@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { retryMediaPath } from '@/rendering/engineBridge';
 import { setProxy } from '@/sources/mediaProxy';
 import { reportError, useUiStore } from '@/state/uiStore';
+import { basename } from '@/utils/platform';
 
 /** Offered when the viewer cannot decode a video (ProRes and friends). */
 export function MediaProxyDialog() {
@@ -11,7 +12,7 @@ export function MediaProxyDialog() {
   const [busy, setBusy] = useState(false);
   if (!pending) return null;
 
-  const name = pending.path.split('/').pop() ?? pending.path;
+  const name = basename(pending.path);
 
   const make = async () => {
     setBusy(true);

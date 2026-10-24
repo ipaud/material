@@ -9,7 +9,9 @@ import {
   INSTALL_SCRIPT,
   RELEASE_API,
   isNewer,
+  pickNotice,
   pickRelease,
+  type Notice,
   type ReleaseInfo,
 } from '../../shared/update';
 import { hasActiveExports } from '../export/encoder';
@@ -37,8 +39,11 @@ let staged = false;
 
 type GetWindow = () => BrowserWindow | null;
 
+/** Only macOS on Apple Silicon can install an update by itself; everywhere else the app just says one exists. */
+const CAN_INSTALL = process.platform === 'darwin' && process.arch === 'arm64';
+
 function enabled(): boolean {
-  return process.platform === 'darwin' && process.arch === 'arm64' && (app.isPackaged || Boolean(FEED));
+  return app.isPackaged || Boolean(FEED);
 }
 
 function feedConfig(): { url: string; assetPrefix: string } {
@@ -55,7 +60,7 @@ async function say(
 }
 
 /** The newest installable release, or null when there is none (no release yet, or one this build cannot install). */
-async function fetchLatest(): Promise<ReleaseInfo | null> {
+async function fetchLatest(): Promise<ReleaseInfo | Notice | null> {
   const { url, assetPrefix } = feedConfig();
   const res = await fetch(url, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'MATERIAL-updater' },
@@ -63,7 +68,9 @@ async function fetchLatest(): Promise<ReleaseInfo | null> {
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const release = pickRelease(await res.json(), { arch: process.arch, assetPrefix });
+  const json: unknown = await res.json();
+  if (!CAN_INSTALL) return pickNotice(json);
+  const release = pickRelease(json, { arch: process.arch, assetPrefix });
   if (!release) console.warn('[update] the latest release has no installable asset for this Mac');
   return release;
 }
@@ -93,6 +100,18 @@ export async function checkForUpdates(getWindow: GetWindow, manual: boolean): Pr
           detail: `You have ${app.getVersion()}, the latest version.`,
         });
       }
+      return;
+    }
+    if (!('assetUrl' in release)) {
+      const news = await say(getWindow, {
+        type: 'info',
+        message: `MATERIAL ${release.version} is available`,
+        detail: `You have ${app.getVersion()}.${release.notes ? `\n\n${release.notes}` : ''}`,
+        buttons: ['Open download page', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (news.response === 0) void shell.openExternal(release.pageUrl);
       return;
     }
     const ask = await say(getWindow, {

@@ -7,6 +7,7 @@ import type { MediaMetadata } from '@shared/schemas/media';
 import { planRelink } from './relink';
 import { isFileSource, isLiveSource, type Project } from '@shared/schemas/project';
 import { selectedLayerOf, withSelectedSource, withSelectedTechnique } from '@shared/schemas/project';
+import { basename } from '@/utils/platform';
 
 /** Ensure the project has an enabled technique chain (defaults to Mosaic). */
 /**
@@ -233,7 +234,7 @@ export async function importMediaPaths(paths: string[]): Promise<void> {
     try {
       metadata = await window.material.probeMedia(path);
     } catch (err) {
-      reportError(`Import ${path.split('/').pop() ?? path}`, err);
+      reportError(`Import ${basename(path)}`, err);
       continue;
     }
     const sourceId = uid('src');

@@ -25,4 +25,19 @@ mac:
   # notarized distribution.
   identity: '-'
   hardenedRuntime: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+  # Not code-signed: Windows SmartScreen shows "Windows protected your PC" until the app has reputation.
+  # Chosen on purpose; the release notes say how to open it.
+  signAndEditExecutable: false
+  artifactName: MATERIAL-${version}-win-x64.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: MATERIAL-${version}-win-x64-setup.${ext}
 npmRebuild: false

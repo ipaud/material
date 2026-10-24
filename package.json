@@ -13,6 +13,7 @@
     "start": "electron-vite preview",
     "package": "npm run build && electron-builder --mac --dir",
     "dist": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
     "format": "prettier --write .",

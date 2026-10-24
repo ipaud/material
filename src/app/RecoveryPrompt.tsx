@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { discardRecovery, pendingRecoveries, restoreRecovery } from '@/projects/autosave';
 import { useUiStore } from '@/state/uiStore';
 import type { RecoveryEntry } from '@shared/ipc';
+import { basename } from '@/utils/platform';
 
 function relativeTime(iso: string): string {
   const deltaMs = Date.now() - new Date(iso).getTime();
@@ -52,7 +53,7 @@ export function RecoveryPrompt() {
           <div className="recovery-fact">
             <span className="recovery-fact-label">ON DISK</span>
             <span className="recovery-fact-value mono">
-              {entry.projectPath ? (entry.projectPath.split('/').pop() ?? '—') : 'NEVER SAVED'}
+              {entry.projectPath ? (basename(entry.projectPath) || '—') : 'NEVER SAVED'}
             </span>
           </div>
         </div>

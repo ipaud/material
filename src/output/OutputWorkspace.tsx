@@ -9,6 +9,7 @@ import { DisplayPanel } from './DisplayPanel';
 import { Viewport } from '@/viewport/Viewport';
 import { WorkspaceEmpty } from '@/components/WorkspaceEmpty';
 import './output.css';
+import { basename } from '@/utils/platform';
 
 /**
  * OUTPUT — what MATERIAL is producing, where it can go, how it is delivered.
@@ -215,7 +216,7 @@ export function OutputSettings() {
                 ? `Generator · ${String(source.generator)}`
                 : source.kind === 'window'
                   ? 'Live window capture'
-                  : (source.metadata?.fileName ?? source.path.split('/').pop() ?? '—')
+                  : (source.metadata?.fileName ?? (basename(source.path) || '—'))
             : 'NONE'
         }
       />

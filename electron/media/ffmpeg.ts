@@ -3,19 +3,22 @@ import { promisify } from 'node:util';
 import { accessSync, constants } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { binaryName, searchDirs } from './ffmpegPaths';
 
 const execFileAsync = promisify(execFile);
 
-const CANDIDATE_DIRS = [
-  path.join(os.homedir(), '.local', 'bin'),
-  '/opt/homebrew/bin',
-  '/usr/local/bin',
-  '/usr/bin',
-];
-
 function findBinary(name: string): string | null {
-  for (const dir of CANDIDATE_DIRS) {
-    const candidate = path.join(dir, name);
+  const dirs = searchDirs({
+    platform: process.platform,
+    pathVar: process.env.PATH,
+    home: os.homedir(),
+    localAppData: process.env.LOCALAPPDATA,
+    programData: process.env.ProgramData,
+    programFiles: process.env.ProgramFiles,
+  });
+  const file = binaryName(name, process.platform);
+  for (const dir of dirs) {
+    const candidate = path.join(dir, file);
     try {
       accessSync(candidate, constants.X_OK);
       return candidate;

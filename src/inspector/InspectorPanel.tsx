@@ -27,6 +27,7 @@ import { techniqueNeedsTemporal } from '@/techniques/registry';
 import { isLiveSource } from '@shared/schemas/project';
 import { getGenerator } from '@/sources/generators/definitions';
 import '@/components/parameter-slider.css';
+import { basename } from '@/utils/platform';
 
 /**
  * v0.5 — the one place a pack shader can report that it is unhappy.
@@ -275,7 +276,7 @@ export function InspectorPanel() {
                       </option>
                     ))}
                     {material.assetPath && (
-                      <option value="custom">Custom: {material.assetPath.split('/').pop()}</option>
+                      <option value="custom">Custom: {basename(material.assetPath)}</option>
                     )}
                   </select>
                 </div>

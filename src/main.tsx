@@ -3,6 +3,7 @@ import React from 'react';
 import type * as THREE from 'three';
 import { TemporalFrameProvider } from './rendering/temporal/TemporalFrameProvider';
 import { createRoot } from 'react-dom/client';
+import { isMac } from '@/utils/platform';
 import { App } from './app/App';
 import { engine } from './rendering/RenderEngine';
 import { useProjectStore } from './state/projectStore';
@@ -685,6 +686,8 @@ for (const pack of loadBuiltinPacks()) packRegistry.registerPack(pack);
 // contributes a warning, never a failed startup, and nothing is COMPILED until
 // a shader is selected.
 void refreshInstalledPacks();
+
+document.documentElement.dataset.platform = isMac ? 'darwin' : 'other';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');

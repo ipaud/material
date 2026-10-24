@@ -46,8 +46,10 @@ function createWindow(): void {
     minHeight: 700,
     show: false,
     backgroundColor: '#08090a',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 14 },
+    // macOS: traffic lights inset into our own title bar. Elsewhere: the system frame.
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 14 } }
+      : {}),
     webPreferences: {
       preload: path.join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,

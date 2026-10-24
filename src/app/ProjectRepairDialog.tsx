@@ -1,5 +1,6 @@
 import { openProjectFromPath } from '@/projects/projectActions';
 import { reportError, useUiStore } from '@/state/uiStore';
+import { basename } from '@/utils/platform';
 
 const MAX_LISTED = 50;
 
@@ -11,7 +12,7 @@ export function ProjectRepairDialog() {
 
   const { issues, repairable, path } = pending;
   const listed = issues.slice(0, MAX_LISTED);
-  const name = path.split('/').pop() ?? path;
+  const name = basename(path);
 
   const repair = () => {
     openProjectFromPath(path, true).catch((err: unknown) => reportError('Repair project', err));
