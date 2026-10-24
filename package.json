@@ -6,7 +6,7 @@
   "type": "module",
   "private": true,
   "author": "Pau Avila",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

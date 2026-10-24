@@ -57,8 +57,8 @@ pixels. Every property above survives intact.
 Media paths are stored absolute:
 
 ```
-video  /Users/pauavila/Desktop/IRATI-source-97s.mp4
-audio  /Users/pauavila/Desktop/03 Vídeo y audio/Cançó per a Irati (Indie Folk).wav
+video  /Users/<you>/Desktop/source-video.mp4
+audio  /Users/<you>/Desktop/audio-track.wav
 ```
 
 Relink exists (`projectActions.ts:79`) but is one file at a time through a
