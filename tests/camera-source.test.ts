@@ -305,7 +305,7 @@ describe('structural invariants', () => {
       for (const entry of readdirSync(join(__dirname, '..', dir), { withFileTypes: true })) {
         if (entry.isDirectory()) walk(join(dir, entry.name));
         else if (/\.(ts|tsx)$/.test(entry.name)) {
-          const path = join(dir, entry.name);
+          const path = join(dir, entry.name).replace(/\\/g, '/');
           if (path.endsWith('sources/CameraSource.ts')) continue;
           if (path.endsWith('output-window/outputCameraSource.ts')) continue;
           if (code(path).includes('getUserMedia(')) offenders.push(path);

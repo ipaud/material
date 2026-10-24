@@ -288,7 +288,7 @@ describe('structural invariants — 18E', () => {
       for (const entry of readdirSync(join(__dirname, '..', dir), { withFileTypes: true })) {
         if (entry.isDirectory()) walk(join(dir, entry.name));
         else if (/\.(ts|tsx)$/.test(entry.name)) {
-          const path = join(dir, entry.name);
+          const path = join(dir, entry.name).replace(/\\/g, '/');
           if (path.endsWith('sources/DisplayCaptureSource.ts')) continue;
           if (path.endsWith('output-window/outputCaptureSource.ts')) continue;
           if (code(path).includes('getDisplayMedia')) offenders.push(path);
@@ -305,7 +305,7 @@ describe('structural invariants — 18E', () => {
       for (const entry of readdirSync(join(__dirname, '..', dir), { withFileTypes: true })) {
         if (entry.isDirectory()) walk(join(dir, entry.name));
         else if (/\.(ts|tsx)$/.test(entry.name)) {
-          const path = join(dir, entry.name);
+          const path = join(dir, entry.name).replace(/\\/g, '/');
           if (code(path).includes('desktopCapturer')) offenders.push(path);
         }
       }

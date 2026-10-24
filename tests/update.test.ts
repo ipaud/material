@@ -72,7 +72,7 @@ describe('pickRelease', () => {
   });
 });
 
-describe('INSTALL_SCRIPT (really run, on temp folders)', () => {
+describe.skipIf(process.platform === 'win32')('INSTALL_SCRIPT (really run, on temp folders)', () => {
   const setup = (name: string) => {
     const root = mkdtempSync(join(tmpdir(), 'material-update-'));
     const target = join(root, name);

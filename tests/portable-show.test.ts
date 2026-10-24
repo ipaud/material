@@ -55,7 +55,7 @@ function withSources(paths: string[]): Project {
   };
 }
 
-describe('paths are relative on disk and absolute in memory', () => {
+describe.skipIf(process.platform === 'win32')('paths are relative on disk and absolute in memory', () => {
   it('relativises media that lives at or below the project', () => {
     const p = withSources([
       '/Users/x/Shows/irati/media/clip.mp4',
@@ -304,5 +304,24 @@ describe('applying a relink to the project', () => {
     expect(probed.filter((p) => p === '/new/decoy.mp4')).toHaveLength(0);
     // The decoy was never a candidate for either source.
     expect(sources.some((s) => 'path' in s && s.path === '/new/decoy.mp4')).toBe(false);
+  });
+});
+
+describe.runIf(process.platform === 'win32')('paths on Windows', () => {
+  const WIN_PROJ = 'C:\\Users\\x\\Shows\\irati\\irati.material';
+  it('writes relative paths with forward slashes, so a project moves between macOS and Windows', () => {
+    const p = withSources(['C:\\Users\\x\\Shows\\irati\\media\\clip.mp4', 'D:\\Footage\\other.mp4']);
+    const out = toPortablePaths(p, WIN_PROJ);
+    expect(out.sources.map((s) => ('path' in s ? s.path : null))).toEqual(['media/clip.mp4', 'D:\\Footage\\other.mp4']);
+  });
+  it('round-trips, and resolves a moved folder to its new location', () => {
+    const p = withSources(['C:\\Users\\x\\Shows\\irati\\media\\clip.mp4']);
+    const disk = toPortablePaths(p, WIN_PROJ);
+    expect(toAbsolutePaths(disk, WIN_PROJ).sources[0]).toMatchObject({ path: 'C:\\Users\\x\\Shows\\irati\\media\\clip.mp4' });
+    expect(toAbsolutePaths(disk, 'E:\\Moved\\irati.material').sources[0]).toMatchObject({ path: 'E:\\Moved\\media\\clip.mp4' });
+  });
+  it('does not mistake a sibling folder sharing a prefix for a child', () => {
+    const p = withSources(['C:\\Users\\x\\Shows\\irati-old\\clip.mp4']);
+    expect(toPortablePaths(p, WIN_PROJ).sources[0]).toMatchObject({ path: 'C:\\Users\\x\\Shows\\irati-old\\clip.mp4' });
   });
 });

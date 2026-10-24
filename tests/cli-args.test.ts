@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseCli } from '../electron/cli/args';
 
-describe('parseCli', () => {
+describe.skipIf(process.platform === 'win32')('parseCli (POSIX paths)', () => {
   it('returns null when no CLI command is present (normal GUI launch)', () => {
     expect(parseCli([])).toBeNull();
     expect(parseCli(['/Users/me/p.material'])).toBeNull();
@@ -75,5 +75,23 @@ describe('parseCli', () => {
     });
     expect(parseCli(['analyze-audio', '/a/x.wav', '--threshold', '0.6'])).toMatchObject({ threshold: 0.6 });
     expect(parseCli(['analyze-audio', '/a/x.wav', '--threshold', '2'])).toMatchObject({ command: 'error' });
+  });
+});
+
+describe.runIf(process.platform === 'win32')('parseCli (Windows paths)', () => {
+  it('keeps absolute Windows paths and resolves relative ones against the working directory', () => {
+    const r = parseCli(
+      ['render', 'C:\\p\\a.material', '--out', 'D:\\o\\a.mov', '--audio', 'x.wav'],
+      'C:\\work',
+    );
+    expect(r).toMatchObject({
+      command: 'render',
+      project: 'C:\\p\\a.material',
+      out: 'D:\\o\\a.mov',
+      audio: 'C:\\work\\x.wav',
+    });
+  });
+  it('parses validate and analyze-audio', () => {
+    expect(parseCli(['validate', 'C:\\p\\a.material'])).toEqual({ command: 'validate', project: 'C:\\p\\a.material' });
   });
 });
