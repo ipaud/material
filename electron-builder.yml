@@ -33,7 +33,7 @@ win:
       arch: [x64]
   # Not code-signed: Windows SmartScreen shows "Windows protected your PC" until the app has reputation.
   # Chosen on purpose; the release notes say how to open it.
-  signAndEditExecutable: false
+  signExecutable: false
   artifactName: MATERIAL-${version}-win-x64.${ext}
 nsis:
   oneClick: false
