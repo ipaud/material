@@ -48,6 +48,7 @@ checks and downloads but refuses to install, so it can never overwrite Electron'
 
 ## Known limits
 
-- The first MATERIAL a person installs has to be downloaded by hand; only versions from 0.8.5 on update themselves.
+- The first MATERIAL a person installs has to be downloaded by hand; only versions from 0.8.5 on update themselves (macOS).
+- On Windows the app only tells you a newer release exists and opens its page: installing by itself needs code signing.
 - The checksum and the download come from the same GitHub account (see SECURITY).
 - Intel Macs and Windows are not supported by the updater, because the app itself is not built for them.

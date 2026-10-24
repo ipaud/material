@@ -1,0 +1,30 @@
+# When a release is published, build the Windows installer and zip and attach them to it. The macOS zip is made
+# by hand (docs/UPDATES.md): the Mac build is the one that can update itself, so it is checked before publishing.
+name: release-windows
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:win
+      - name: Attach to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = @(Get-ChildItem release\MATERIAL-*-win-x64*.exe, release\MATERIAL-*-win-x64.zip | Where-Object { $_.Name -notlike '*.blockmap' })
+          $files | ForEach-Object { "$($_.Name)  $((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())" } | Tee-Object checksums.txt
+          gh release upload "${{ github.event.release.tag_name }}" ($files.FullName) --clobber --repo "${{ github.repository }}"
+          Add-Content $env:GITHUB_STEP_SUMMARY "### Windows checksums`n````n$(Get-Content checksums.txt -Raw)`n````"

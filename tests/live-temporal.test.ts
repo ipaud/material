@@ -294,7 +294,7 @@ describe('release gates (18G)', () => {
     // the canvas) — export bytes unchanged, format unchanged. v0.8.4 rebuilds
     // temporal history for EVERY layer during export; rendered output changes
     // for any project with a temporal technique on a non-selected layer.
-    expect(pkg.version).toBe('0.8.5');
+    expect(pkg.version).toBe('0.8.6');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     expect(PROJECT_FORMAT_VERSION).toBe(5);
   });

@@ -17,10 +17,11 @@ on its own over the network is ask GitHub, at most once a day, whether a newer M
 
 ## Requirements
 
-- macOS on Apple Silicon (built and tested on M-series)
+- macOS on Apple Silicon (built and tested on M-series), or Windows 64-bit (see below)
 - Node 22+
-- FFmpeg and ffprobe on the system (Homebrew `ffmpeg` is fine). MATERIAL looks
-  in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`.
+- FFmpeg and ffprobe on the system. On macOS Homebrew's `ffmpeg` is fine (MATERIAL looks on the PATH and in
+  `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`). On Windows: `winget install Gyan.FFmpeg`,
+  `choco install ffmpeg` or `scoop install ffmpeg`.
 
 ## Install and run
 
@@ -33,6 +34,13 @@ npm run dev        # development, with hot reload
 npm run package    # unsigned .app in release/mac-arm64/
 npm run dist       # distributable build
 ```
+
+### Windows
+
+Download `MATERIAL-<version>-win-x64-setup.exe` (installer) or `MATERIAL-<version>-win-x64.zip` (portable) from the
+[latest release](https://github.com/ipaud/material/releases/latest). The app is not code-signed, so SmartScreen says
+"Windows protected your PC": **More info → Run anyway**. Install FFmpeg (above), then start MATERIAL. To build it
+yourself: `npm run dist:win` (on Windows).
 
 Other scripts: `npm test`, `npm run typecheck`, `npm run lint`, `npm run format`.
 
@@ -124,7 +132,7 @@ title bar.
 
 ## Current limitations
 
-- macOS only. Nothing is deliberately Windows-hostile, but nothing is tested there.
+- macOS (Apple Silicon) and Windows (64-bit). The Windows build is new: the suite and a start of the app run on a real Windows machine in CI, but it has had little use by hand.
 - One Output display at a time; live sources cannot be exported to
   sequence/movie; window capture identity must be reselected per session.
 - Temporal history reaches **2.29 s** (56 slots at 1/24 s) at proxy resolution.

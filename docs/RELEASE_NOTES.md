@@ -1,5 +1,19 @@
 # Release Notes
 
+## v0.8.6 — WINDOWS
+
+MATERIAL now has a Windows build (64-bit): an installer and a portable zip.
+
+- **Same app.** Same engine, same exports, same project files: a project saved on macOS opens on Windows and the
+  other way round (relative media paths are stored with `/`).
+- **What changes there.** The system window frame and a normal menu bar (File, Edit, View, Window, Help),
+  **Ctrl** where macOS uses ⌘, and FFmpeg found on the PATH or where winget, Chocolatey and Scoop put it.
+- **Updates on Windows tell you, they do not install.** "Check for Updates…" (Help) says when a newer release exists
+  and opens its page. Installing by itself needs a code-signing certificate the project does not have.
+- **Not signed.** Windows SmartScreen shows "Windows protected your PC": **More info → Run anyway**.
+- **Tested** on a real Windows machine in CI (the suite, the installer build and a start of the app on an audio file),
+  not yet by hand: please report what you find.
+
 ## v0.8.5 — IT UPDATES ITSELF
 
 MATERIAL now tells you when a newer version exists and can install it for you.
