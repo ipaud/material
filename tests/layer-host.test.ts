@@ -78,6 +78,35 @@ function hostWith(runtimes: Record<string, LayerRuntime>) {
 }
 
 describe('v0.6.1 — LayerHost owns identity and lifetime', () => {
+  it('allocates, resizes, reuses and releases shared technique scratch targets', () => {
+    const runtime = fakeRuntime({ hasTechniqueChain: true });
+    const { host } = hostWith({ a: runtime });
+    host.sync([state('a')]);
+    host.adoptRenderer({} as never);
+
+    const initial = (runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0];
+    expect(initial).toHaveLength(2);
+    expect(initial[0].width).toBe(1920);
+    expect(initial[0].height).toBe(1080);
+    const disposeInitial = vi.spyOn(initial[0], 'dispose');
+
+    host.setComposition(1280, 720, '#000');
+    const resized = (runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0];
+    expect(disposeInitial).toHaveBeenCalledOnce();
+    expect(resized).toHaveLength(2);
+    expect(resized[0].width).toBe(1280);
+    expect(resized[0].height).toBe(720);
+    const disposeResized = vi.spyOn(resized[0], 'dispose');
+
+    host.setComposition(1280, 720, '#fff');
+    expect((runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0]).toBe(resized);
+
+    (runtime as { hasTechniqueChain: boolean }).hasTechniqueChain = false;
+    host.setTechniqueChain('a', []);
+    expect(disposeResized).toHaveBeenCalledOnce();
+    expect((runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0]).toBeNull();
+  });
+
   it('keys runtimes by layer id, so reordering rebuilds nothing', () => {
     const a = fakeRuntime();
     const b = fakeRuntime();
