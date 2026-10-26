@@ -190,7 +190,7 @@ a packaged-device liveness/capacity check, not a performance budget. The two
 5. **Passed — Windows:** Current phase delta passed pull-request CI on
    `windows-latest`: dependency install, typecheck, lint, all tests, Windows x64
    packaging, and launching the packaged app against a real audio file. Run:
-   [40352398434](https://github.com/ipaud/material/actions/runs/40352398434).
+   [40365448327](https://github.com/ipaud/material/actions/runs/40365448327).
    Current host remains macOS arm64; local host cannot replace a physical
    Windows machine for interactive/device checks.
 
