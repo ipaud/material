@@ -187,10 +187,12 @@ a packaged-device liveness/capacity check, not a performance budget. The two
 4. **Covered — incompatible chains:** Rejection is covered at assessor, Output and BUILD UI
    levels: `Mosaic → Echo`, `Mosaic → Flow Feedback`, and a saved
    `Generator → Mosaic → Flow Feedback` display a reason and stay paused.
-5. **Partial — Windows:** CI runtime smoke passed on repository HEAD `58d2724` on
-   2026-10-24, including packaged app launch and audio analysis. Current
-   uncommitted Phase H–K changes have not run in Windows CI; current host is
-   macOS arm64.
+5. **Passed — Windows:** Current phase delta passed pull-request CI on
+   `windows-latest`: dependency install, typecheck, lint, all tests, Windows x64
+   packaging, and launching the packaged app against a real audio file. Run:
+   [40352398434](https://github.com/ipaud/material/actions/runs/40352398434).
+   Current host remains macOS arm64; local host cannot replace a physical
+   Windows machine for interactive/device checks.
 
 Mosaic → Dither waits until Dither exists. Physical MIDI and second-display
 validation remain Phase K gates.
