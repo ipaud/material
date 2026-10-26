@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OutputReplica } from '@/output-window/replica';
 import { runtimeBus } from '@/runtime/RuntimeBus';
 import { playback } from '@/playback/PlaybackController';
@@ -147,6 +147,28 @@ describe('OutputReplica', () => {
     expect(replica.latest).not.toBeNull();
     replica.handle(inputs({ generation: 2 }));
     expect(replica.latest).toBeNull();
+  });
+
+  it('disconnects its canvas resize observer on dispose', () => {
+    const observer = { observe: vi.fn(), disconnect: vi.fn() };
+    vi.stubGlobal('ResizeObserver', class {
+      observe = observer.observe;
+      disconnect = observer.disconnect;
+      constructor(_callback: ResizeObserverCallback) {}
+    });
+    vi.spyOn(replica.engine, 'init').mockImplementation(() => {});
+    vi.spyOn(replica.engine, 'fit').mockImplementation(() => {});
+    vi.spyOn(replica.engine, 'invalidate').mockImplementation(() => {});
+    vi.spyOn(replica.engine, 'dispose').mockImplementation(() => {});
+
+    try {
+      replica.init(document.createElement('canvas'));
+      replica.dispose();
+      expect(observer.observe).toHaveBeenCalledOnce();
+      expect(observer.disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('clock: estimates advance while playing, freeze on pause, jump on seek', () => {

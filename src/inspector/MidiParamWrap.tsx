@@ -3,16 +3,19 @@ import { useProjectStore } from '@/state/projectStore';
 import { midiEngine, useMidiStore } from '@/midi/midiEngine';
 import { WebMidiTransport } from '@/midi/transport';
 import { useUiStore } from '@/state/uiStore';
+import { selectedLayerOf } from '@shared/schemas/project';
 
 /**
  * Right-click surface for a numeric parameter row: MIDI Learn / Clear (§15).
  * Shows a small badge when the param is CC-mapped, plus the pickup state.
  */
-export function MidiParamWrap({ paramId, children }: { paramId: string; children: ReactNode }) {
+export function MidiParamWrap({ paramId, stageId, children }: { paramId: string; stageId?: string; children: ReactNode }) {
+  const layerId = useProjectStore((s) => selectedLayerOf(s.project).id);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const mapping = useProjectStore((s) =>
     s.project.midiMappings.find(
-      (m) => m.targetType === 'param' && m.targetParam === paramId && m.messageType === 'cc',
+      (m) => m.targetType === 'param' && m.targetParam === paramId && (m.targetStageId ?? null) === (stageId ?? null) &&
+        (stageId ? m.targetLayerId === layerId : !m.targetStageId) && m.messageType === 'cc',
     ),
   );
   const status = useMidiStore((s) => (mapping ? s.status[mapping.id] : undefined));
@@ -26,7 +29,10 @@ export function MidiParamWrap({ paramId, children }: { paramId: string; children
         return;
       }
     }
-    await midiEngine.startLearn({ targetType: 'param', targetParam: paramId }, paramId);
+    await midiEngine.startLearn({
+      targetType: 'param', targetParam: paramId,
+      ...(stageId ? { targetLayerId: layerId, targetStageId: stageId } : {}),
+    }, paramId);
   };
 
   const clear = () => {

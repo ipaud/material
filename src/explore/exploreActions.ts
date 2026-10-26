@@ -1,17 +1,16 @@
-import { selectedLayerOf } from '@shared/schemas/project';
+import { selectedLayerOf, type ParamRecord, type PinnedLook, type Project } from '@shared/schemas/project';
 import { engine } from '@/rendering/RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useExploreStore } from '@/state/exploreStore';
+import { candidateRuntime, useCandidateStore } from '@/performance/candidateRuntime';
 import { reportError, useUiStore } from '@/state/uiStore';
 import { getTechnique } from '@/techniques/registry';
 import { freshSeed } from '@/utils/prng';
-import { uid } from '@/utils/id';
+import { addPin } from '@/projects/lookActions';
 import {
   applyVariationToProject,
   emptyLocks,
-  generatePopulation,
   mutatePopulation,
-  variationParams,
   type ExploreLocks,
   type Variation,
 } from './exploration';
@@ -62,15 +61,16 @@ export function generateExploration(populationSeed = freshSeed()): void {
   }
   const { project } = useProjectStore.getState();
   const count = useExploreStore.getState().count;
-  const variations = generatePopulation(
-    active.definition,
-    project.modulations,
-    populationSeed,
-    count,
-    currentLocks(),
+  const parent = currentVariation(project, active.instance.params, project.explore.lastSeed ?? 1);
+  const variations = mutatePopulation(
+    active.definition, project.modulations, parent, populationSeed, count, currentLocks(),
+    useExploreStore.getState().mode, useCandidateStore.getState().locks,
   );
+  useProjectStore.getState().cancelPreview();
+  candidateRuntime.setPreview(false);
   useExploreStore.getState().startGeneration(populationSeed, variations);
-  void generateThumbnails(variations);
+  useExploreStore.getState().select(parent.seed);
+  void generateThumbnails(variations, project);
 }
 
 export function mutateSelected(): void {
@@ -87,21 +87,90 @@ export function mutateSelected(): void {
     mutateSeed,
     count,
     currentLocks(),
+    useExploreStore.getState().mode,
+    useCandidateStore.getState().locks,
   );
+  useProjectStore.getState().cancelPreview();
+  candidateRuntime.setPreview(false);
   useExploreStore.getState().startGeneration(mutateSeed, population);
   useExploreStore.getState().select(parent.seed);
-  void generateThumbnails(population);
+  void generateThumbnails(population, project);
 }
 
-async function generateThumbnails(variations: Variation[]): Promise<void> {
+/** Generate a mutation population centered on a compatible saved Pin. */
+export function exploreAroundPin(look: PinnedLook): void {
+  const { project } = useProjectStore.getState();
+  const layer = look.layers?.find((item) => item.id === look.selectedLayerId);
+  const active = activeTechnique();
+  if (!layer?.technique || !active || layer.technique.techniqueId !== active.instance.techniqueId ||
+      layer.sourceId !== selectedLayerOf(project).sourceId) {
+    useUiStore.getState().pushToast('info', 'Explore Around needs the same selected source and technique');
+    return;
+  }
+  const parent: Variation = {
+    seed: look.seed,
+    patch: {
+      params: { ...layer.technique.params },
+      modulations: Object.fromEntries(look.modulations.map((mapping) => [mapping.id, {
+        amount: mapping.amount, smoothing: mapping.smoothing, curve: mapping.curve,
+      }])),
+    },
+    generation: 0,
+    parentSeed: null,
+  };
+  const seed = freshSeed();
+  const population = mutatePopulation(
+    active.definition, project.modulations, parent, seed, useExploreStore.getState().count, currentLocks(),
+    useExploreStore.getState().mode, useCandidateStore.getState().locks,
+  );
+  useProjectStore.getState().cancelPreview();
+  candidateRuntime.setPreview(false);
+  useExploreStore.getState().startGeneration(seed, population);
+  useExploreStore.getState().select(parent.seed);
+  useUiStore.getState().setWorkspace('explore');
+  void generateThumbnails(population, project);
+}
+
+function currentVariation(project: Project, params: ParamRecord, seed: number): Variation {
+  return {
+    seed,
+    generation: 0,
+    parentSeed: null,
+    patch: {
+      params: { ...params },
+      modulations: Object.fromEntries(project.modulations.map((mapping) => [mapping.id, {
+        amount: mapping.amount, smoothing: mapping.smoothing, curve: mapping.curve,
+      }])),
+    },
+  };
+}
+
+export function backExploreGeneration(): void {
+  thumbGeneration++;
+  useProjectStore.getState().cancelPreview();
+  useExploreStore.getState().goBack();
+}
+
+export function previewVariation(variation: Variation): void {
+  const projectStore = useProjectStore.getState();
+  candidateRuntime.setPreview(false);
+  projectStore.beginPreview(applyVariationToProject(projectStore.project, variation), `Variation ${variation.seed}`);
+}
+
+export function endVariationPreview(): void {
+  useProjectStore.getState().cancelPreview();
+}
+
+async function generateThumbnails(variations: Variation[], sourceProject: Project): Promise<void> {
   const generation = ++thumbGeneration;
+  const sourceGeneration = useProjectStore.getState().projectGeneration;
   const store = useExploreStore.getState();
   const active = activeTechnique();
   if (!active) {
     store.finishGeneration();
     return;
   }
-  const { project } = useProjectStore.getState();
+  const project = sourceProject;
   const aspect = project.composition.width / project.composition.height;
   const thumbH = Math.max(Math.round(THUMB_WIDTH / aspect), 16);
 
@@ -112,11 +181,18 @@ async function generateThumbnails(variations: Variation[]): Promise<void> {
 
   for (let i = 0; i < variations.length; i++) {
     if (generation !== thumbGeneration) return; // superseded
+    const projectState = useProjectStore.getState();
+    if (projectState.projectGeneration !== sourceGeneration) return;
+    if (projectState.project !== sourceProject) {
+      useExploreStore.getState().finishGeneration();
+      return;
+    }
     const variation = variations[i];
     if (!variation) continue;
     try {
-      const params = variationParams(active.instance.params, variation);
-      const pixels = engine.renderStill(THUMB_WIDTH, thumbH, params);
+      const preview = applyVariationToProject(sourceProject, variation);
+      useProjectStore.getState().beginPreview(preview, null);
+      const pixels = engine.renderStill(THUMB_WIDTH, thumbH);
       if (ctx) {
         ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), THUMB_WIDTH, thumbH), 0, 0);
         useExploreStore.getState().setThumbnail(variation.seed, canvas.toDataURL('image/png'));
@@ -124,6 +200,8 @@ async function generateThumbnails(variations: Variation[]): Promise<void> {
     } catch (err) {
       reportError('Explore thumbnail', err);
       break;
+    } finally {
+      useProjectStore.getState().cancelPreview();
     }
     useExploreStore.getState().setProgress(i + 1);
     // Yield so the UI stays responsive during generation.
@@ -140,28 +218,14 @@ export function applySelectedVariation(): void {
   useUiStore.getState().pushToast('info', `Applied variation ${variation.seed}`);
 }
 
-/** Pin the selected variation as a Look without applying it. */
+/** Pin the selected variation as a full composition snapshot without applying it. */
 export function pinSelectedVariation(): void {
-  const { variations, selectedSeed } = useExploreStore.getState();
+  const { variations, selectedSeed, thumbnails } = useExploreStore.getState();
   const variation = variations.find((v) => v.seed === selectedSeed);
   if (!variation) return;
   useProjectStore.getState().apply((p) => {
-    const applied = applyVariationToProject(p, variation);
-    const look = {
-      id: uid('look'),
-      createdAt: new Date().toISOString(),
-      label: `Var ${String(variation.seed).slice(0, 6)}`,
-      note: '',
-      slot: null,
-      seed: variation.seed,
-      thumbnail: null,
-      techniques: selectedLayerOf(applied).technique ? [selectedLayerOf(applied).technique!] : [],
-      material: applied.material,
-      modulations: applied.modulations,
-      triggers: applied.triggers,
-    };
-    // Keep current state; only add the look.
-    return { ...p, pinnedLooks: [...p.pinnedLooks, look] };
+    const snapshot = applyVariationToProject(p, variation);
+    return addPin(p, snapshot, thumbnails[variation.seed] ?? null, `variation seed ${variation.seed}`);
   });
-  useUiStore.getState().pushToast('info', 'Variation pinned as look');
+  useUiStore.getState().pushToast('info', 'Variation pinned');
 }

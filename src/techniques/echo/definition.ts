@@ -5,6 +5,7 @@ export const echoDefinition: TechniqueDefinition = {
   id: 'echo',
   name: 'Echo',
   category: 'time',
+  chainBehavior: 'temporal',
   description: 'Repeats the image across time — each copy samples an older frame.',
   sections: [
     {

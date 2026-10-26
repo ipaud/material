@@ -54,6 +54,40 @@ describe('v0.6D — a Look is the whole composition', () => {
     expect(captured[2]!.enabled).toBe(false);
   });
 
+  it('captures and restores input routing and activity windows', () => {
+    const p = stack();
+    const source = {
+      ...p.layers[0]!,
+      input: 'below' as const,
+      activity: { start: 2, end: 8, fadeIn: 1, fadeOut: 1 },
+    };
+    const saved = lookFrom({ ...p, layers: [source, ...p.layers.slice(1)] });
+    const changed: Project = {
+      ...p,
+      layers: [{ ...source, input: 'source', activity: null }, ...p.layers.slice(1)],
+    };
+
+    const restored = projectWithLayerLooks(changed, saved).layers[0]!;
+    expect(restored.input).toBe('below');
+    expect(restored.activity).toEqual({ start: 2, end: 8, fadeIn: 1, fadeOut: 1 });
+  });
+
+  it('legacy layer snapshots preserve input routing and activity when fields are absent', () => {
+    const p = stack();
+    const current = {
+      ...p.layers[0]!,
+      input: 'below' as const,
+      activity: { start: 3, end: null, fadeIn: 0, fadeOut: 0 },
+    };
+    const legacy = lookFrom(p, {
+      layers: captureLayerLooks(p).map(({ input: _input, activity: _activity, ...layer }) => layer),
+    });
+
+    const restored = projectWithLayerLooks({ ...p, layers: [current, ...p.layers.slice(1)] }, legacy).layers[0]!;
+    expect(restored.input).toBe('below');
+    expect(restored.activity).toEqual(current.activity);
+  });
+
   it('recall is idempotent — a layer the Look does not mention is removed', () => {
     const p = stack();
     const look = lookFrom(p);

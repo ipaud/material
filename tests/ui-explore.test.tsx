@@ -1,12 +1,13 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { CandidatePane } from '@/explore/CandidatePane';
 import { ExploreRail } from '@/explore/ExploreRail';
 import { PopulationStrip } from '@/explore/PopulationStrip';
 import { ExploreActions } from '@/explore/ActionBar';
 import { StageHeader } from '@/explore/StageHeader';
 import { ExploreEmpty } from '@/workspaces/ExploreWorkspace';
+import { generateExploration, pinSelectedVariation } from '@/explore/exploreActions';
 import {
   candidateRuntime,
   useCandidateStore,
@@ -17,6 +18,7 @@ import { useExploreStore } from '@/state/exploreStore';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { createEmptyProject } from '@shared/schemas/project';
+import { engine } from '@/rendering/RenderEngine';
 import type { Variation } from '@/explore/exploration';
 
 function fakeCandidate(overrides: Partial<Candidate> = {}): Candidate {
@@ -212,6 +214,155 @@ describe('PopulationStrip', () => {
     fireEvent.click(cards[0]!);
     expect(useExploreStore.getState().selectedSeed).toBe(101);
     expect(document.querySelector('.pop-card.selected')).toBe(cards[0]);
+  });
+
+  it('sets mutation mode and backs through transient generations', () => {
+    const first = variation(11);
+    const second = variation(22);
+    useExploreStore.getState().clear();
+    useExploreStore.getState().startGeneration(10, [first]);
+    useExploreStore.getState().finishGeneration();
+    useExploreStore.getState().setThumbnail(11, 'first-thumb');
+    useExploreStore.getState().select(11);
+    useExploreStore.getState().startGeneration(20, [second]);
+    useExploreStore.getState().finishGeneration();
+    render(<PopulationStrip />);
+    fireEvent.click(screen.getByRole('button', { name: 'SUBTLE' }));
+    expect(useExploreStore.getState().mode).toBe('subtle');
+    expect(screen.getByRole('button', { name: 'BACK' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
+    expect(useExploreStore.getState()).toMatchObject({
+      populationSeed: 10, variations: [first], thumbnails: { 11: 'first-thumb' }, selectedSeed: 11,
+    });
+    expect(screen.getByRole('button', { name: 'BACK' })).toBeDisabled();
+  });
+
+  it('compares without editing, then applies one undoable selected variation', () => {
+    const project = createEmptyProject('Compare variation');
+    const current = {
+      ...project,
+      layers: [{
+        ...project.layers[0]!,
+        technique: { id: 'tech-compare', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      }],
+    };
+    useProjectStore.getState().loadProject('', current);
+    const item: Variation = {
+      seed: 77, generation: 0, parentSeed: null,
+      patch: { params: { scale: 2 }, modulations: {} },
+    };
+    useExploreStore.getState().clear();
+    useExploreStore.getState().startGeneration(1, [item]);
+    useExploreStore.getState().finishGeneration();
+    const before = useProjectStore.getState().project;
+    const pastLength = useProjectStore.getState().past.length;
+    render(<PopulationStrip />);
+    const card = screen.getByRole('button', { name: /Variation 1, seed 77/ });
+    fireEvent.pointerDown(card);
+    expect(useProjectStore.getState().previewProject?.layers[0]?.technique?.params.scale).toBe(2);
+    expect(useProjectStore.getState().project).toBe(before);
+    expect(useProjectStore.getState().past).toHaveLength(pastLength);
+    fireEvent.pointerUp(card);
+    expect(useProjectStore.getState().previewProject).toBeNull();
+    fireEvent.click(card);
+    fireEvent.click(screen.getByRole('button', { name: 'APPLY' }));
+    expect(useProjectStore.getState().project.layers[0]?.technique?.params.scale).toBe(2);
+    expect(useProjectStore.getState().past).toHaveLength(pastLength + 1);
+    useProjectStore.getState().undo();
+    expect(useProjectStore.getState().project.layers[0]?.technique?.params.scale).toBe(1);
+  });
+
+  it('cancels held Compare when Explore unmounts', () => {
+    const project = createEmptyProject('Unmount compare');
+    useProjectStore.getState().loadProject('', {
+      ...project,
+      layers: [{
+        ...project.layers[0]!,
+        technique: { id: 'tech-unmount', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      }],
+    });
+    const item: Variation = { seed: 78, generation: 0, parentSeed: null, patch: { params: { scale: 2 }, modulations: {} } };
+    useExploreStore.getState().clear();
+    useExploreStore.getState().startGeneration(1, [item]);
+    const { unmount } = render(<PopulationStrip />);
+    fireEvent.pointerDown(screen.getByRole('button', { name: /Variation 1, seed 78/ }));
+    expect(useProjectStore.getState().previewProject).not.toBeNull();
+    unmount();
+    expect(useProjectStore.getState().previewProject).toBeNull();
+  });
+
+  it('renders 20 thumbnails on existing engine path and drops superseded work', async () => {
+    const project = createEmptyProject('Explore responsiveness');
+    useProjectStore.getState().loadProject('', {
+      ...project,
+      layers: [{
+        ...project.layers[0]!,
+        technique: { id: 'tech-batch', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      }],
+    });
+    useExploreStore.setState({ count: 20, mode: 'variation' });
+    const renderStill = vi.spyOn(engine, 'renderStill').mockReturnValue(new Uint8Array(220 * 220 * 4));
+    generateExploration(300);
+    generateExploration(301);
+
+    await waitFor(() => expect(useExploreStore.getState().generating).toBe(false));
+
+    expect(useExploreStore.getState().populationSeed).toBe(301);
+    expect(useExploreStore.getState().selectedSeed).toBe(1);
+    expect(useExploreStore.getState().progress).toBe(20);
+    expect(renderStill).toHaveBeenCalledTimes(21); // first job yields after first frame, second owns final 20
+    expect(useProjectStore.getState().project.explore.lastSeed).toBeNull();
+  });
+
+  it('stops thumbnail work when document is replaced by same object reference', async () => {
+    const project = createEmptyProject('Replaced Explore');
+    const document = {
+      ...project,
+      layers: [{
+        ...project.layers[0]!,
+        technique: { id: 'tech-replace', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      }],
+    };
+    useProjectStore.getState().loadProject('', document);
+    useExploreStore.setState({ count: 20 });
+    const renderStill = vi.spyOn(engine, 'renderStill').mockReturnValue(new Uint8Array(220 * 220 * 4));
+    generateExploration(401);
+    useProjectStore.getState().loadProject('same-object.material', document);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(useExploreStore.getState().variations).toEqual([]);
+    expect(renderStill).toHaveBeenCalledOnce();
+  });
+
+  it('pins selected variation with its thumbnail and full layer snapshot without applying it', () => {
+    const project = createEmptyProject('Pin variation');
+    const layer = {
+      ...project.layers[0]!,
+      technique: { id: 'tech-pin', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+    };
+    useProjectStore.setState({
+      project: { ...project, layers: [layer, { ...layer, id: 'layer_2', technique: null }] },
+    });
+    const before = useProjectStore.getState().project;
+    const variation: Variation = {
+      seed: 77,
+      generation: 0,
+      parentSeed: null,
+      patch: { params: { scale: 2 }, modulations: {} },
+    };
+    useExploreStore.getState().startGeneration(1, [variation]);
+    useExploreStore.getState().setThumbnail(77, 'data:image/png;base64,pin');
+    useExploreStore.getState().select(77);
+
+    pinSelectedVariation();
+
+    const after = useProjectStore.getState().project;
+    const pin = after.pinnedLooks[0]!;
+    expect(after.layers).toEqual(before.layers);
+    expect(pin).toMatchObject({ label: 'PIN 001', slot: null, thumbnail: 'data:image/png;base64,pin' });
+    expect(pin.layers).toHaveLength(2);
+    expect(pin.layers![0]!.technique?.params.scale).toBe(2);
   });
 
   it('shows selection metadata and actions only with a selection', () => {

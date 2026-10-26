@@ -136,40 +136,90 @@ function MacroMappingRow({
     }));
 
   return (
-    <div className="mod-row" style={{ paddingLeft: 4 }}>
-      <button
-        className={`mod-enable${mapping.enabled ? ' on' : ''}`}
-        title={mapping.enabled ? 'Disable' : 'Enable'}
-        onClick={() => patch({ enabled: !mapping.enabled })}
-      />
-      <select
-        className="select mod-select"
-        value={mapping.targetParam}
-        onChange={(e) => patch({ targetParam: e.target.value })}
-      >
-        {targets.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.label}
-          </option>
-        ))}
-      </select>
-      <input
-        type="range"
-        min={-1}
-        max={1}
-        step={0.01}
-        value={mapping.amount}
-        style={{ flex: 1 }}
-        aria-label="Amount"
-        onChange={(e) => patch({ amount: Number(e.target.value) })}
-      />
-      <span className="mod-amount mono">
-        {mapping.amount >= 0 ? '+' : ''}
-        {mapping.amount.toFixed(2)}
-      </span>
-      <button className="vp-btn danger" onClick={remove}>
-        ✕
-      </button>
-    </div>
+    <>
+      <div className="mod-row" style={{ paddingLeft: 4 }}>
+        <button
+          className={`mod-enable${mapping.enabled ? ' on' : ''}`}
+          title={mapping.enabled ? 'Disable' : 'Enable'}
+          onClick={() => patch({ enabled: !mapping.enabled })}
+        />
+        <select
+          className="select mod-select"
+          value={mapping.targetParam}
+          onChange={(e) => patch({ targetParam: e.target.value })}
+        >
+          {targets.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <input
+          type="range"
+          min={-1}
+          max={1}
+          step={0.01}
+          value={mapping.amount}
+          style={{ flex: 1 }}
+          aria-label="Amount"
+          onChange={(e) => patch({ amount: Number(e.target.value) })}
+        />
+        <span className="mod-amount mono">
+          {mapping.amount >= 0 ? '+' : ''}
+          {mapping.amount.toFixed(2)}
+        </span>
+        <button className="vp-btn danger" onClick={remove}>
+          ✕
+        </button>
+      </div>
+      <div className="macro-mapping-options">
+        <label>
+          <span>Min</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={mapping.min}
+            aria-label="Mapping minimum"
+            onChange={(e) => patch({ min: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          <span>Max</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={mapping.max}
+            aria-label="Mapping maximum"
+            onChange={(e) => patch({ max: Number(e.target.value) })}
+          />
+        </label>
+        <label className="macro-mapping-invert">
+          <input
+            type="checkbox"
+            checked={mapping.invert}
+            aria-label="Invert macro mapping"
+            onChange={(e) => patch({ invert: e.target.checked })}
+          />
+          Invert
+        </label>
+        <label>
+          <span>Curve</span>
+          <select
+            className="select"
+            value={mapping.curve}
+            aria-label="Mapping curve"
+            onChange={(e) => patch({ curve: e.target.value as MacroMapping['curve'] })}
+          >
+            <option value="linear">Linear</option>
+            <option value="exponential">Exponential</option>
+            <option value="logarithmic">Logarithmic</option>
+          </select>
+        </label>
+      </div>
+    </>
   );
 }

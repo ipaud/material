@@ -19,7 +19,7 @@ export function ExploreActions() {
 
   return (
     <div className="explore-actions">
-      <div className="intensity-seg" role="radiogroup" aria-label="Mutation intensity">
+      <div className="intensity-seg" role="radiogroup" aria-label="Candidate mutation intensity">
         {INTENSITIES.map((it) => (
           <button
             key={it.id}

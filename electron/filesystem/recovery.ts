@@ -96,6 +96,10 @@ export async function listRecoveries(currentSessionId: string): Promise<Recovery
       await fs.rename(filePath, `${filePath}.corrupt`).catch(() => undefined);
       continue;
     }
+    if (!/^[A-Za-z0-9-]+$/.test(envelope.sessionId) || envelope.sessionId !== file.slice(0, -'.json'.length)) {
+      await fs.rename(filePath, `${filePath}.corrupt`).catch(() => undefined);
+      continue;
+    }
     try {
       // parseProject migrates older project versions (v1 → v2 …).
       entries.push({ ...envelope, project: parseProject(envelope.project) });

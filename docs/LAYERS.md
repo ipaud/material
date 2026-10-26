@@ -1,7 +1,8 @@
 # Layers
 
 Several visual materials can coexist in one composition and be played
-together. Up to **four**.
+together. New compositions stop at **four**; existing projects may contain up
+to **eight** for compatibility.
 
 That is the whole idea. MATERIAL is not a timeline compositor, a node graph or
 an NLE, and layers do not make it one: there is no nesting, no groups, no
@@ -31,14 +32,14 @@ question about the SET is named for its scope: `anyLayerUsesFeedback()`,
 `requirementsFor(layerId)`, `exportRequirements()`. See
 [RENDER_RUNTIME](RENDER_RUNTIME.md).
 
-## The cap is eight
+## Four layers for new systems; eight for compatibility
 
 Measured, not guessed. At 1920×1080 with four heavy techniques, each with its
 own generator, the composition holds vsync with ~0.4 ms of CPU per frame and
 about 50 MB of layer targets and accumulators. The limit is not the GPU: it is
 that an instrument you can play has a small number of things to reach for.
 
-### Raised from four to eight (post-0.8.4)
+### Persisted ceiling raised from four to eight (post-0.8.4)
 
 Four was an instrument decision: four heavy layers hold vsync at 1080p. A long
 piece that stages many effects through activity windows (below) needs more

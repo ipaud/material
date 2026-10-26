@@ -82,6 +82,8 @@ export interface TechniqueContext {
 
 export interface TechniqueRenderer {
   readonly object3d: THREE.Object3D;
+  /** Registry metadata copied by `createTechniqueRenderer`; runtime chain gate. */
+  readonly chainBehavior?: TechniqueDefinition['chainBehavior'];
   update(params: ParamRecord, ctx: TechniqueContext): void;
   dispose(): void;
 }
@@ -90,6 +92,8 @@ export interface TechniqueDefinition {
   id: string;
   name: string;
   category: 'space' | 'time' | 'image' | 'material' | 'feedback';
+  /** Lifecycle/input constraints used before a stage can enter a multi-pass chain. */
+  chainBehavior: 'stateless' | 'flow' | 'temporal' | 'feedback' | 'simulation' | 'unsupported';
   description: string;
   sections: ParamSection[];
   createRenderer(): TechniqueRenderer;

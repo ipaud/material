@@ -13,7 +13,7 @@ import type { PerformanceTake, TakeEvent, TakeLane } from '@shared/schemas/proje
 export type ControlTarget =
   | { kind: 'layerOpacity'; layerId: string }
   | { kind: 'macro'; macroId: string }
-  | { kind: 'param'; layerId: string; paramId: string };
+  | { kind: 'param'; layerId: string; paramId: string; stageId?: string };
 
 export function layerOpacityTarget(layerId: string): string {
   return `layer:${layerId}:opacity`;
@@ -25,6 +25,10 @@ export function macroTarget(macroId: string): string {
 
 export function paramTarget(layerId: string, paramId: string): string {
   return `param:${layerId}:${paramId}`;
+}
+
+export function stageParamTarget(layerId: string, stageId: string, paramId: string): string {
+  return `stage-param:${layerId}:${stageId}:${paramId}`;
 }
 
 /**
@@ -44,6 +48,9 @@ export function parseControlTarget(target: string): ControlTarget | null {
   // layer id is the second field and everything after it is the param.
   if (parts[0] === 'param' && parts.length >= 3 && parts[1]) {
     return { kind: 'param', layerId: parts[1], paramId: parts.slice(2).join(':') };
+  }
+  if (parts[0] === 'stage-param' && parts.length >= 4 && parts[1] && parts[2]) {
+    return { kind: 'param', layerId: parts[1], stageId: parts[2], paramId: parts.slice(3).join(':') };
   }
   return null;
 }

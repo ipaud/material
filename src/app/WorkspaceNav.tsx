@@ -3,7 +3,7 @@ import { useUiStore, type WorkspaceId } from '@/state/uiStore';
 const WORKSPACES: { id: WorkspaceId; label: string }[] = [
   { id: 'build', label: 'BUILD' },
   { id: 'explore', label: 'EXPLORE' },
-  { id: 'perform', label: 'PERFORM' },
+  { id: 'perform', label: 'PLAY' },
   { id: 'output', label: 'OUTPUT' },
 ];
 

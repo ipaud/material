@@ -54,7 +54,7 @@ export class RenderEngine {
   view: ViewTransform = { zoom: 0.5, panX: 0, panY: 0 };
 
   /** Optional per-frame parameter transform (modulation). */
-  private paramTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
+  private paramTransform: ((base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null = null;
 
   private frameSink: (() => void) | null = null;
 
@@ -108,7 +108,7 @@ export class RenderEngine {
     this.frameSink = fn;
   }
 
-  setParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void {
+  setParamTransform(fn: ((base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null): void {
     this.paramTransform = fn;
     this.invalidate();
   }
@@ -119,11 +119,11 @@ export class RenderEngine {
    * the bridge having to re-push after every add.
    */
   private layerParamTransform:
-    | ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord)
+    | ((layerId: string) => (base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord)
     | null = null;
 
   setLayerParamTransform(
-    make: ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord) | null,
+    make: ((layerId: string) => (base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null,
   ): void {
     this.layerHost.setParamTransformFactory(make);
   }
@@ -429,6 +429,19 @@ export class RenderEngine {
    */
   setTechniqueRenderer(renderer: TechniqueRenderer | null): void {
     this.layerHost.selectedRuntime?.setTechniqueRenderer(renderer);
+    this.invalidate();
+  }
+
+  setTechniqueChain(
+    layerId: string,
+    stages: readonly { stageId: string; renderer: TechniqueRenderer; params: ParamRecord }[],
+  ): void {
+    this.layerHost.setTechniqueChain(layerId, stages);
+    this.invalidate();
+  }
+
+  setTechniqueStageParams(params: ReadonlyMap<string, ReadonlyMap<string, ParamRecord>>): void {
+    this.layerHost.setTechniqueStageParams(params);
     this.invalidate();
   }
 

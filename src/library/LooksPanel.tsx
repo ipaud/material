@@ -4,11 +4,16 @@ import { performLookRecall, performMorph } from '@/performance/take/gestures';
 import {
   deleteLook,
   duplicateLook,
+  endPinPreview,
+  makeLook,
+  previewPin,
   renameLook,
   rethumbnailLook,
   updateLook,
 } from '@/projects/lookActions';
 import { isLookDirty } from '@/performance/lookCore';
+import { exploreAroundPin } from '@/explore/exploreActions';
+import { exportPngStill } from '@/export/exportStill';
 import { morphRuntime, type MorphDuration } from '@/performance/morphRuntime';
 import {
   TRANSITION_STYLES,
@@ -50,6 +55,8 @@ export function LooksPanel() {
   const project = useProjectStore((s) => s.project);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const previewLabel = useProjectStore((s) => s.previewLabel);
+  const [comparingId, setComparingId] = useState<string | null>(null);
 
   if (looks.length === 0) return null;
   const activeLook = looks.find((l) => l.id === activeLookId) ?? null;
@@ -58,7 +65,7 @@ export function LooksPanel() {
   return (
     <div className="looks-section">
       <div className="panel-header looks-header">
-        <span className="label">Looks</span>
+        <span className="label">Pins / Looks</span>
         {activeLook && (
           <span className="looks-active-label mono">
             {activeLook.label}
@@ -73,27 +80,34 @@ export function LooksPanel() {
             <div
               key={look.id}
               className={`look-card${isActive ? ' active' : ''}`}
-              onClick={() => performLookRecall(look.id)}
-              title={`Apply ${look.label}${look.slot ? ` (key ${look.slot})` : ''}`}
             >
-              <div className="look-thumb">
-                {look.thumbnail ? (
-                  <img src={look.thumbnail} alt="" draggable={false} />
-                ) : (
-                  <div className="look-thumb-empty" />
+              <button
+                className="look-apply"
+                type="button"
+                aria-label={`Apply ${look.label}${look.slot ? ` (key ${look.slot})` : ''}`}
+                onClick={() => performLookRecall(look.id)}
+              >
+                <div className="look-thumb">
+                  {look.thumbnail ? (
+                    <img src={look.thumbnail} alt="" draggable={false} />
+                  ) : (
+                    <div className="look-thumb-empty" />
+                  )}
+                  {look.slot && <span className="look-slot mono">{look.slot}</span>}
+                  {isActive && <span className={`look-active-dot${dirty ? ' dirty' : ''}`} />}
+                </div>
+                {renaming === look.id ? null : (
+                  <span
+                    className="look-name"
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setRenaming(look.id);
+                    }}
+                  >
+                    {look.label}
+                  </span>
                 )}
-                {look.slot && <span className="look-slot mono">{look.slot}</span>}
-                {isActive && <span className={`look-active-dot${dirty ? ' dirty' : ''}`} />}
-                <button
-                  className="look-menu-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuFor(menuFor === look.id ? null : look.id);
-                  }}
-                >
-                  ⋯
-                </button>
-              </div>
+              </button>
               {renaming === look.id ? (
                 <RenameInput
                   initial={look.label}
@@ -102,19 +116,57 @@ export function LooksPanel() {
                     setRenaming(null);
                   }}
                 />
-              ) : (
-                <span
-                  className="look-name"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setRenaming(look.id);
-                  }}
-                >
-                  {look.label}
-                </span>
-              )}
+              ) : null}
+              <button
+                className="look-menu-btn"
+                type="button"
+                aria-label={`Actions for ${look.label}`}
+                aria-expanded={menuFor === look.id}
+                onClick={() => setMenuFor(menuFor === look.id ? null : look.id)}
+              >
+                ⋯
+              </button>
               {menuFor === look.id && (
                 <div className="look-menu" onClick={(e) => e.stopPropagation()}>
+                  {look.slot === null && (
+                    <>
+                      <button onClick={() => { exploreAroundPin(look); setMenuFor(null); }}>
+                        Explore Around
+                      </button>
+                      <button
+                        onClick={() => {
+                          makeLook(look.id);
+                          setMenuFor(null);
+                        }}
+                      >Make Look</button>
+                    </>
+                  )}
+                  <button
+                    aria-pressed={previewLabel === `Compare ${look.label}` && comparingId === look.id}
+                    onPointerDown={() => {
+                      if (previewPin(look.id)) setComparingId(look.id);
+                    }}
+                    onPointerUp={() => { endPinPreview(); setComparingId(null); }}
+                    onPointerLeave={() => { endPinPreview(); setComparingId(null); }}
+                    onPointerCancel={() => { endPinPreview(); setComparingId(null); }}
+                    onBlur={() => { endPinPreview(); setComparingId(null); }}
+                    onKeyDown={(event) => {
+                      if ((event.key === ' ' || event.key === 'Enter') && !event.repeat && previewPin(look.id)) {
+                        setComparingId(look.id);
+                      }
+                    }}
+                    onKeyUp={(event) => {
+                      if (event.key === ' ' || event.key === 'Enter') {
+                        endPinPreview();
+                        setComparingId(null);
+                      }
+                    }}
+                  >
+                    HOLD TO COMPARE
+                  </button>
+                  <button onClick={() => { setMenuFor(null); void exportPngStill(look.id); }}>
+                    Export Still
+                  </button>
                   {isActive && dirty && (
                     <button
                       onClick={() => {

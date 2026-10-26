@@ -60,6 +60,31 @@ export interface MorphStats {
   switched: number;
 }
 
+function interpolateTechniqueChain(
+  a: NonNullable<LookCore['techniqueChain']>,
+  b: NonNullable<LookCore['techniqueChain']>,
+  p: number,
+  switchAt: number,
+  stats: MorphStats,
+): NonNullable<LookCore['techniqueChain']> {
+  const from = new Map(a.map((stage) => [stage.id, stage]));
+  const to = new Map(b.map((stage) => [stage.id, stage]));
+  const chosen = p < switchAt ? a : b;
+  return chosen.map((stage) => {
+    const fromStage = from.get(stage.id);
+    const toStage = to.get(stage.id);
+    if (!fromStage || !toStage || fromStage.techniqueId !== toStage.techniqueId) {
+      stats.switched++;
+      return { ...stage, params: { ...stage.params } };
+    }
+    return {
+      ...stage,
+      enabled: p < switchAt ? fromStage.enabled : toStage.enabled,
+      params: interpolateParams(fromStage.params, toStage.params, p, stats),
+    };
+  });
+}
+
 function interpolateParams(
   a: Record<string, ParamValue>,
   b: Record<string, ParamValue>,
@@ -92,6 +117,7 @@ function interpolateModulations(
   a: ModulationMapping[],
   b: ModulationMapping[],
   p: number,
+  switchAt: number,
   stats: MorphStats,
 ): ModulationMapping[] {
   const out: ModulationMapping[] = [];
@@ -102,12 +128,12 @@ function interpolateModulations(
     const mb = bById.get(ma.id);
     if (mb) {
       seen.add(ma.id);
-      const topology = p < 0.5 ? ma : mb;
+      const topology = p < switchAt ? ma : mb;
       let frozenValue: number | null;
       if (ma.frozenValue !== null && mb.frozenValue !== null) {
         frozenValue = lerp(ma.frozenValue, mb.frozenValue, p);
       } else {
-        frozenValue = p < 0.5 ? ma.frozenValue : mb.frozenValue;
+        frozenValue = p < switchAt ? ma.frozenValue : mb.frozenValue;
       }
       out.push({
         ...topology,
@@ -207,8 +233,11 @@ export function interpolateLookCore(
     core: {
       techniqueId,
       params,
+      ...(a.techniqueChain !== undefined || b.techniqueChain !== undefined
+        ? { techniqueChain: interpolateTechniqueChain(a.techniqueChain ?? [], b.techniqueChain ?? [], p, switchAt, stats) }
+        : {}),
       material,
-      modulations: interpolateModulations(a.modulations, b.modulations, p, stats),
+      modulations: interpolateModulations(a.modulations, b.modulations, p, switchAt, stats),
       triggers: interpolateTriggers(a.triggers, b.triggers, p, stats),
       seed: p < switchAt ? a.seed : b.seed,
     },

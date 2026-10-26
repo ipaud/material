@@ -41,14 +41,14 @@ describe('WorkspaceNav', () => {
   it('renders the four workspaces and marks the active one for assistive tech', () => {
     render(<WorkspaceNav />);
     const labels = screen.getAllByRole('button').map((b) => b.textContent);
-    expect(labels).toEqual(['BUILD', 'EXPLORE', 'PERFORM', 'OUTPUT']);
+    expect(labels).toEqual(['BUILD', 'EXPLORE', 'PLAY', 'OUTPUT']);
     expect(screen.getByText('BUILD')).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByText('PERFORM')).not.toHaveAttribute('aria-current');
+    expect(screen.getByText('PLAY')).not.toHaveAttribute('aria-current');
   });
 
   it('switches the workspace on click', () => {
     render(<WorkspaceNav />);
-    fireEvent.click(screen.getByText('PERFORM'));
+    fireEvent.click(screen.getByText('PLAY'));
     expect(useUiStore.getState().workspace).toBe('perform');
     fireEvent.click(screen.getByText('OUTPUT'));
     expect(useUiStore.getState().workspace).toBe('output');

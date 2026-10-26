@@ -9,7 +9,7 @@ anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 | ----- | ----------------------------------- |
 | `⌘⌥1` | BUILD — construct the visual system |
 | `⌘⌥2` | EXPLORE — discover variations       |
-| `⌘⌥3` | PERFORM — play the system           |
+| `⌘⌥3` | PLAY — play the system              |
 | `⌘⌥4` | OUTPUT — prepare and deliver        |
 
 ## Transport
@@ -34,13 +34,13 @@ anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 | `⌘⇧Z` | Redo                                                       |
 | `⌘D`  | Toggle the debug overlay (fps, frame time, instance count) |
 
-## Looks (everywhere)
+## Pins / Looks (everywhere)
 
 | Key       | Action                                     |
 | --------- | ------------------------------------------ |
 | `1`–`9`   | Apply the Look in that slot                |
 | `⇧1`–`⇧9` | Overwrite that slot with the current state |
-| `P`       | Pin the current state as a new Look        |
+| `P`       | Save the current state as an unslotted Pin |
 | `F`       | Freeze all modulated values / release them |
 | `R`       | Arm recording — starts with the transport; stops it if recording |
 | `T`       | Play / stop the selected Take               |
@@ -49,10 +49,10 @@ anywhere except while typing in a field; ⌘ shortcuts come from the app menu.
 and pressing play starts the recording in step with the song; pressing `R`
 while the transport already runs starts it immediately.
 
-In the PERFORM workspace, `1`–`9` obey the global quantization: the Look
+In the PLAY workspace, `1`–`9` obey the global quantization: the Look
 arrives on the next beat or bar rather than instantly.
 
-## PERFORM workspace only
+## PLAY workspace only
 
 | Key             | Action                                                                     |
 | --------------- | -------------------------------------------------------------------------- |
@@ -64,7 +64,7 @@ arrives on the next beat or bar rather than instantly.
 
 Right-click a Look tile to make it the morph target.
 
-## Candidate (EXPLORE and PERFORM workspaces)
+## Candidate (EXPLORE and PLAY workspaces)
 
 | Key                    | Action                                               |
 | ---------------------- | ---------------------------------------------------- |

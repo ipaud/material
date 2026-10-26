@@ -10,7 +10,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
   {
     title: 'Global',
     rows: [
-      ['⌘⌥1 – ⌘⌥4', 'BUILD · EXPLORE · PERFORM · OUTPUT'],
+      ['⌘⌥1 – ⌘⌥4', 'BUILD · EXPLORE · PLAY · OUTPUT'],
       ['Space', 'Play / pause'],
       ['`  (hold)', 'A/B — show the untouched source'],
       ['⌘S / ⌘⇧S', 'Save / Save as'],
@@ -23,18 +23,18 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
-    title: 'Looks (everywhere)',
+    title: 'Pins / Looks (everywhere)',
     rows: [
       ['1 – 9', 'Apply the Look in that slot'],
       ['⇧1 – ⇧9', 'Overwrite that slot with the current state'],
-      ['P', 'Pin the current state as a Look'],
+      ['P', 'Save the current state as an unslotted Pin'],
       ['F', 'Freeze / release all modulated values'],
       ['R', 'Arm recording — starts with the transport (stops it if recording)'],
       ['T', 'Play / stop the selected Take'],
     ],
   },
   {
-    title: 'Candidate (Explore + Perform)',
+    title: 'Candidate (Explore + Play)',
     rows: [
       ['G', 'Mutate from CURRENT'],
       ['⇧G', 'Mutate again from the candidate'],
@@ -44,7 +44,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     ],
   },
   {
-    title: 'Perform only',
+    title: 'Play only',
     rows: [
       ['Q', 'Cycle quantization'],
       ['M', 'Morph to the selected target'],

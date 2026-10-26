@@ -125,8 +125,9 @@ export function replaceConflicts(mappings: readonly ModulationMapping[]): Set<st
   const ignored = new Set<string>();
   for (const m of mappings) {
     if (!m.enabled || m.mode !== 'replace') continue;
-    if (claimed.has(m.target)) ignored.add(m.id);
-    else claimed.add(m.target);
+    const target = `${m.targetStageId ?? ''}:${m.target}`;
+    if (claimed.has(target)) ignored.add(m.id);
+    else claimed.add(target);
   }
   return ignored;
 }

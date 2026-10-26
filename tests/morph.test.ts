@@ -88,6 +88,35 @@ describe('look core capture / apply', () => {
     expect(applied.timeline).toBe(p.timeline);
   });
 
+  test('captures selected layer chain as stable Morph state', () => {
+    const stage = { id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { scale: 4 } };
+    const p = projectWith({
+      layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } }, techniqueChain: [stage] }],
+    });
+    expect(captureLookCore(p)).toMatchObject({ techniqueChain: [stage] });
+  });
+
+  test('lookToCore captures chain from Look selectedLayerId', () => {
+    const p = projectWith({});
+    const stage = { id: 'stage-b', techniqueId: 'mosaic', enabled: true, params: { scale: 6 } };
+    const base: PinnedLook = {
+      id: 'stack-look', label: 'Stack', note: '', slot: 1, seed: 1, thumbnail: null,
+      createdAt: new Date(0).toISOString(), techniques: [], material: p.material,
+      modulations: [], triggers: [], selectedLayerId: 'chosen',
+      layers: [{ id: 'chosen', name: 'Chosen', enabled: true, opacity: 1, blendMode: 'normal', sourceId: null,
+        material: p.material, technique: p.layers[0]!.technique, techniqueChain: [stage] }],
+    };
+    expect(lookToCore(base)).toMatchObject({ techniqueChain: [stage] });
+  });
+
+  test('projectWithLookCore applies target chain while retaining matching stage IDs', () => {
+    const current = { id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { scale: 2 } };
+    const next = { id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { scale: 8 } };
+    const p = projectWith({ layers: [{ ...createEmptyProject().layers[0]!, technique: { id: 'tech-1', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } }, techniqueChain: [current] }] });
+    const applied = projectWithLookCore(p, core({ techniqueChain: [next] } as Partial<LookCore>), null);
+    expect(applied.layers[0]?.techniqueChain).toEqual([next]);
+  });
+
   test('apply replaces modulations and triggers wholesale', () => {
     const p = projectWith({ modulations: [mod({ id: 'old' })], triggers: [trig({ id: 'oldt' })] });
     const target = core({ modulations: [mod({ id: 'new' })], triggers: [] });
@@ -173,6 +202,42 @@ describe('interpolateLookCore — same technique', () => {
     expect(interpolateLookCore(a, b, 0.25).core.params.scale).toBeCloseTo(1.5);
   });
 
+  test('matching chain stages interpolate by stable ID; one-sided stages switch at midpoint', () => {
+    const a = core({ techniqueChain: [
+      { id: 'shared', techniqueId: 'mosaic', enabled: true, params: { scale: 2 } },
+      { id: 'from-only', techniqueId: 'echo', enabled: true, params: { decay: 0.2 } },
+    ] } as Partial<LookCore>);
+    const b = core({ techniqueChain: [
+      { id: 'shared', techniqueId: 'mosaic', enabled: true, params: { scale: 10 } },
+      { id: 'to-only', techniqueId: 'mosaic', enabled: true, params: { scale: 6 } },
+    ] } as Partial<LookCore>);
+    const start = interpolateLookCore(a, b, 0).core as LookCore & { techniqueChain: Array<{ id: string; params: Record<string, number> }> };
+    const before = interpolateLookCore(a, b, 0.49).core as LookCore & { techniqueChain: Array<{ id: string; params: Record<string, number> }> };
+    const after = interpolateLookCore(a, b, 0.5).core as LookCore & { techniqueChain: Array<{ id: string; params: Record<string, number> }> };
+    const end = interpolateLookCore(a, b, 1).core as LookCore & { techniqueChain: Array<{ id: string; params: Record<string, number> }> };
+    expect(start.techniqueChain.find((stage) => stage.id === 'shared')?.params.scale).toBe(2);
+    expect(before.techniqueChain.find((stage) => stage.id === 'shared')?.params.scale).toBeCloseTo(5.92);
+    expect(end.techniqueChain.find((stage) => stage.id === 'shared')?.params.scale).toBe(10);
+    expect(before.techniqueChain.map((stage) => stage.id)).toContain('from-only');
+    expect(before.techniqueChain.map((stage) => stage.id)).not.toContain('to-only');
+    expect(after.techniqueChain.map((stage) => stage.id)).toContain('to-only');
+    expect(after.techniqueChain.map((stage) => stage.id)).not.toContain('from-only');
+  });
+
+  test('counts technique identity changes on matching chain-stage IDs', () => {
+    const a = core({ techniqueChain: [
+      { id: 'shared', techniqueId: 'mosaic', enabled: true, params: { scale: 2 } },
+    ] } as Partial<LookCore>);
+    const b = core({ techniqueChain: [
+      { id: 'shared', techniqueId: 'echo', enabled: true, params: { decay: 0.6 } },
+    ] } as Partial<LookCore>);
+
+    const result = interpolateLookCore(a, b, 0.5);
+
+    expect(result.core.techniqueChain?.[0]?.techniqueId).toBe('echo');
+    expect(result.stats.switched).toBe(1);
+  });
+
   test('enums/booleans switch at midpoint (p ≥ 0.5)', () => {
     expect(interpolateLookCore(a, b, 0.49).core.params).toMatchObject({ shape: 'square', flip: false });
     expect(interpolateLookCore(a, b, 0.5).core.params).toMatchObject({ shape: 'circle', flip: true });
@@ -217,6 +282,12 @@ describe('interpolateLookCore — technique / material switch', () => {
 });
 
 describe('interpolateLookCore — modulations', () => {
+  test('stage mapping topology follows adjusted identity switch boundary', () => {
+    const a = core({ modulations: [mod({ id: 'shared', targetStageId: 'stage-a' })] });
+    const b = core({ modulations: [mod({ id: 'shared', targetStageId: 'stage-b' })] });
+    expect(interpolateLookCore(a, b, 0.4, 0.25).core.modulations[0]?.targetStageId).toBe('stage-b');
+  });
+
   test('matched ids lerp numerics', () => {
     const a = core({ modulations: [mod({ amount: 0, min: 0, max: 1, smoothing: 0 })] });
     const b = core({ modulations: [mod({ amount: 1, min: 0.2, max: 0.8, smoothing: 0.5 })] });

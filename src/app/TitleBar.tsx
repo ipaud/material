@@ -35,7 +35,7 @@ export function TitleBar() {
       <button
         className="titlebar-action"
         onClick={() => pinCurrentLook()}
-        title="Pin current look (instant snapshot)"
+        title="Pin current state (instant snapshot)"
       >
         Pin
       </button>

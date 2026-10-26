@@ -72,6 +72,7 @@ const PARAM_GROUP: Record<string, ConceptualGroup> = {
   opacity: 'BEHAVIOR',
   jitterX: 'BEHAVIOR',
   jitterY: 'BEHAVIOR',
+  glyphIndex: 'STRUCTURE',
   offsetX: 'BEHAVIOR',
   offsetY: 'BEHAVIOR',
   copyScale: 'BEHAVIOR',

@@ -1,4 +1,4 @@
-import type { TechniqueDefinition } from './types';
+import type { TechniqueDefinition, TechniqueRenderer } from './types';
 import { parseCustomTechniqueId } from '@shared/schemas/shaderPack';
 import { missingShaderDefinition } from '@/shaders/customTechnique';
 import { mosaicDefinition } from './mosaic/definition';
@@ -43,6 +43,15 @@ export function getTechnique(id: string): TechniqueDefinition | null {
     return placeholder;
   }
   return null;
+}
+
+/** Create renderer with lifecycle metadata so transient technique switches stay chain-safe. */
+export function createTechniqueRenderer(id: string): TechniqueRenderer | null {
+  const definition = getTechnique(id);
+  if (!definition) return null;
+  const renderer = definition.createRenderer();
+  Object.defineProperty(renderer, 'chainBehavior', { value: definition.chainBehavior });
+  return renderer;
 }
 
 /** True when this id resolves only to the missing-pack placeholder. */

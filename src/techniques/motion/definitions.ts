@@ -36,6 +36,7 @@ export const motionDefinitions: TechniqueDefinition[] = [
     name: 'Flow Displace',
     description: 'Pixels drag along their own estimated motion — or pull against it.',
     category: 'image',
+    chainBehavior: 'flow',
     sections: [
       {
         label: 'Motion',
@@ -53,6 +54,7 @@ export const motionDefinitions: TechniqueDefinition[] = [
     name: 'Motion RGB',
     description: 'Motion splits the channels: red rides ahead, blue lags behind.',
     category: 'image',
+    chainBehavior: 'flow',
     sections: [
       {
         label: 'Motion',
@@ -69,6 +71,7 @@ export const motionDefinitions: TechniqueDefinition[] = [
     name: 'Directional Smear',
     description: 'Each pixel smears along its motion vector — painterly speed lines.',
     category: 'image',
+    chainBehavior: 'flow',
     sections: [
       {
         label: 'Motion',
@@ -86,6 +89,7 @@ export const motionDefinitions: TechniqueDefinition[] = [
     name: 'Flow Feedback',
     description: 'The persistent state is carried by the image’s own motion — wakes, currents, liquid smear.',
     category: 'feedback',
+    chainBehavior: 'feedback',
     sections: [
       {
         label: 'Motion',
@@ -109,6 +113,7 @@ export const motionDefinitions: TechniqueDefinition[] = [
     name: 'Motion Mosh',
     description: 'Moving regions drag old pixels with them; still regions refresh — datamosh grammar, honestly procedural (no codec involved).',
     category: 'feedback',
+    chainBehavior: 'feedback',
     sections: [
       {
         label: 'Motion',
@@ -135,6 +140,7 @@ export const motionDefinitions: TechniqueDefinition[] = [
     name: 'Motion Trails',
     description: 'Whatever moves leaves a wake; whatever is still stays clean.',
     category: 'feedback',
+    chainBehavior: 'feedback',
     sections: [
       {
         label: 'Motion',

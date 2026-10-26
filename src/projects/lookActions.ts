@@ -39,36 +39,85 @@ function nextFreeSlot(looks: PinnedLook[]): number | null {
   return null;
 }
 
-/** Pin the current state as a new Look — instant, one undo entry. */
+/** Pin current composition instantly; Pins stay unslotted until promoted. */
 export function pinCurrentLook(): PinnedLook | null {
   const { project, apply } = useProjectStore.getState();
-  const core = captureLookCore(project);
-  if (!core) {
+  const pin = createPin(project);
+  if (!pin) {
     useUiStore.getState().pushToast('info', 'Nothing to pin yet');
     return null;
   }
-  const slot = nextFreeSlot(project.pinnedLooks);
-  const look: PinnedLook = {
+  apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, pin] }));
+  useUiStore.getState().pushToast('info', `Pinned ${pin.label}`);
+  return pin;
+}
+
+/** Capture a full, project-owned snapshot without changing the live project. */
+export function createPin(
+  project: Project,
+  snapshot: Project = project,
+  thumbnail?: string | null,
+  note = '',
+): PinnedLook | null {
+  const core = captureLookCore(snapshot);
+  if (!core) return null;
+  const layer = selectedLayerOf(snapshot);
+  const number = project.pinnedLooks.reduce((max, look) => {
+    const match = /^PIN (\d+)$/.exec(look.label);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return {
     id: uid('look'),
     createdAt: new Date().toISOString(),
-    label: `LOOK ${String(project.pinnedLooks.length + 1).padStart(2, '0')}`,
-    note: '',
-    slot,
+    label: `PIN ${String(number).padStart(3, '0')}`,
+    note,
+    slot: null,
     seed: core.seed,
-    thumbnail: renderLookThumbnail(project),
-    // The Look records the selected layer's branch, matching captureLookCore.
-    techniques: selectedLayerOf(project).technique ? [selectedLayerOf(project).technique!] : [],
-    layers: captureLayerLooks(project),
-    selectedLayerId: selectedLayerOf(project).id,
-    material: selectedLayerOf(project).material,
-    modulations: project.modulations,
-    triggers: project.triggers,
+    thumbnail: thumbnail === undefined ? renderLookThumbnail(snapshot) : thumbnail,
+    techniques: layer.technique ? [layer.technique] : [],
+    layers: captureLayerLooks(snapshot),
+    selectedLayerId: layer.id,
+    material: layer.material,
+    modulations: snapshot.modulations,
+    triggers: snapshot.triggers,
   };
-  apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, look], activeLookId: look.id }));
-  useUiStore
-    .getState()
-    .pushToast('info', slot ? `Pinned ${look.label} → slot ${slot}` : `Pinned ${look.label} — all slots full; Shift+1–9 assigns it over a slot`);
-  return look;
+}
+
+/** Add `snapshot` as a Pin to `project`; leave `project` unchanged otherwise. */
+export function addPin(
+  project: Project,
+  snapshot: Project = project,
+  thumbnail?: string | null,
+  note = '',
+): Project {
+  const pin = createPin(project, snapshot, thumbnail, note);
+  return pin ? { ...project, pinnedLooks: [...project.pinnedLooks, pin] } : project;
+}
+
+/** Promote an unslotted Pin into the next available performance Look slot. */
+export function makeLook(lookId: string): boolean {
+  const { project, apply } = useProjectStore.getState();
+  const pin = project.pinnedLooks.find((look) => look.id === lookId);
+  if (!pin) return false;
+  if (pin.slot !== null) return true;
+  const slot = nextFreeSlot(project.pinnedLooks);
+  if (slot === null) {
+    useUiStore.getState().pushToast('info', 'No empty Look slots');
+    return false;
+  }
+  apply((p) => ({
+    ...p,
+    pinnedLooks: p.pinnedLooks.map((look) =>
+      look.id === lookId
+        ? {
+            ...look,
+            slot,
+            label: /^PIN \d{3}$/.test(look.label) ? `LOOK ${String(slot).padStart(2, '0')}` : look.label,
+          }
+        : look,
+    ),
+  }));
+  return true;
 }
 
 /**
@@ -98,6 +147,29 @@ export function applyLookBySlot(slot: number): boolean {
   return true;
 }
 
+/** Hold a generator-only Pin in the renderer without changing saved document state. */
+export function previewPin(lookId: string): boolean {
+  const { project, beginPreview } = useProjectStore.getState();
+  const look = project.pinnedLooks.find((item) => item.id === lookId);
+  if (!look) return false;
+  const preview = projectWithLookCore(projectWithLayerLooks(project, look), lookToCore(look), look.id);
+  const hasUnsupportedSource = preview.layers.some((layer) => {
+    if (!layer.sourceId) return false;
+    const source = preview.sources.find((item) => item.id === layer.sourceId);
+    return !source || source.kind !== 'generator';
+  });
+  if (hasUnsupportedSource) {
+    useUiStore.getState().pushToast('info', 'Compare currently supports existing generator sources only');
+    return false;
+  }
+  beginPreview(preview, `Compare ${look.label}`);
+  return true;
+}
+
+export function endPinPreview(): void {
+  useProjectStore.getState().cancelPreview();
+}
+
 /** Shift+number: overwrite the slot's look with the current state. */
 export function overwriteSlotWithCurrent(slot: number): void {
   const { project } = useProjectStore.getState();
@@ -112,8 +184,13 @@ export function overwriteSlotWithCurrent(slot: number): void {
     useProjectStore.getState().apply((p) => ({
       ...p,
       pinnedLooks: p.pinnedLooks.map((l) =>
-        l.id === pinned.id ? { ...l, slot } : l.slot === slot ? { ...l, slot: null } : l,
+        l.id === pinned.id
+          ? { ...l, slot, label: `LOOK ${String(slot).padStart(2, '0')}` }
+          : l.slot === slot
+            ? { ...l, slot: null }
+            : l,
       ),
+      activeLookId: pinned.id,
     }));
   }
 }

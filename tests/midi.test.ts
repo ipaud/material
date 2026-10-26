@@ -11,6 +11,9 @@ import {
 } from '@/midi/midiEngine';
 import { isDeterministicSource } from '@/signals/triggerSources';
 import { useProjectStore } from '@/state/projectStore';
+import { takeRecorder } from '@/performance/take/recorder';
+import { captureBaseline } from '@/performance/take/takeActions';
+import { stageParamTarget } from '@/performance/take/model';
 
 const DEVICE = { id: 'dev-1', name: 'TestPad', manufacturer: 'Acme' };
 
@@ -164,6 +167,12 @@ describe('serialization', () => {
     delete p.midiMappings;
     expect(parseProject(p).midiMappings).toEqual([]);
   });
+
+  test('stage-target MIDI mappings preserve stable layer and stage IDs', () => {
+    const mapping = ccMapping({ targetLayerId: 'layer-a', targetStageId: 'stage-b' } as Partial<MidiMapping>);
+    const back = parseProject(JSON.parse(JSON.stringify(baseProject({ midiMappings: [mapping] }))));
+    expect(back.midiMappings[0]).toMatchObject({ targetLayerId: 'layer-a', targetStageId: 'stage-b' });
+  });
 });
 
 describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
@@ -193,6 +202,58 @@ describe('engine: CC → ABSOLUTE parameter (pickup)', () => {
     fake.emitRaw('dev-1', [0xb0, 21, 0]);
     expect(midiEngine.getPickupState('mm-1')).toBe('live');
     midiEngine.stop();
+  });
+
+  test('stage-target CC writes the stable stage ID and records that Take lane', async () => {
+    const project = baseProject();
+    const layer = project.layers[0]!;
+    project.midiMappings = [ccMapping({
+      targetLayerId: layer.id, targetStageId: 'stage-b', targetParam: 'columns', pickupMode: 'jump',
+    } as Partial<MidiMapping>)];
+    const chain = [
+      { id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { columns: 12 } },
+      { id: 'stage-b', techniqueId: 'mosaic', enabled: true, params: { columns: 24 } },
+    ];
+    const fake = await bootEngine({ ...project, layers: [{ ...layer, techniqueChain: chain }] });
+    takeRecorder.abort();
+    takeRecorder.begin(0, captureBaseline(useProjectStore.getState().project));
+    fake.emitRaw('dev-1', [0xb0, 21, 127]);
+    const updated = useProjectStore.getState().project.layers[0]!;
+    expect(updated.techniqueChain.find((stage) => stage.id === 'stage-a')?.params.columns).toBe(12);
+    expect(updated.techniqueChain.find((stage) => stage.id === 'stage-b')?.params.columns).toBeGreaterThan(24);
+    expect(takeRecorder.stop(1, 'MIDI stage control')?.lanes.map((lane) => lane.target))
+      .toContain(stageParamTarget(layer.id, 'stage-b', 'columns'));
+    midiEngine.stop();
+  });
+
+  test('stage-target CC stays blocked by matching frozen stage modulation', async () => {
+    const project = baseProject();
+    const layer = project.layers[0]!;
+    project.midiMappings = [ccMapping({
+      targetLayerId: layer.id, targetStageId: 'stage-b', targetParam: 'columns', pickupMode: 'jump',
+    } as Partial<MidiMapping>)];
+    const chain = [
+      { id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { columns: 12 } },
+      { id: 'stage-b', techniqueId: 'mosaic', enabled: true, params: { columns: 24 } },
+    ];
+    const modulations = [{
+      id: 'mod-stage-b', enabled: true, source: 'image.luminance', target: 'columns', amount: 1,
+      min: 0, max: 1, invert: false, smoothing: 0, curve: 'linear' as const, frozenValue: 0.6,
+      targetLayerId: layer.id, targetStageId: 'stage-b',
+    }];
+    const fake = await bootEngine({ ...project, layers: [{ ...layer, techniqueChain: chain }], modulations });
+    takeRecorder.abort();
+    takeRecorder.begin(0, captureBaseline(useProjectStore.getState().project));
+    try {
+      fake.emitRaw('dev-1', [0xb0, 21, 127]);
+      const updated = useProjectStore.getState().project.layers[0]!;
+      expect(updated.techniqueChain.find((stage) => stage.id === 'stage-b')?.params.columns).toBe(24);
+      expect(useMidiStore.getState().status['mm-1']).toBe('frozen');
+      expect(takeRecorder.stop(1, 'Frozen MIDI stage control')).toBeNull();
+    } finally {
+      midiEngine.stop();
+      takeRecorder.abort();
+    }
   });
 
   test('channel filter: wrong channel ignored; omni accepts all', async () => {
@@ -291,6 +352,28 @@ describe('engine: MIDI Learn', () => {
     expect(mapping?.control).toBe(30);
     expect(mapping?.messageType).toBe('cc');
     expect(useProjectStore.getState().project.midiMappings).toHaveLength(1);
+    midiEngine.stop();
+  });
+
+  test('stage-target learn persists identity and replaces only the same stage binding', async () => {
+    const primary = ccMapping({ id: 'primary' });
+    const stageA = ccMapping({ id: 'stage-a-old', targetLayerId: 'layer-1', targetStageId: 'stage-a' } as Partial<MidiMapping>);
+    const stageB = ccMapping({ id: 'stage-b', targetLayerId: 'layer-1', targetStageId: 'stage-b' } as Partial<MidiMapping>);
+    const fake = await bootEngine(baseProject({ midiMappings: [primary, stageA, stageB] }));
+    const promise = midiEngine.startLearn(
+      { targetType: 'param', targetParam: 'scale', targetLayerId: 'layer-1', targetStageId: 'stage-a' } as Parameters<typeof midiEngine.startLearn>[0],
+      'Stage A · Scale',
+    );
+    fake.emitRaw('dev-1', [0xb0, 31, 20]);
+    fake.emitRaw('dev-1', [0xb0, 31, 80]);
+    const learned = await promise;
+    expect(learned).toMatchObject({ targetLayerId: 'layer-1', targetStageId: 'stage-a' });
+    const mappings = useProjectStore.getState().project.midiMappings;
+    expect(mappings).toHaveLength(3);
+    expect(mappings).toContainEqual(primary);
+    expect(mappings).toContainEqual(stageB);
+    expect(mappings.find((m) => (m as MidiMapping & { targetStageId?: string }).targetStageId === 'stage-a'))
+      .toMatchObject({ control: 31, targetLayerId: 'layer-1', targetStageId: 'stage-a' });
     midiEngine.stop();
   });
 

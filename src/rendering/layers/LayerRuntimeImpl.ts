@@ -3,6 +3,7 @@ import { bindTarget } from '../bindTarget';
 import type { LayerRuntime } from './layerRuntime';
 import type { MaterialState, ParamRecord } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
+import { renderTechniqueChain as renderTechniqueChainPasses } from '@/rendering/techniqueChain';
 import { OpticalFlowField } from '../flow/OpticalFlowField';
 import { VideoIngest } from './VideoIngest';
 import { ImageStatsReducer } from '../analysis/ImageStatsReducer';
@@ -64,6 +65,10 @@ export class LayerRuntimeImpl implements LayerRuntime {
   private exportMode = false;
   private originalQuad: THREE.Mesh | null = null;
   private techniqueRenderer: TechniqueRenderer | null = null;
+  private techniqueChain: readonly { stageId: string; renderer: TechniqueRenderer; params: ParamRecord }[] = [];
+  private techniqueStageOverrides: ReadonlyMap<string, ParamRecord> = new Map();
+  private resolvedStageParams: Record<string, ParamRecord> = {};
+  private techniqueScratchTargets: readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null = null;
   private techniqueParams: ParamRecord = {};
   private materialState: MaterialState | null = null;
 
@@ -75,18 +80,22 @@ export class LayerRuntimeImpl implements LayerRuntime {
   private perspectiveAmount = 0.35;
 
   /** Optional per-frame parameter transform (modulation). */
-  private paramTransform: ((base: ParamRecord, timeSec: number) => ParamRecord) | null = null;
+  private paramTransform: ((base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null = null;
 
   /** Read by the host when it publishes the stack. */
   get lastResolved(): ParamRecord | null {
     return this.lastResolvedParams;
   }
 
+  get lastResolvedStageParams(): Readonly<Record<string, ParamRecord>> {
+    return this.resolvedStageParams;
+  }
+
   /** What this engine last resolved for its technique — the host reads it
    * off each branch to publish the stack in one message. */
   private lastResolvedParams: ParamRecord | null = null;
 
-  setParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void {
+  setParamTransform(fn: ((base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null): void {
     this.paramTransform = fn;
     this.invalidate();
   }
@@ -133,6 +142,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
     const renderer = this.renderer;
     if (!renderer) return;
     const prevTarget = renderer.getRenderTarget();
+    const prevScissorTest = renderer.getScissorTest();
     try {
       // Neither setPixelRatio nor setViewport belongs here — see bindTarget.
       if (this.temporalEnabled && this.temporal && this.effectiveSource() && !this.exportMode) {
@@ -142,7 +152,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
       this.updateCamera(target.width / Math.max(target.height, 1));
       if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
       if (!this.exportMode) this.updateFlowService(renderer, undefined, this.sourceClock());
-      this.syncScene();
+      const chainRendered = !this.showOriginal && this.renderTechniqueChain(target, opts.clear);
+      if (!chainRendered) this.syncScene();
       if (!this.exportMode) this.updateVisualStats(renderer);
       if (this.feedbackActive) {
         (
@@ -151,6 +162,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
           }
         ).feedbackPrepass?.(renderer, performance.now() / 1000);
       }
+      if (chainRendered) return;
       bindTarget(renderer, target);
       if (opts.clear) {
         // Transparent BLACK, never the composition background: the background
@@ -168,6 +180,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
       renderer.render(this.scene, this.camera);
     } finally {
       renderer.setRenderTarget(prevTarget);
+      renderer.setScissorTest(prevScissorTest);
     }
   }
 
@@ -186,6 +199,9 @@ export class LayerRuntimeImpl implements LayerRuntime {
     }
     if (!this.exportMode) this.renderGenerator(renderer, this.timeSec);
     if (!this.exportMode) this.updateFlowService(renderer, undefined, this.sourceClock());
+    if (!this.showOriginal && this.techniqueChain.length > 0) {
+      throw new Error('Technique chains must render through a composition target');
+    }
     this.syncScene();
     if (!this.exportMode) this.updateVisualStats(renderer);
     if (this.feedbackActive) {
@@ -207,9 +223,12 @@ export class LayerRuntimeImpl implements LayerRuntime {
     const renderer = this.renderer;
     if (!renderer) return;
     const prevTarget = renderer.getRenderTarget();
+    const prevScissorTest = renderer.getScissorTest();
     try {
       this.updateCamera(target.width / Math.max(target.height, 1));
-      this.syncScene(params);
+      const chainRendered = !this.showOriginal && this.renderTechniqueChain(target, clear, params);
+      if (!chainRendered) this.syncScene(params);
+      if (chainRendered) return;
       bindTarget(renderer, target);
       if (clear) {
         renderer.setClearColor(0x000000, 0);
@@ -218,6 +237,7 @@ export class LayerRuntimeImpl implements LayerRuntime {
       renderer.render(this.scene, this.camera);
     } finally {
       renderer.setRenderTarget(prevTarget);
+      renderer.setScissorTest(prevScissorTest);
     }
   }
 
@@ -233,6 +253,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
     this.generator = null;
     this.techniqueRenderer?.dispose();
     this.techniqueRenderer = null;
+    this.techniqueChain = [];
+    this.techniqueScratchTargets = null;
     this.originalQuad?.geometry.dispose();
     (this.originalQuad?.material as THREE.Material | undefined)?.dispose();
     this.originalQuad = null;
@@ -270,6 +292,9 @@ export class LayerRuntimeImpl implements LayerRuntime {
     (
       this.techniqueRenderer as { onContextRestored?: () => void } | null
     )?.onContextRestored?.();
+    for (const { renderer } of this.techniqueChain) {
+      (renderer as { onContextRestored?: () => void }).onContextRestored?.();
+    }
     this.invalidate();
   }
 
@@ -346,6 +371,33 @@ export class LayerRuntimeImpl implements LayerRuntime {
     this.techniqueRenderer = renderer;
     if (renderer) this.scene.add(renderer.object3d);
     this.invalidate();
+  }
+
+  get hasTechniqueChain(): boolean {
+    return this.techniqueChain.length > 0;
+  }
+
+  setTechniqueChain(stages: readonly { stageId: string; renderer: TechniqueRenderer; params: ParamRecord }[]): void {
+    for (const { renderer } of this.techniqueChain) this.scene.remove(renderer.object3d);
+    this.techniqueChain = stages;
+    this.resolvedStageParams = {};
+    for (const { renderer } of stages) {
+      renderer.object3d.visible = false;
+      this.scene.add(renderer.object3d);
+    }
+    this.invalidate();
+  }
+
+  setTechniqueStageParams(params: ReadonlyMap<string, ParamRecord>): void {
+    this.techniqueStageOverrides = params;
+    this.resolvedStageParams = {};
+    this.invalidate();
+  }
+
+  setTechniqueScratchTargets(
+    targets: readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null,
+  ): void {
+    this.techniqueScratchTargets = targets;
   }
 
   // ---- CE1F: the generator source. The engine owns the runtime, renders
@@ -506,8 +558,11 @@ export class LayerRuntimeImpl implements LayerRuntime {
       usesFlow?: boolean;
       wantsFlow?: (params: ParamRecord) => boolean;
     } | null;
+    if (r?.usesFlow === true || this.techniqueChain.some(({ renderer, params }) => {
+      const stage = renderer as { usesFlow?: boolean; wantsFlow?: (p: ParamRecord) => boolean };
+      return stage.usesFlow === true || stage.wantsFlow?.(params) === true;
+    })) return true;
     if (!r) return false;
-    if (r.usesFlow === true) return true;
     return r.wantsFlow?.(this.paramTransform
       ? this.paramTransform(this.techniqueParams, this.timeSec)
       : this.techniqueParams) === true;
@@ -850,6 +905,8 @@ export class LayerRuntimeImpl implements LayerRuntime {
   /** Leave export mode and discard export-primed history (§13). */
   endExportMode(): void {
     this.exportMode = false;
+    this.techniqueStageOverrides = new Map();
+    this.resolvedStageParams = {};
     // Resolved export values must not survive into the preview, or a layer
     // keeps rendering the last exported frame’s parameters.
     this.temporal?.invalidate();
@@ -984,6 +1041,83 @@ export class LayerRuntimeImpl implements LayerRuntime {
           renderer: this.renderer,
         });
       }
+    }
+  }
+
+  private renderTechniqueChain(
+    target: THREE.WebGLRenderTarget,
+    clear: boolean,
+    paramsOverride?: ParamRecord,
+  ): boolean {
+    const renderer = this.renderer;
+    const primary = this.techniqueRenderer;
+    const material = this.materialState;
+    const scratch = this.techniqueScratchTargets;
+    const chainBehavior = primary?.chainBehavior;
+    if (
+      !renderer || !primary || !material || this.techniqueChain.length === 0 || !scratch ||
+      (chainBehavior !== 'stateless' && chainBehavior !== 'flow') || this.temporalEnabled
+    ) return false;
+
+    const primaryParams = paramsOverride ?? (this.paramTransform && !this.exportMode
+      ? this.paramTransform(this.techniqueParams, this.timeSec)
+      : this.techniqueParams);
+    const stages = [
+      { renderer: primary, params: primaryParams },
+      ...this.techniqueChain,
+    ];
+    this.resolvedStageParams = {};
+    let passIndex = 0;
+    const previousTarget = renderer.getRenderTarget();
+    const previousScissorTest = renderer.getScissorTest();
+    const visibility = new Map(this.scene.children.map((child) => [child, child.visible]));
+    try {
+      this.scene.children.forEach((child) => { child.visible = false; });
+      renderTechniqueChainPasses(
+        this.techniqueSource(),
+        stages,
+        scratch,
+        (stage, input, output) => {
+          const stageId = 'stageId' in stage ? String(stage.stageId) : null;
+          const overrides = stageId ? this.techniqueStageOverrides.get(stageId) : undefined;
+          const params = stage.renderer === primary
+            ? stage.params
+            : this.paramTransform && !this.exportMode && stageId
+              ? this.paramTransform({ ...stage.params, ...(overrides ?? {}) }, this.timeSec, stageId)
+              : { ...stage.params, ...(overrides ?? {}) };
+          if (stageId) this.resolvedStageParams[stageId] = params;
+          stage.renderer.object3d.visible = true;
+          stage.renderer.update(params, {
+            sourceTexture: input,
+            materialTexture: this.materialTexture,
+            temporal: null,
+            // Flow remains measured from original layer input by contract.
+            flow: this.flow?.texture() ?? null,
+            compWidth: this.compWidth,
+            compHeight: this.compHeight,
+            material,
+            timeSec: this.timeSec,
+            seed: this.seed,
+            renderer,
+          });
+          if (stage.renderer === primary) this.lastResolvedParams = params;
+          bindTarget(renderer, output);
+          const isFinal = passIndex === stages.length - 1;
+          if (!isFinal || clear) {
+            renderer.setClearColor(0x000000, 0);
+            renderer.clear();
+          }
+          renderer.render(this.scene, this.camera);
+          stage.renderer.object3d.visible = false;
+          passIndex++;
+        },
+        target,
+      );
+      return true;
+    } finally {
+      for (const [child, visible] of visibility) child.visible = visible;
+      renderer.setRenderTarget(previousTarget);
+      renderer.setScissorTest(previousScissorTest);
     }
   }
 

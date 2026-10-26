@@ -1,6 +1,14 @@
 import { selectedLayerOf, withSelectedTechnique } from '@shared/schemas/project';
 import { mulberry32, deriveSeed } from '@/utils/prng';
 import { allParams, type NumberParamDef, type TechniqueDefinition } from '@/techniques/types';
+import {
+  emptyMutationLocks,
+  isStructuralParam,
+  MUTATION_PROFILE,
+  mutationParamFamily,
+  type MutationIntensity,
+  type MutationLocks,
+} from '@/performance/mutation';
 import type { ModulationMapping, ParamRecord, ParamValue, Project } from '@shared/schemas/project';
 
 /**
@@ -29,10 +37,16 @@ export interface Variation {
 }
 
 const CURVES: ModulationMapping['curve'][] = ['linear', 'exponential', 'logarithmic'];
-/** Mutation range = this fraction of the exploration span, per generation. */
-const MUTATE_SIGMA = 0.25;
 /** Safe range for modulation-amount exploration. */
 const MOD_AMOUNT_RANGE: [number, number] = [-1, 1];
+
+export type ExploreMutationMode = 'subtle' | 'variation' | 'wild' | 'structure';
+
+function modeIntensity(mode: ExploreMutationMode): MutationIntensity {
+  if (mode === 'subtle') return 'low';
+  if (mode === 'wild') return 'high';
+  return 'med';
+}
 
 export interface ExploreLocks {
   /** Locked technique param ids. */
@@ -126,8 +140,12 @@ export function mutatePopulation(
   mutateSeed: number,
   count: number,
   locks: ExploreLocks,
+  mode: ExploreMutationMode = 'variation',
+  mutationLocks: MutationLocks = emptyMutationLocks(),
 ): Variation[] {
-  const paramDefs = new Map(allParams(definition).map((p) => [p.id, p]));
+  const paramDefs = new Map(definition.sections.flatMap((section) =>
+    section.params.map((def) => [def.id, { def, section: section.label }] as const)));
+  const { sigma: sigmaFraction, flipChance, rate } = MUTATION_PROFILE[modeIntensity(mode)];
   return Array.from({ length: count }, (_, i) => {
     // Slot 0 = the parent itself so the anchor stays visible in the grid.
     if (i === 0) {
@@ -138,37 +156,49 @@ export function mutatePopulation(
     const patch: VariationPatch = { params: {}, modulations: {} };
 
     for (const [paramId, parentValue] of Object.entries(parent.patch.params)) {
-      if (locks.params.has(paramId)) continue;
-      const def = paramDefs.get(paramId);
-      if (!def) continue;
+      const entry = paramDefs.get(paramId);
+      if (!entry) continue;
+      const { def, section } = entry;
+      const family = mutationParamFamily(section);
+      const locked = locks.params.has(paramId) || mutationLocks.technique ||
+        (family === 'timing' && mutationLocks.timing) || (family === 'color' && mutationLocks.color);
+      const canMutate = def.explore?.randomizable && !locked &&
+        (mode !== 'structure' || isStructuralParam(section, def));
+      if (!canMutate || rng() > rate * (def.explore?.weight ?? 1)) {
+        patch.params[paramId] = parentValue;
+        continue;
+      }
       if (def.type === 'number' && typeof parentValue === 'number') {
         const [lo, hi] = exploreRange(def);
-        const sigma = (hi - lo) * MUTATE_SIGMA;
+        const sigma = (hi - lo) * sigmaFraction;
         const raw = Math.min(Math.max(parentValue + (rng() * 2 - 1) * sigma, lo), hi);
         patch.params[paramId] = def.step >= 1 ? Math.round(raw) : Number(raw.toFixed(4));
       } else if (def.type === 'boolean' && typeof parentValue === 'boolean') {
-        patch.params[paramId] = rng() < 0.15 ? !parentValue : parentValue;
+        patch.params[paramId] = rng() < flipChance ? !parentValue : parentValue;
       } else {
-        patch.params[paramId] = parentValue;
+        const options = def.type === 'select' ? def.options.filter((option) => option.value !== parentValue) : [];
+        const option = options[Math.floor(rng() * options.length)];
+        patch.params[paramId] = rng() < flipChance && option ? option.value : parentValue;
       }
     }
 
     for (const [mappingId, parentMod] of Object.entries(parent.patch.modulations)) {
-      if (locks.modulations.has(mappingId)) continue;
+      if (mode === 'structure' || mutationLocks.signals || locks.modulations.has(mappingId) || rng() > rate) {
+        patch.modulations[mappingId] = { ...parentMod };
+        continue;
+      }
       if (!mappings.some((m) => m.id === mappingId)) continue;
       const mod: ModulationPatch = { ...parentMod };
       if (typeof parentMod.amount === 'number') {
-        const sigma = (MOD_AMOUNT_RANGE[1] - MOD_AMOUNT_RANGE[0]) * MUTATE_SIGMA;
+        const sigma = (MOD_AMOUNT_RANGE[1] - MOD_AMOUNT_RANGE[0]) * sigmaFraction;
         mod.amount = Number(
           Math.min(Math.max(parentMod.amount + (rng() * 2 - 1) * sigma, -1), 1).toFixed(3),
         );
       }
       if (typeof parentMod.smoothing === 'number') {
-        mod.smoothing = Number(
-          Math.min(Math.max(parentMod.smoothing + (rng() * 2 - 1) * 0.2, 0), 1).toFixed(3),
-        );
+        mod.smoothing = Number(Math.min(Math.max(parentMod.smoothing + (rng() * 2 - 1) * sigmaFraction, 0), 1).toFixed(3));
       }
-      if (parentMod.curve && rng() < 0.15) {
+      if (parentMod.curve && rng() < flipChance) {
         mod.curve = CURVES[Math.floor(rng() * CURVES.length)] ?? parentMod.curve;
       }
       patch.modulations[mappingId] = mod;

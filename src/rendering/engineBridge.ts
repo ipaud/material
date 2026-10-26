@@ -5,7 +5,8 @@ import { renderedLayers } from '@shared/schemas/project';
 import { engine } from './RenderEngine';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore, reportError } from '@/state/uiStore';
-import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
+import { createTechniqueRenderer, getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
+import { assessTechniqueChain } from '@/techniques/chainCompatibility';
 import { playback } from '@/playback/PlaybackController';
 import { audioEngine } from '@/audio/AudioEngine';
 import { useAudioStore } from '@/state/audioStore';
@@ -57,7 +58,9 @@ interface LayerBridgeState {
   runtime: SourceRuntime | null;
   temporalSource: TemporalSource | null;
   techniqueId: string | null;
+  chainWarningKey: string | null;
   renderer: TechniqueRenderer | null;
+  chainRenderers: { id: string; techniqueId: string; renderer: TechniqueRenderer }[];
   loadGeneration: number;
 }
 
@@ -72,7 +75,9 @@ function bridgeState(layerId: string): LayerBridgeState {
       runtime: null,
       temporalSource: null,
       techniqueId: null,
+      chainWarningKey: null,
       renderer: null,
+      chainRenderers: [],
       loadGeneration: 0,
     };
     layerBridge.set(layerId, state);
@@ -84,6 +89,7 @@ function disposeLayerBridge(layerId: string): void {
   const state = layerBridge.get(layerId);
   if (!state) return;
   state.runtime?.dispose();
+  state.chainRenderers.forEach(({ renderer }) => renderer.dispose());
   layerBridge.delete(layerId);
 }
 
@@ -305,13 +311,30 @@ function syncLayerTechnique(project: Project, layer: Project['layers'][number]):
   const branch = engine.branchFor(layer.id);
   if (!branch) return;
   const state = bridgeState(layer.id);
+  const chain = [layer.technique, ...layer.techniqueChain].filter(
+    (stage): stage is NonNullable<typeof stage> => stage !== null && stage.enabled !== false,
+  );
+  if (layer.techniqueChain.length > 0 && chain.length > 1 && layer.technique?.enabled !== false) {
+    const assessment = assessTechniqueChain(chain);
+    const message = assessment.compatible
+      ? 'Chain active in preview, Output and export. Takes, MIDI, modulation and Morph address stages by stable ID.'
+      : assessment.reason ?? 'Technique chain is not supported.';
+    const warningKey = `${chain.map((stage) => stage.id).join('>')}:${message}`;
+    if (state.chainWarningKey !== warningKey) {
+      if (assessment.compatible) useUiStore.getState().pushToast('info', message);
+      else reportError('Technique chain', new Error(message));
+    }
+    state.chainWarningKey = warningKey;
+  } else {
+    state.chainWarningKey = null;
+  }
   const instance = layer.technique?.enabled === false ? null : layer.technique;
   const techniqueId = instance?.techniqueId ?? null;
   if (techniqueId !== state.techniqueId) {
     state.techniqueId = techniqueId;
     if (techniqueId) {
       const definition = getTechnique(techniqueId);
-      state.renderer = definition ? definition.createRenderer() : null;
+      state.renderer = definition ? createTechniqueRenderer(techniqueId) : null;
       branch.setTechniqueRenderer(state.renderer);
       if (!definition) reportError('Technique', new Error(`Unknown technique: ${techniqueId}`));
     } else {
@@ -320,6 +343,33 @@ function syncLayerTechnique(project: Project, layer: Project['layers'][number]):
     }
   }
   if (instance) branch.setTechniqueParams(instance.params);
+  const activeStages = instance
+    ? [instance, ...layer.techniqueChain.filter((stage) => stage.enabled)]
+    : [];
+  const compatibleChain = activeStages.length > 1 && assessTechniqueChain(activeStages).compatible;
+  if (compatibleChain) {
+    const previous = state.chainRenderers;
+    state.chainRenderers = layer.techniqueChain
+      .filter((stage) => stage.enabled)
+      .map((stage) => {
+        const existing = previous.find((entry) => entry.id === stage.id && entry.techniqueId === stage.techniqueId);
+        if (existing) return existing;
+        const definition = getTechnique(stage.techniqueId);
+        if (!definition) throw new Error(`Unknown technique: ${stage.techniqueId}`);
+        return { id: stage.id, techniqueId: stage.techniqueId, renderer: createTechniqueRenderer(stage.techniqueId)! };
+      });
+    const retained = new Set(state.chainRenderers.map(({ renderer }) => renderer));
+    previous.filter(({ renderer }) => !retained.has(renderer)).forEach(({ renderer }) => renderer.dispose());
+    engine.setTechniqueChain(layer.id, state.chainRenderers.map((stage, index) => ({
+      stageId: stage.id,
+      renderer: stage.renderer,
+      params: layer.techniqueChain.filter((entry) => entry.enabled)[index]!.params,
+    })));
+  } else {
+    state.chainRenderers.forEach(({ renderer }) => renderer.dispose());
+    state.chainRenderers = [];
+    engine.setTechniqueChain(layer.id, []);
+  }
   branch.setMaterialState(layer.material);
   const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
   branch.setTemporalEnabled(needsTemporal);
@@ -327,7 +377,8 @@ function syncLayerTechnique(project: Project, layer: Project['layers'][number]):
 }
 
 function syncFromProject(): void {
-  const { project, projectGeneration } = useProjectStore.getState();
+  const { project: savedProject, previewProject, projectGeneration } = useProjectStore.getState();
+  const project = previewProject ?? savedProject;
   const { composition } = project;
 
   // A replaced document (new/open/recover) invalidates published frame state.
@@ -482,6 +533,8 @@ function syncFromProject(): void {
     layers: renderedLayers(project.layers).map((l) => ({
       id: l.id,
       techniqueId: l.technique?.enabled === false ? null : (l.technique?.techniqueId ?? null),
+      ...(l.technique?.enabled !== false && l.technique ? { techniqueParams: l.technique.params } : {}),
+      techniqueChain: l.techniqueChain,
       materialState: l.material,
       blendMode: l.blendMode,
       input: l.input,
@@ -493,17 +546,23 @@ function syncFromProject(): void {
   });
 
   // Custom material texture (SVG or raster image).
-  const materialAsset =
-    project.material.materialId === 'custom' ? project.material.assetPath : null;
-  if (materialAsset !== loadedMaterialAsset) {
-    loadedMaterialAsset = materialAsset;
+  const materialKey = project.material.materialId === 'custom'
+    ? `custom:${project.material.assetPath ?? ''}`
+    : project.material.materialId === 'typography'
+      ? `typography:${JSON.stringify(project.material.params)}`
+      : null;
+  if (materialKey !== loadedMaterialAsset) {
+    loadedMaterialAsset = materialKey;
     const generation = ++materialGeneration;
-    if (!materialAsset) {
+    if (!materialKey) {
       engine.setMaterialTexture(null);
     } else {
       import('@/materials/textureLoader')
-        .then(({ loadMaterialTexture }) => loadMaterialTexture(materialAsset))
+        .then(({ loadMaterialTexture, loadTypographyTexture }) => project.material.materialId === 'typography'
+          ? loadTypographyTexture(project.material)
+          : project.material.assetPath ? loadMaterialTexture(project.material.assetPath) : null)
         .then((texture) => {
+          if (!texture) return;
           if (generation === materialGeneration) engine.setMaterialTexture(texture);
           else texture.dispose();
         })
@@ -571,6 +630,7 @@ function configureModulation(): void {
         techniqueId: l.technique?.enabled === false ? null : (l.technique?.techniqueId ?? null),
         mappings,
         signalSource: new Map(mappings.map((m) => [m.id, sourceLayerOf(project, m)])),
+        stageTechniqueIds: new Map(l.techniqueChain.map((stage) => [stage.id, stage.techniqueId])),
       };
     }),
     selectedLayerOf(project).id,
@@ -655,6 +715,7 @@ export function syncLayersForExport(project: Project): void {
     })),
   );
   for (const layer of project.layers) {
+    syncLayerTechnique(project, layer);
     const source = findSource(project, layer.sourceId);
     if (source && source.kind !== 'generator') continue;
     syncLayerSource(project, layer, null, null);
@@ -706,7 +767,9 @@ export function startEngineBridge(): () => void {
   // v0.6B: each branch resolves its OWN parameters, from the mappings pointed
   // at it and the layer each of those reads its signals from.
   engine.setLayerParamTransform(
-    (layerId) => (base, t) => modulationRuntime.transformFor(layerId, base, t),
+    (layerId) => (base, t, stageId) => stageId
+      ? modulationRuntime.transformStageFor(layerId, stageId, base, t)
+      : modulationRuntime.transformFor(layerId, base, t),
   );
   engine.setLayerVisualSink((layerId, stats) =>
     modulationRuntime.setLayerVisualStats(layerId, stats, performance.now() / 1000),

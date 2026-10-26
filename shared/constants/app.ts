@@ -9,8 +9,14 @@ export const PROJECT_EXTENSION = 'material';
  * stamp — see migrateV4toV5. The version moved anyway so that a v0.7 project
  * carrying a recorded performance is REFUSED by v0.6.1 instead of silently
  * loading with the performance stripped out by the schema.
+ *
+ * v6: Pins capture layer input routing and activity windows. A stamp prevents
+ * older builds from stripping those nested fields when saving a project.
+ *
+ * v7: Layers can store up to two additional ordered technique instances. A
+ * stamp prevents older builds from silently dropping those stages on save.
  */
-export const PROJECT_FORMAT_VERSION = 5;
+export const PROJECT_FORMAT_VERSION = 7;
 
 export const SUPPORTED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v'] as const;

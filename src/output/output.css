@@ -17,6 +17,65 @@
   }
 }
 
+@media (max-width: 760px) {
+  .output-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 1fr) auto auto;
+    overflow-y: auto;
+  }
+
+  .output-stage { grid-row: 1; }
+  .output-rail { max-height: 240px; }
+}
+
+@media (max-width: 480px) {
+  .workspace.workspace-output {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .output-main {
+    grid-template-rows: minmax(180px, auto) auto auto;
+    flex: 0 0 auto;
+    min-height: max-content;
+    overflow: visible;
+  }
+
+  .workspace.workspace-output .output-rail {
+    min-height: max-content;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .workspace.workspace-output .output-bar {
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .workspace.workspace-output .output-bar-note {
+    flex: 0 0 100%;
+    margin-left: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .output-bar-spacer {
+    display: none;
+  }
+
+  .output-bar-reason {
+    margin-left: auto;
+  }
+
+  .output-export {
+    min-height: 44px;
+  }
+}
+
 /* ---- Rails ---- */
 .output-rail {
   display: flex;
@@ -55,7 +114,7 @@
   background: var(--surface-2);
 }
 .output-dest:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 .output-dest.selected {

@@ -1,8 +1,8 @@
-import { withSelectedSource } from '@shared/schemas/project';
+import { selectedLayerOf, withSelectedSource } from '@shared/schemas/project';
 import { LooksPanel } from './LooksPanel';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
-import { collectMedia, relinkAllFromFolder, relinkSource } from '@/projects/projectActions';
+import { addCaptureSource, addGeneratorSource, collectMedia, relinkAllFromFolder, relinkSource } from '@/projects/projectActions';
 import { cameraManager, useCameraStore } from '@/sources/cameraManager';
 import { captureManager, useCaptureStore } from '@/sources/captureManager';
 import {
@@ -72,7 +72,8 @@ export function LibraryPanel() {
       }
       if (kind === 'svg' && source.kind === 'svg') {
         // SVGs are materials, not composition sources.
-        return { ...p, material: { ...p.material, materialId: 'custom', assetPath: source.path } };
+        const material = { ...selectedLayerOf(p).material, materialId: 'custom', assetPath: source.path };
+        return { ...p, material, layers: p.layers.map((layer) => layer.id === p.selectedLayerId ? { ...layer, material } : layer) };
       }
       if ((kind === 'image' || kind === 'video') && isFileSource(source)) {
         const meta = source.metadata;
@@ -94,50 +95,27 @@ export function LibraryPanel() {
     apply((p) => {
       const source = p.sources.find((s) => s.id === id);
       if (!source || !isFileSource(source)) return p;
-      return { ...p, material: { ...p.material, materialId: 'custom', assetPath: source.path } };
+      const material = { ...selectedLayerOf(p).material, materialId: 'custom', assetPath: source.path };
+      return { ...p, material, layers: p.layers.map((layer) => layer.id === p.selectedLayerId ? { ...layer, material } : layer) };
     });
   };
 
   const addCamera = () => {
-    apply((p) => {
-      if (p.sources.some((s) => s.kind === 'camera')) return p;
-      const id = uid('cam');
-      // Same as file import: a first source must land on a working system.
-      return withTechniqueEnsured(
-        withSelectedSource({ ...p, sources: [...p.sources, { id, kind: 'camera' as const, deviceId: null }] }, id),
-      );
-    });
+    addCaptureSource('camera');
   };
   const hasCamera = sources.some((s) => s.kind === 'camera');
   const hasScreen = sources.some((s) => s.kind === 'screen');
   const hasWindow = sources.some((s) => s.kind === 'window');
 
   const addGenerator = () => {
-    apply((p) => {
-      const id = uid('gen');
-      return withTechniqueEnsured(
-        withSelectedSource(
-          {
-            ...p,
-            sources: [
-              ...p.sources,
-              { id, kind: 'generator' as const, generator: 'noise', params: generatorDefaults('noise'), seed: 1 },
-            ],
-          },
-          id,
-        ),
-      );
-    });
+    addGeneratorSource('noise');
   };
 
-  const addLive = (kind: 'screen' | 'window') => {
+  const addLive = (kind: 'window') => {
     apply((p) => {
       if (p.sources.some((s) => s.kind === kind)) return p;
-      const id = uid(kind === 'screen' ? 'scr' : 'win');
-      const ref =
-        kind === 'screen'
-          ? { id, kind: 'screen' as const, displayId: null }
-          : { id, kind: 'window' as const, titleHint: null };
+      const id = uid('win');
+      const ref = { id, kind: 'window' as const, titleHint: null };
       return withTechniqueEnsured(withSelectedSource({ ...p, sources: [...p.sources, ref] }, id));
     });
   };
@@ -165,7 +143,7 @@ export function LibraryPanel() {
             <button
               className="vp-btn"
               title="Capture a display as a live source"
-              onClick={() => addLive('screen')}
+              onClick={() => addCaptureSource('screen')}
             >
               + SCREEN
             </button>
@@ -329,7 +307,7 @@ function CameraRow({
   };
 
   return (
-    <div className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
+    <div data-source-id={sourceId} className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
       <span className={`media-kind kind-camera${live ? ' live' : ''}`}>CAM</span>
       <span className="media-text">
         <span className="media-name">Camera</span>
@@ -423,7 +401,7 @@ function CaptureRow({
   const canStartWindow = !isScreen && cap.chosenWindowId !== null;
 
   return (
-    <div className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
+    <div data-source-id={source.id} className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
       <span className={`media-kind kind-camera${live ? ' live' : ''}`}>
         {isScreen ? 'SCR' : 'WIN'}
       </span>
@@ -545,7 +523,7 @@ function GeneratorRow({
   const apply = useProjectStore((s) => s.apply);
   const def = getGenerator(source.generator);
   return (
-    <div className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
+    <div data-source-id={source.id} className={`media-item camera-row${active ? ' active' : ''}`} onClick={onSelect}>
       <span className="media-kind kind-generator">GEN</span>
       <span className="media-text">
         <span className="media-name">{def?.name ?? source.generator}</span>

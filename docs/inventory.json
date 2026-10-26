@@ -940,6 +940,17 @@
           "randomizable": true
         },
         {
+          "id": "glyphIndex",
+          "label": "Glyph Index",
+          "type": "number",
+          "min": 0,
+          "max": 63,
+          "step": 1,
+          "default": 0,
+          "modulatable": true,
+          "randomizable": true
+        },
+        {
           "id": "scale",
           "label": "Scale",
           "type": "number",

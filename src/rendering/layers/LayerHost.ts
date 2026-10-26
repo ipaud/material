@@ -4,6 +4,7 @@ import type { RawVisualStats, VisualSignalId } from '@/signals/visual/types';
 import { LayerCompositor, type CompositeLayer } from './LayerCompositor';
 import { requirementsOf, type LayerRequirements, type LayerRuntime } from './layerRuntime';
 import type { LayerRenderState } from './layerTypes';
+import type { TechniqueRenderer } from '@/techniques/types';
 
 const EMPTY_DEMAND: ReadonlySet<VisualSignalId> = new Set();
 
@@ -39,6 +40,7 @@ export class LayerHost {
   private readonly compositor = new LayerCompositor();
 
   private renderer: THREE.WebGLRenderer | null = null;
+  private techniqueScratch: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null = null;
   /**
    * Bumped every time the host installs a different renderer.
    *
@@ -74,12 +76,14 @@ export class LayerHost {
     if (this.renderer === renderer) return;
     this.renderer = renderer;
     this.rendererGeneration++;
+    this.releaseTechniqueScratch();
     for (const slot of this.slots) {
       slot.target?.dispose();
       slot.target = null;
       slot.rendererGeneration = this.rendererGeneration;
       if (renderer) slot.runtime.initBranch(renderer);
     }
+    this.syncTechniqueScratch();
   }
 
   /** Diagnostics: a runtime bound to a renderer the host no longer uses. */
@@ -98,6 +102,19 @@ export class LayerHost {
     this.compHeight = height;
     this.compBackground = background;
     for (const s of this.slots) s.runtime.setComposition(width, height, background);
+    this.syncTechniqueScratch();
+  }
+
+  setTechniqueChain(
+    layerId: string,
+    stages: readonly { stageId: string; renderer: TechniqueRenderer; params: ParamRecord }[],
+  ): void {
+    this.slots.find((slot) => slot.id === layerId)?.runtime.setTechniqueChain(stages);
+    this.syncTechniqueScratch();
+  }
+
+  setTechniqueStageParams(params: ReadonlyMap<string, ReadonlyMap<string, ParamRecord>>): void {
+    for (const slot of this.slots) slot.runtime.setTechniqueStageParams(params.get(slot.id) ?? new Map());
   }
 
   setSeed(seed: number): void {
@@ -166,6 +183,7 @@ export class LayerHost {
     }
     this.applyVisualDemand();
     this.distributeLiveSources();
+    this.syncTechniqueScratch();
   }
 
   /** Every layer allocated its targets on the SAME lost context, so each has
@@ -173,14 +191,17 @@ export class LayerHost {
    * event and would otherwise keep dead handles. */
   handleContextRestored(): void {
     this.compositor.release();
+    this.releaseTechniqueScratch();
     for (const s of this.slots) {
       s.target?.dispose();
       s.target = null;
       s.runtime.handleContextRestored();
     }
+    this.syncTechniqueScratch();
   }
 
   disposeAll(): void {
+    this.releaseTechniqueScratch();
     for (const s of this.slots) {
       s.runtime.disposeBranch();
       s.target?.dispose();
@@ -357,7 +378,7 @@ export class LayerHost {
   // ---- authority ------------------------------------------------------------
 
   private paramTransformFactory:
-    | ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord)
+    | ((layerId: string) => (base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord)
     | null = null;
   private opacitySink: ((layerId: string, opacity: number) => { opacity: number }) | null = null;
   private authorityParams: ReadonlyMap<string, ParamRecord> | undefined;
@@ -365,7 +386,7 @@ export class LayerHost {
   private authorityEnabled: ReadonlyMap<string, boolean> | undefined;
 
   setParamTransformFactory(
-    make: ((layerId: string) => (base: ParamRecord, timeSec: number) => ParamRecord) | null,
+    make: ((layerId: string) => (base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null,
   ): void {
     this.paramTransformFactory = make;
     for (const s of this.slots) s.runtime.setParamTransform(make ? make(s.id) : null);
@@ -513,6 +534,7 @@ export class LayerHost {
   renderSingleOpaqueToCanvas(renderer: THREE.WebGLRenderer): boolean {
     const index = this.singleOpaqueIndex();
     if (index === null) return false;
+    if (this.slots[index]!.runtime.hasTechniqueChain) return false;
     this.slots[index]!.runtime.renderLayerToCanvas(renderer);
     return true;
   }
@@ -563,6 +585,34 @@ export class LayerHost {
       });
     }
     return slot.target;
+  }
+
+  private releaseTechniqueScratch(): void {
+    this.techniqueScratch?.forEach((target) => target.dispose());
+    this.techniqueScratch = null;
+    for (const slot of this.slots) slot.runtime.setTechniqueScratchTargets(null);
+  }
+
+  private syncTechniqueScratch(): void {
+    const needed = this.slots.some((slot) => slot.runtime.hasTechniqueChain);
+    if (!needed || !this.renderer) {
+      this.releaseTechniqueScratch();
+      return;
+    }
+    const w = Math.max(this.compWidth, 1);
+    const h = Math.max(this.compHeight, 1);
+    if (!this.techniqueScratch || this.techniqueScratch[0].width !== w || this.techniqueScratch[0].height !== h) {
+      this.releaseTechniqueScratch();
+      const create = () => new THREE.WebGLRenderTarget(w, h, {
+        depthBuffer: false,
+        stencilBuffer: false,
+        colorSpace: THREE.SRGBColorSpace,
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+      });
+      this.techniqueScratch = [create(), create()];
+    }
+    for (const slot of this.slots) slot.runtime.setTechniqueScratchTargets(this.techniqueScratch);
   }
 
   /** Render every visible layer and blend them. */
@@ -619,19 +669,24 @@ export class LayerHost {
   /** Per-layer resolved values for the ONE publication the host makes. */
   publishableState(): {
     layerParams: Record<string, ParamRecord>;
+    layerStageParams: Record<string, Record<string, ParamRecord>>;
     layerOpacity: Record<string, number>;
     layerSourceParams: Record<string, ParamRecord>;
   } {
     const layerParams: Record<string, ParamRecord> = {};
+    const layerStageParams: Record<string, Record<string, ParamRecord>> = {};
     const layerOpacity: Record<string, number> = {};
     const layerSourceParams: Record<string, ParamRecord> = {};
     for (const [i, s] of this.slots.entries()) {
       const resolved = s.runtime.lastResolved;
       if (resolved) layerParams[s.id] = resolved;
+      if (Object.keys(s.runtime.lastResolvedStageParams).length > 0) {
+        layerStageParams[s.id] = { ...s.runtime.lastResolvedStageParams };
+      }
       layerOpacity[s.id] = this.effectiveOpacityAt(i);
       if (s.runtime.hasGenerator) layerSourceParams[s.id] = s.runtime.resolvedSourceParams();
     }
-    return { layerParams, layerOpacity, layerSourceParams };
+    return { layerParams, layerStageParams, layerOpacity, layerSourceParams };
   }
 
   // ---- diagnostics ----------------------------------------------------------

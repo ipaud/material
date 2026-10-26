@@ -7,7 +7,7 @@ import { uid } from '@/utils/id';
 import { takeRecorder } from './recorder';
 import { takePlayer } from './player';
 import { addLane } from './edit';
-import { layerOpacityTarget, macroTarget, paramTarget, parseControlTarget } from './model';
+import { layerOpacityTarget, macroTarget, paramTarget, stageParamTarget, parseControlTarget } from './model';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
 
@@ -169,7 +169,7 @@ export function stopTake(): void {
   const resolved = takePlayer.resolvedAt(playback.getTime());
   takePlayer.stop();
   if (!resolved) return;
-  if (resolved.opacity.size === 0 && resolved.macros.size === 0 && resolved.params.size === 0) {
+  if (resolved.opacity.size === 0 && resolved.macros.size === 0 && resolved.params.size === 0 && resolved.stageParams.size === 0) {
     return;
   }
   useProjectStore.getState().apply((p) => ({
@@ -177,7 +177,8 @@ export function stopTake(): void {
     layers: p.layers.map((l) => {
       const opacity = resolved.opacity.get(l.id);
       const params = resolved.params.get(l.id);
-      if (opacity === undefined && !params) return l;
+      const stageParams = resolved.stageParams.get(l.id);
+      if (opacity === undefined && !params && !stageParams) return l;
       return {
         ...l,
         opacity: opacity ?? l.opacity,
@@ -185,6 +186,10 @@ export function stopTake(): void {
           params && l.technique
             ? { ...l.technique, params: { ...l.technique.params, ...params } }
             : l.technique,
+        techniqueChain: stageParams ? l.techniqueChain.map((stage) => {
+          const values = stageParams.get(stage.id);
+          return values ? { ...stage, params: { ...stage.params, ...values } } : stage;
+        }) : l.techniqueChain,
       };
     }),
     macros: p.macros.map((m) => {
@@ -319,6 +324,15 @@ export function keyframeTargets(project: Project): KeyframeTarget[] {
         out.push({ target: paramTarget(layer.id, p.id), label: `${name} · ${p.label}` });
       }
     }
+    layer.techniqueChain.forEach((stage, stageIndex) => {
+      const stageDef = getTechnique(stage.techniqueId);
+      if (!stageDef || !stage.enabled) return;
+      for (const p of allParams(stageDef)) {
+        if (p.type === 'number' && p.modulatable) {
+          out.push({ target: stageParamTarget(layer.id, stage.id, p.id), label: `${name} · Stage ${stageIndex + 2} ${p.label}` });
+        }
+      }
+    });
   });
   for (const m of project.macros) out.push({ target: macroTarget(m.id), label: `Macro · ${m.name}` });
   return out;
@@ -333,6 +347,14 @@ function currentValue(project: Project, target: string): number {
   }
   if (parsed.kind === 'macro') return project.macros.find((m) => m.id === parsed.macroId)?.value ?? 0;
   const layer = project.layers.find((l) => l.id === parsed.layerId);
+  if (parsed.stageId) {
+    const stage = layer?.techniqueChain.find((entry) => entry.id === parsed.stageId);
+    const stored = stage?.params[parsed.paramId];
+    if (typeof stored === 'number') return stored;
+    const definition = stage ? getTechnique(stage.techniqueId) : null;
+    const param = definition ? allParams(definition).find((entry) => entry.id === parsed.paramId) : null;
+    return param && param.type === 'number' ? param.default : 0;
+  }
   const stored = layer?.technique?.params[parsed.paramId];
   if (typeof stored === 'number') return stored;
   const def = layer?.technique ? getTechnique(layer.technique.techniqueId) : null;

@@ -285,8 +285,7 @@ describe('release gates (18G)', () => {
     // the performance silently stripped.
     const pkg = JSON.parse(read('package.json')) as { version: string };
     // v0.8 makes a project portable — relative media paths, collect, relink
-    // all. Paths are strings either way, so the format stays at 5 and a v0.7
-    // project written with absolute paths opens unchanged.
+    // all. Paths are strings either way, so its format stayed at 5.
     // v0.8.1 fixes a preview/export divergence in repeating morph triggers.
     // Rendered output changes for projects that use one, which is exactly why
     // it gets a version someone can point at.
@@ -296,7 +295,10 @@ describe('release gates (18G)', () => {
     // for any project with a temporal technique on a non-selected layer.
     expect(pkg.version).toBe('0.8.6');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
-    expect(PROJECT_FORMAT_VERSION).toBe(5);
+    // v1 Pin snapshots capture input routing and activity windows; v6 marks
+    // the nested addition so older builds refuse it instead of stripping it.
+    // v7 adds ordered technique-chain stages.
+    expect(PROJECT_FORMAT_VERSION).toBe(7);
   });
 
   it('fps meter clamps burst samples to a plausible display rate', () => {

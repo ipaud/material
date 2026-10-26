@@ -9,7 +9,7 @@ import { captureLookCore } from '@/performance/lookCore';
 import type { MorphCurve } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { allParams } from '@/techniques/types';
-import { layerOpacityTarget, macroTarget, paramTarget } from './model';
+import { layerOpacityTarget, macroTarget, paramTarget, stageParamTarget } from './model';
 import { takeRecorder } from './recorder';
 
 /**
@@ -104,6 +104,32 @@ export function performSelectedParam(paramId: string, value: ParamValue): void {
         )
       : p,
   );
+}
+
+/** Edit and record numeric control on stable extra-stage identity. */
+export function performTechniqueStageParam(stageId: string, paramId: string, value: ParamValue): void {
+  const { project } = useProjectStore.getState();
+  const layer = selectedLayerOf(project);
+  const stage = layer.techniqueChain.find((entry) => entry.id === stageId);
+  if (!stage) return;
+  const definition = getTechnique(stage.techniqueId);
+  const def = definition ? allParams(definition).find((entry) => entry.id === paramId) : undefined;
+  if (typeof value === 'number') {
+    takeRecorder.control(
+      stageParamTarget(layer.id, stage.id, paramId), value, now(),
+      typeof stage.params[paramId] === 'number' ? stage.params[paramId] as number : value,
+      def?.type === 'number' ? def.max - def.min : 1,
+    );
+  }
+  useProjectStore.getState().apply((p) => ({
+    ...p,
+    layers: p.layers.map((entry) => entry.id !== layer.id ? entry : {
+      ...entry,
+      techniqueChain: entry.techniqueChain.map((item) => item.id === stageId
+        ? { ...item, params: { ...item.params, [paramId]: value } }
+        : item),
+    }),
+  }));
 }
 
 // ---- Discrete --------------------------------------------------------------

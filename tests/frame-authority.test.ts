@@ -93,6 +93,32 @@ describe('v0.6.1 — one frame, one dt', () => {
   });
 });
 
+describe('stage-scoped modulation', () => {
+  beforeEach(() => modulationRuntime.reset());
+
+  it('applies mapping only to matching stage and leaves primary and other stages unchanged', () => {
+    const stageMapping = mapping({ id: 'stage-map', targetStageId: 'stage-a', smoothing: 0 });
+    modulationRuntime.configureLayers([{
+      layerId: 'L0',
+      techniqueId: 'mosaic',
+      mappings: [stageMapping],
+      signalSource: new Map([['stage-map', 'L0']]),
+      stageTechniqueIds: new Map([['stage-a', 'mosaic']]),
+    }], 'L0');
+    modulationRuntime.configure([stageMapping], 'mosaic', {
+      analysis: null, durationSec: 10, bpm: 120, beatOffsetSec: 0, beatsPerBar: 4,
+    });
+
+    const primary = modulationRuntime.transformFor('L0', { scale: 1 }, 0.25);
+    const matching = modulationRuntime.transformStageFor('L0', 'stage-a', { scale: 1 }, 0.25);
+    const unrelated = modulationRuntime.transformStageFor('L0', 'stage-b', { scale: 1 }, 0.25);
+
+    expect(primary.scale).toBe(1);
+    expect(matching.scale).toBeCloseTo(1.5);
+    expect(unrelated.scale).toBe(1);
+  });
+});
+
 describe('v0.6.1 — one frame, one publication', () => {
   it('a layer runtime never publishes; only the host does', () => {
     // Four layers each publishing meant the Output received one message per

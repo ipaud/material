@@ -1,6 +1,9 @@
 import type * as THREE from 'three';
 import type { LayerRuntimeImpl } from '@/rendering/layers/LayerRuntimeImpl';
-import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
+import type { RenderEngine } from '@/rendering/RenderEngine';
+import { createTechniqueRenderer, getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
+import { assessTechniqueChain } from '@/techniques/chainCompatibility';
+import type { TechniqueRenderer } from '@/techniques/types';
 import { FileImageSource } from '@/sources/FileImageSource';
 import { FileVideoSource } from '@/sources/FileVideoSource';
 import { GeneratorSource } from '@/sources/generators/GeneratorSource';
@@ -21,8 +24,12 @@ import type { ParamRecord } from '@shared/schemas/project';
  * The replica owns that join and hands the texture down.
  */
 export class OutputLayer {
+  private readonly chainHost: Pick<RenderEngine, 'setTechniqueChain'>;
   private sourceKey: string | null = null;
   private techniqueId: string | null = null;
+  private activeTechniqueId: string | null = null;
+  private chainRenderers: { id: string; techniqueId: string; renderer: TechniqueRenderer }[] = [];
+  private chainInstalled = false;
   private source: SourceRuntime | null = null;
   private generator: GeneratorSource | null = null;
   private generatorParams: Record<string, string | number | boolean> = {};
@@ -30,13 +37,27 @@ export class OutputLayer {
   /** Last resolved technique params, for capability questions that read them. */
   private lastParams: ParamRecord | null = null;
 
-  constructor(readonly id: string) {}
+  constructor(readonly id: string, chainHost: Pick<RenderEngine, 'setTechniqueChain'>) {
+    this.chainHost = chainHost;
+  }
 
   /** Resolved params the replica has seen, so capability questions that read
    * them (temporal, feedback) answer the same as the editor. */
   noteParams(params: ParamRecord | null): void {
-    if (params) this.lastParams = params;
+    if (!params) return;
+    this.lastParams = params;
+    if (this.branch) {
+      this.branch.setTechniqueParams(params);
+      this.syncTechniqueChain(this.chainConfig, false);
+    }
   }
+
+  noteStageParams(params: Readonly<Record<string, ParamRecord>>): void {
+    if (!this.branch) return;
+    this.branch.setTechniqueStageParams(new Map(Object.entries(params)));
+  }
+
+  private branch: LayerRuntimeImpl | null = null;
 
   get video(): HTMLVideoElement | null {
     return this.source instanceof FileVideoSource ? this.source.video : null;
@@ -54,7 +75,12 @@ export class OutputLayer {
 
   /** Rebuild media only when the description actually changed. */
   applyInputs(branch: LayerRuntimeImpl, input: OutputLayerInput, generation: number): void {
+    this.branch = branch;
     const src = input.source;
+    if (input.techniqueParams) {
+      this.lastParams = input.techniqueParams;
+      branch.setTechniqueParams(input.techniqueParams);
+    }
     const key = src
       ? src.kind === 'generator'
         ? `generator:${src.generator}:${src.seed}:${generation}`
@@ -93,20 +119,93 @@ export class OutputLayer {
     }
 
     if (input.materialState) branch.setMaterialState(input.materialState);
-    if (input.techniqueId && input.techniqueId !== this.techniqueId) {
-      const definition = getTechnique(input.techniqueId);
-      if (definition) {
-        branch.setTechniqueRenderer(definition.createRenderer());
-        this.techniqueId = input.techniqueId;
-      }
+    if (input.techniqueId !== this.techniqueId) {
+      const definition = input.techniqueId ? getTechnique(input.techniqueId) : null;
+      branch.setTechniqueRenderer(definition ? createTechniqueRenderer(input.techniqueId!) : null);
+      this.techniqueId = input.techniqueId;
+      this.activeTechniqueId = input.techniqueId;
     }
+    this.syncTechniqueChain(input.techniqueChain ?? [], true);
     // Temporal capability is a property of the technique and its parameters,
     // decided identically on both sides from the same registry helper.
     branch.setTemporalEnabled(
       input.techniqueId
-        ? techniqueNeedsTemporal(input.techniqueId, this.lastParams ?? {})
+        ? techniqueNeedsTemporal(input.techniqueId, input.techniqueParams ?? this.lastParams ?? {})
         : false,
     );
+  }
+
+  setActiveTechnique(branch: LayerRuntimeImpl, techniqueId: string): void {
+    if (techniqueId === this.activeTechniqueId) return;
+    this.activeTechniqueId = techniqueId;
+    this.syncTechniqueChain(this.chainConfig, false);
+  }
+
+  refreshCustomChainRenderers(branch: LayerRuntimeImpl, packId: string): void {
+    const ids = new Set(this.chainConfig.filter((stage) => stage.techniqueId.startsWith(`custom:${packId}:`)).map((stage) => stage.id));
+    if (ids.size === 0) return;
+    const previous = this.chainRenderers;
+    this.chainRenderers = previous.map((stage) => {
+      if (!ids.has(stage.id)) return stage;
+      stage.renderer.dispose();
+      return { ...stage, renderer: createTechniqueRenderer(stage.techniqueId)! };
+    });
+    this.chainInstalled = false;
+    this.syncTechniqueChain(this.chainConfig, false);
+  }
+
+  refreshCustomPrimaryRenderer(branch: LayerRuntimeImpl, packId: string): void {
+    if (!this.activeTechniqueId?.startsWith(`custom:${packId}:`)) return;
+    branch.setTechniqueRenderer(createTechniqueRenderer(this.activeTechniqueId));
+  }
+
+  private chainConfig: NonNullable<OutputLayerInput['techniqueChain']> = [];
+
+  private syncTechniqueChain(
+    config: NonNullable<OutputLayerInput['techniqueChain']>,
+    reconcile: boolean,
+  ): void {
+    this.chainConfig = config;
+    const extras = config.filter((stage) => stage.enabled);
+    const primary = this.activeTechniqueId ? getTechnique(this.activeTechniqueId) : null;
+    const compatible = primary !== null && extras.length > 0 && assessTechniqueChain([
+      { techniqueId: primary.id, params: this.lastParams ?? {} },
+      ...extras,
+    ]).compatible;
+    if (!compatible) {
+      if (reconcile) {
+        this.chainRenderers.forEach(({ renderer }) => renderer.dispose());
+        this.chainRenderers = [];
+      }
+      if (this.chainInstalled || reconcile) this.chainHost.setTechniqueChain(this.id, []);
+      this.chainInstalled = false;
+      return;
+    }
+
+    const needsReconcile = reconcile || this.chainRenderers.length !== extras.length || extras.some((stage, index) => {
+      const current = this.chainRenderers[index];
+      return current?.id !== stage.id || current.techniqueId !== stage.techniqueId;
+    });
+    if (needsReconcile) {
+      const previous = this.chainRenderers;
+      this.chainRenderers = extras.map((stage) => {
+        const existing = previous.find((entry) => entry.id === stage.id && entry.techniqueId === stage.techniqueId);
+        if (existing) return existing;
+        const definition = getTechnique(stage.techniqueId);
+        if (!definition) throw new Error(`Unknown technique: ${stage.techniqueId}`);
+        return { id: stage.id, techniqueId: stage.techniqueId, renderer: createTechniqueRenderer(stage.techniqueId)! };
+      });
+      const retained = new Set(this.chainRenderers.map(({ renderer }) => renderer));
+      previous.filter(({ renderer }) => !retained.has(renderer)).forEach(({ renderer }) => renderer.dispose());
+    }
+    if (reconcile || !this.chainInstalled) {
+      this.chainHost.setTechniqueChain(this.id, this.chainRenderers.map((stage, index) => ({
+        stageId: stage.id,
+        renderer: stage.renderer,
+        params: extras[index]!.params,
+      })));
+      this.chainInstalled = true;
+    }
   }
 
   /** Drive this layer's generator with the params the EDITOR resolved. */
@@ -165,10 +264,15 @@ export class OutputLayer {
     this.source = null;
     this.generator?.dispose();
     this.generator = null;
+    this.chainRenderers.forEach(({ renderer }) => renderer.dispose());
+    this.chainRenderers = [];
+    this.chainInstalled = false;
     if (branch) {
+      this.chainHost.setTechniqueChain(this.id, []);
       branch.setSource(null);
       branch.setTemporalSource(null);
     }
+    this.branch = null;
   }
 }
 

@@ -88,8 +88,13 @@ function laneLabel(target: string, project: Project): string {
     return project.macros.find((m) => m.id === parsed.macroId)?.name ?? 'MACRO ?';
   }
   const layer = project.layers.find((l) => l.id === parsed.layerId);
-  const name = layer?.name || `LAYER ${project.layers.indexOf(layer!) + 1}`;
-  return parsed.kind === 'layerOpacity' ? `${name} · OPACITY` : `${name} · ${parsed.paramId}`;
+  const name = layer?.name || `LAYER ${Math.max(project.layers.indexOf(layer!), 0) + 1}`;
+  if (parsed.kind === 'layerOpacity') return `${name} · OPACITY`;
+  if (parsed.stageId) {
+    const index = layer?.techniqueChain.findIndex((stage) => stage.id === parsed.stageId) ?? -1;
+    return `${name} · STAGE ${index < 0 ? '?' : index + 2} · ${parsed.paramId}`;
+  }
+  return `${name} · ${parsed.paramId}`;
 }
 
 /**
@@ -111,7 +116,10 @@ export function laneDomain(
   if (parsed && (parsed.kind === 'layerOpacity' || parsed.kind === 'macro')) return [0, 1];
   if (parsed?.kind === 'param') {
     const layer = project.layers.find((l) => l.id === parsed.layerId);
-    const definition = layer?.technique ? getTechnique(layer.technique.techniqueId) : null;
+    const stage = parsed.stageId ? layer?.techniqueChain.find((item) => item.id === parsed.stageId) : null;
+    const definition = stage
+      ? getTechnique(stage.techniqueId)
+      : layer?.technique ? getTechnique(layer.technique.techniqueId) : null;
     const def = definition
       ? allParams(definition).find((d) => d.id === parsed.paramId)
       : undefined;

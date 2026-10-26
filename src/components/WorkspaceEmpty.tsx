@@ -2,7 +2,7 @@ import { useUiStore } from '@/state/uiStore';
 
 /**
  * Shared "nothing here yet" state for workspaces that need a built system
- * (EXPLORE / PERFORM / OUTPUT). One voice: short, technical, GO TO BUILD.
+ * (EXPLORE / PLAY / OUTPUT). One voice: short, technical, GO TO BUILD.
  */
 export function WorkspaceEmpty({ title, hint }: { title: string; hint: string }) {
   return (

@@ -1,5 +1,9 @@
 # Roadmap
 
+Current release is 0.8.6. MATERIAL 1.0 audit and implementation sequence live in
+[V1_AUDIT.md](V1_AUDIT.md) and [V1_PLAN.md](V1_PLAN.md). BUILD / EXPLORE / PLAY
+describe creative workspaces; OUTPUT remains a global delivery surface.
+
 ## v0.6.1 — Runtime Ownership (shipped)
 
 A behaviour-preserving refactor, no user-facing change. `RenderEngine` stopped
@@ -123,24 +127,14 @@ missing features but a second copy of a system MATERIAL already has, and the
 thing that would break is export determinism.
 
 
-## Next (pre-v0.3 list)
+## Open directions (status 0.8.6)
 
-**Performance recording.** The single biggest gap. Every live gesture already
-passes through one timestampable chokepoint (see the readiness table in
-PERFORMANCE.md), and recorded morphs prove the replay pattern. What is missing
-is a recorder and a replay path into the export evaluator.
-
-**Keyframes.** Shipped as hand-authored Take lanes (post-0.8.4): see
-docs/PROJECT_FORMAT.md. Open: a full-width timeline view and Bézier handles.
+**Keyframe editing.** Hand-authored Take lanes shipped; full-width timeline and
+Bézier handles remain open (see `PROJECT_FORMAT.md`).
 
 **Tempo map.** v0.2 has one global BPM. Music that drifts, ritardandos and
 live drummers all want a tempo track. The beat grid is pure arithmetic over
 `{bpm, offset}`, so this is a data-model change more than an engine one.
-
-**Dedicated output window.** Fullscreen output on a second display, and the
-foundation Syphon would need. The engine already renders from pushed state and
-the transport already owns the liveness signal
-(see BACKGROUND_RENDERING.md), so nothing blocks it.
 
 **Candidate material mutation.** Blocked today because material state reaches
 the renderer from the document rather than through the per-frame transform, so
@@ -150,9 +144,8 @@ a mutated material would be invisible in preview.
 honest next step, then wide gamut. Nothing should claim to be colour-managed
 until it is.
 
-**More techniques.** Feedback, Recursion, Stutter, Freeze, Dither, Pixel Sort,
-Distortion, Typography, Collage. The temporal ones now cost a definition plus a
-renderer.
+**Typography material.** Repeated glyph and word-based materials need a
+portability and rendering policy before implementation.
 
 **Technique chains.** The data model holds an array of technique instances but
 only the first enabled one renders. Real composition (Mosaic _then_ Echo) needs
@@ -190,18 +183,6 @@ would be the most expensive thing this project has ever done for no reason.
 Revisit when there is a real rig on the other end of the cable — someone else
 running Resolume or VDMX with MATERIAL as one source among several. Until then
 the audit stands and the work does not start.
-
-## After v0.7
-
-v0.7 shipped Performance Capture: record what the performer plays, replay it
-deterministically, edit it minimally, export it. `docs/BACKLOG.md` lists what
-was deliberately left out.
-
-The obvious next question is not another feature but a shape: MATERIAL can now
-build a system, play it, and record the playing. What it cannot do is get any
-of that anywhere except a file on disk — no live output to a second machine, no
-NDI/Syphon, no show file that survives a venue. That is the direction worth
-considering next, and it is a product decision rather than an engineering one.
 
 ## Out of scope for the foreseeable future
 

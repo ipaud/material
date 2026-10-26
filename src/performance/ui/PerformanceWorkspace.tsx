@@ -334,7 +334,7 @@ export function ActionsStrip() {
           <button
             className="perf-big-btn quiet"
             onClick={() => void pinCurrentLook()}
-            title="Pin current state as a Look (P)"
+            title="Pin current state (P)"
           >
             PIN
           </button>
@@ -563,7 +563,7 @@ export function CandidateCluster() {
         <button
           className="perf-big-btn quiet"
           onClick={() => candidateRuntime.pin()}
-          title="Pin as a Look without changing output"
+          title="Pin without changing output"
         >
           PIN
         </button>

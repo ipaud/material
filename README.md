@@ -7,6 +7,8 @@ technique, a repeated material, and signals that drive them — and then play
 with the rules until the image becomes something you would not have drawn by
 hand.
 
+Build a visual system. Explore what it can become. Play it.
+
 ```
 SOURCE → TECHNIQUE → MATERIAL → MODULATION → OUTPUT
 ```
@@ -50,7 +52,7 @@ Since Creative Expansion 01 you do not need to import anything to start.
 
 1. Add a **Noise Field** or **Grid** source. The instrument is now running.
 2. Put a technique on it — try **Time Field**, then **Feedback Zoom**.
-3. Pin two Looks and morph between them with a transition style.
+3. Pin two states, make them Looks, and morph between them.
 
 See [CREATIVE_GUIDE.md](docs/CREATIVE_GUIDE.md) for what the seven creative
 areas do and which combinations are worth knowing.
@@ -62,8 +64,9 @@ areas do and which combinations are worth knowing.
 3. Hold **`** or press **A/B** to compare against the untouched source.
 4. Add a mapping: **+ ADD MAPPING**, choose `Bass → Scale`, press **Space**.
 5. Hit **DETECT** or **TAP** in the timeline to get on the beat grid.
-6. Press **P** a few times to pin Looks, then **1**–**9** to play them.
-7. Switch to the **PERFORM** workspace (⌘⌥3), set **SYNC** to `BAR`, and change Looks
+6. Press **P** to save Pins. In Library, **Make Look** assigns a Pin to a playback slot.
+   Then use **1**–**9** to play Looks.
+7. Switch to the **PLAY** workspace (⌘⌥3), set **SYNC** to `BAR`, and change Looks
    on the downbeat.
 8. Press **G** to mutate what is playing, hold **B** to audition it.
 9. **Export** — still, PNG sequence, H.264, or ProRes.
@@ -84,14 +87,15 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | Motion     | Amount, activity, direction X/Y and the CENTRE of movement — from optical flow, no tracking model             |
 | Modulation | Any signal → any modulatable parameter: Add or Set, input/output range, curve, smoothing, freeze              |
 | Triggers   | Beat / bar / division / onset / marker → pulses, freeze, Look and morph actions, all quantizable              |
-| Looks      | Nine slots with thumbnails, keyboard recall, and morphs over seconds, beats or bars                           |
+| Pins       | Project-persisted snapshots; Make Look assigns one of nine performance slots                                  |
+| Looks      | Nine slots with keyboard recall and morphs over seconds, beats or bars                                        |
 | MIDI       | Web MIDI, MIDI Learn for parameters, macros and actions, pickup / soft takeover                               |
-| Perform    | Dedicated workspace: Look strip, macros, trigger pads, quantized actions, minimal HUD                         |
+| Play       | Dedicated workspace: Look strip, macros, trigger pads, quantized actions, minimal HUD                         |
 | Capture    | Record what you play as a Take — faders, macros, Looks, Morphs, Freeze — replay it, edit it, export it        |
 | Mutate     | CURRENT / CANDIDATE — generate, audition, apply or pin without disturbing the output                          |
 | Explore    | Seeded variations, parameter locks, MUTATE around a pick                                                      |
 | Export     | PNG still, PNG sequence (alpha), H.264 MP4, ProRes 422 HQ, ProRes 4444 (alpha)                                |
-| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v5 migration                      |
+| Projects   | `.material` JSON, autosave + crash recovery, relink for offline media, v1 → v7 migration                      |
 | Live       | Camera / Screen / Window sources, intent-gated permissions, realtime temporal history, no audio capture       |
 | Output     | Display destination: fullscreen on a chosen monitor, passive replica, live fan-out                            |
 
@@ -110,7 +114,7 @@ Longer walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 | `shift` + slider drag          | fine control                                   |
 | double-click a slider          | reset to default                               |
 | `1`–`9`, `⇧1`–`⇧9`             | apply / overwrite Look slots                   |
-| `P`, `F`                       | pin Look, freeze all                           |
+| `P`, `F`                       | save Pin, freeze all                           |
 | `R`, `T`                       | arm recording, play the selected Take          |
 | `Q`, `M`, `Tab`, `Esc`         | quantization, morph, HUD, cancel (Performance) |
 | `Z X C V`                      | trigger pads (Performance)                     |
@@ -133,8 +137,11 @@ title bar.
 ## Current limitations
 
 - macOS (Apple Silicon) and Windows (64-bit). The Windows build is new: the suite and a start of the app run on a real Windows machine in CI, but it has had little use by hand.
+- Performance depends on GPU, resolution and active techniques; published measurements use a 1080p composition on Apple Silicon.
+- `.material` projects reference media by absolute path; media is not embedded. Keep source files with the project or relink them after moving it. Unknown project-format versions are refused rather than guessed.
 - One Output display at a time; live sources cannot be exported to
   sequence/movie; window capture identity must be reselected per session.
+- Live capture depends on operating-system permissions. On macOS, camera access is requested at START; screen/window capture may require System Settings approval and an app relaunch.
 - Temporal history reaches **2.29 s** (56 slots at 1/24 s) at proxy resolution.
 - Colour is sRGB throughout. No Rec.709/linear/HDR pipeline yet.
 - Keyframes are modelled in the project format but have no UI.
@@ -162,6 +169,7 @@ title bar.
 ## Documentation
 
 **Start here** — [GETTING_STARTED](docs/GETTING_STARTED.md) ·
+[PRODUCT_PRINCIPLES](docs/PRODUCT_PRINCIPLES.md) ·
 [SHORTCUTS](docs/SHORTCUTS.md) ·
 [RELEASE_NOTES](docs/RELEASE_NOTES.md)
 

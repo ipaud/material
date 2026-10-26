@@ -13,14 +13,14 @@
   /* Text */
   --text-0: rgba(255, 255, 255, 0.92); /* primary */
   --text-1: rgba(255, 255, 255, 0.6); /* secondary */
-  --text-2: rgba(255, 255, 255, 0.34); /* tertiary / labels */
+  --text-2: rgba(255, 255, 255, 0.5); /* tertiary / labels; AA on base surfaces */
 
   /* Signal colors — used sparingly */
   --accent: #ffd800; /* Signal Yellow: playhead, primary action, active state */
   --accent-hover: #ffe238;
   --accent-dim: rgba(255, 216, 0, 0.38);
   --mod: #4fb3bf; /* modulation-driven values, CANDIDATE state */
-  --danger: #d1564f;
+  --danger: #dc6b64;
   --ok: #6aa06a;
 
   /* Type */

@@ -40,6 +40,7 @@ export const simulationDefinitions: TechniqueDefinition[] = [
     description:
       'Two chemicals feed and consume each other on a grid — coral, worms, mazes and spots emerge from two numbers.',
     category: 'image',
+    chainBehavior: 'simulation',
     sections: [
       {
         label: 'Chemistry',
@@ -70,6 +71,7 @@ export const simulationDefinitions: TechniqueDefinition[] = [
     description:
       'Life-like cellular automata: a few birth/survival rules produce colonies, mazes and endless emergence.',
     category: 'image',
+    chainBehavior: 'simulation',
     sections: [
       {
         label: 'Rule',
