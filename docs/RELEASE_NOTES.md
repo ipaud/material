@@ -1,5 +1,20 @@
 # Release Notes
 
+## v0.9.1 — EACH LAYER ITS OWN TEXT
+
+Fixes for 0.9.0. Same project format: 0.9.1 opens and saves exactly what 0.9.0 does.
+
+- **Two typography layers showed the wrong letters.** Every layer used the texture of the *selected* layer's
+  material, so a second typography layer drew the first one's glyphs with its own count and spacing. The same
+  happened with two custom-image materials. Each layer now loads its own. Projects with more than one such layer
+  render differently from 0.9.0 — correctly. Projects with one are unchanged.
+- **Typing in the typography Text field** is now one undo step for the whole edit, not one per key.
+- **⇧ + number on an empty Look slot** is one undo step. Undoing it no longer leaves a stray Pin behind.
+- **Morphing to a Look saved before chains** keeps the layer's chain the whole way through, instead of fading it
+  out and snapping it back at the end.
+- **Exports at a size other than the composition** with a technique chain no longer reallocate the chain's
+  working buffers on every frame.
+
 ## v0.9.0 — CHAINS, RECIPES, A FIRST RUN THAT WORKS
 
 The last feature release before 1.0. Build a visual system, explore what it can become, play it.
