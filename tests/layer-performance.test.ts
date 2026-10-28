@@ -54,6 +54,40 @@ describe('v0.6D — a Look is the whole composition', () => {
     expect(captured[2]!.enabled).toBe(false);
   });
 
+  it('captures and restores input routing and activity windows', () => {
+    const p = stack();
+    const source = {
+      ...p.layers[0]!,
+      input: 'below' as const,
+      activity: { start: 2, end: 8, fadeIn: 1, fadeOut: 1 },
+    };
+    const saved = lookFrom({ ...p, layers: [source, ...p.layers.slice(1)] });
+    const changed: Project = {
+      ...p,
+      layers: [{ ...source, input: 'source', activity: null }, ...p.layers.slice(1)],
+    };
+
+    const restored = projectWithLayerLooks(changed, saved).layers[0]!;
+    expect(restored.input).toBe('below');
+    expect(restored.activity).toEqual({ start: 2, end: 8, fadeIn: 1, fadeOut: 1 });
+  });
+
+  it('legacy layer snapshots preserve input routing and activity when fields are absent', () => {
+    const p = stack();
+    const current = {
+      ...p.layers[0]!,
+      input: 'below' as const,
+      activity: { start: 3, end: null, fadeIn: 0, fadeOut: 0 },
+    };
+    const legacy = lookFrom(p, {
+      layers: captureLayerLooks(p).map(({ input: _input, activity: _activity, ...layer }) => layer),
+    });
+
+    const restored = projectWithLayerLooks({ ...p, layers: [current, ...p.layers.slice(1)] }, legacy).layers[0]!;
+    expect(restored.input).toBe('below');
+    expect(restored.activity).toEqual(current.activity);
+  });
+
   it('recall is idempotent — a layer the Look does not mention is removed', () => {
     const p = stack();
     const look = lookFrom(p);
@@ -72,6 +106,16 @@ describe('v0.6D — a Look is the whole composition', () => {
     const look = lookFrom(p);
     const restored = projectWithLayerLooks(p, look);
     expect(restored.layers.map((l) => l.id)).toEqual(p.layers.map((l) => l.id));
+  });
+
+  it('recall restores pinned chain stage ids, which stage modulations target', () => {
+    const p = stack();
+    const pinned = { ...p.layers[0]!, techniqueChain: [{ id: 'stage-pinned', techniqueId: 'mosaic', enabled: true, params: {} }] };
+    const look = lookFrom({ ...p, layers: [pinned, ...p.layers.slice(1)] });
+    // The performer deleted that stage and added another after pinning.
+    const edited = { ...pinned, techniqueChain: [{ id: 'stage-live', techniqueId: 'echo', enabled: true, params: {} }] };
+    const restored = projectWithLayerLooks({ ...p, layers: [edited, ...p.layers.slice(1)] }, look);
+    expect(restored.layers[0]!.techniqueChain.map((s) => s.id)).toEqual(['stage-pinned']);
   });
 
   it('recall does not re-solo something the performer released', () => {

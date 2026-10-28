@@ -82,6 +82,7 @@ export interface FrameState {
     | undefined;
   /** v0.6E: every layer's resolved parameters and opacity. */
   layerParams?: Record<string, ParamRecord> | undefined;
+  layerStageParams?: Record<string, Record<string, ParamRecord>> | undefined;
   layerOpacity?: Record<string, number> | undefined;
   layerSourceParams?: Record<string, ParamRecord> | undefined;
   materialState: MaterialState | null;
@@ -159,6 +160,7 @@ class RuntimeBus {
      * unchanged. */
     stack?: {
       layerParams: Record<string, ParamRecord>;
+      layerStageParams: Record<string, Record<string, ParamRecord>>;
       layerOpacity: Record<string, number>;
       layerSourceParams: Record<string, ParamRecord>;
     },
@@ -169,6 +171,7 @@ class RuntimeBus {
       temporalActive,
       finalParams,
       layerParams: stack?.layerParams,
+      layerStageParams: stack?.layerStageParams,
       layerOpacity: stack?.layerOpacity,
       layerSourceParams: stack?.layerSourceParams,
       // CE1F: resolved generator params (authority = editor). Absent when no

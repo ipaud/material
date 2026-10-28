@@ -21,6 +21,14 @@
   }
 }
 
+@media (max-width: 760px) {
+  .explore-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(220px, 1fr) minmax(100px, auto) minmax(100px, auto);
+    overflow-y: auto;
+  }
+}
+
 /* ---- Stage (live CURRENT / auditioned CANDIDATE) ---- */
 .explore-stage {
   display: flex;
@@ -328,12 +336,19 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  height: 24px;
+  min-height: 24px;
   padding: 0 var(--sp-4);
+  flex-wrap: wrap;
+  padding-block: var(--sp-1);
 }
 .population-counts {
   display: flex;
   gap: var(--sp-1);
+}
+.population-modes {
+  display: flex;
+  gap: var(--sp-1);
+  align-items: center;
 }
 .population-spacer {
   flex: 1;
@@ -485,4 +500,18 @@
 }
 .explore-actions-spacer {
   flex: 1;
+}
+
+@media (max-width: 760px) {
+  .explore-actions {
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-block: var(--sp-3);
+  }
+
+  .explore-actions-spacer {
+    display: none;
+  }
 }

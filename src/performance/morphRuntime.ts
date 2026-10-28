@@ -306,6 +306,9 @@ class MorphRuntime {
                   enabled: true,
                   params: l.technique?.params ?? identity.params,
                 },
+                ...(identity.techniqueChain ? {
+                  techniqueChain: identity.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })),
+                } : {}),
               }
             : l,
         ),

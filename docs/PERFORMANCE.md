@@ -14,6 +14,10 @@ per-target `amount / min / max / invert / curve / enabled`. Evaluation is
 pure and stateless (`applyMacros`), sharing the modulation arithmetic
 (`amount × shaped × span`, additive, clamped to the parameter range):
 
+`min` / `max` shape each destination's output window; signed `amount` sets its
+direction and strength. Invert and curve shape the macro's response. Each
+destination exposes these controls in BUILD.
+
 ```
 look/morph state → base params
   → MACROS                    (live performance layer)

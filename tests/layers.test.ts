@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   MAX_LAYERS,
+  MAX_NEW_LAYERS,
   MIGRATED_LAYER_ID,
   blendModeSchema,
   createEmptyProject,
@@ -16,6 +17,8 @@ import {
 } from '@shared/schemas/project';
 import { PROJECT_FORMAT_VERSION } from '@shared/constants/app';
 import { blendChannel, compositeChannel } from '@/rendering/layers/LayerCompositor';
+import { addLayer } from '@/projects/layerActions';
+import { useProjectStore } from '@/state/projectStore';
 
 /**
  * v0.6A — the layer model and the migration that has to be invisible.
@@ -39,6 +42,25 @@ describe('the layer cap is a product decision, not an array length', () => {
       layers: Array.from({ length: MAX_LAYERS + 1 }, (_, i) => emptyLayer(`l${i}`)),
     };
     expect(projectSchema.safeParse(tooMany).success).toBe(false);
+  });
+
+  it('limits new compositions to four while loading existing eight-layer projects', () => {
+    expect(MAX_NEW_LAYERS).toBe(4);
+    const base = createEmptyProject();
+    const legacyEight = {
+      ...base,
+      layers: Array.from({ length: MAX_LAYERS }, (_, i) => emptyLayer(`legacy-${i}`)),
+    };
+    expect(projectSchema.safeParse(legacyEight).success).toBe(true);
+    useProjectStore.setState({ project: base });
+    expect(addLayer()).not.toBeNull();
+    expect(addLayer()).not.toBeNull();
+    expect(addLayer()).not.toBeNull();
+    expect(useProjectStore.getState().project.layers).toHaveLength(4);
+    expect(addLayer()).toBeNull();
+    useProjectStore.setState({ project: legacyEight });
+    expect(addLayer()).toBeNull();
+    useProjectStore.getState().newProject();
   });
 
   it('a composition always has at least one layer', () => {

@@ -258,8 +258,8 @@
 }
 
 .param-track:focus-visible {
-  outline: 1px solid var(--accent, currentColor);
-  outline-offset: 1px;
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 2px;
 }
 .param-value {
   cursor: text;

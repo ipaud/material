@@ -10,7 +10,7 @@ import { LayerStrip } from '@/performance/ui/LayerStrip';
 import { TakeStrip } from '@/performance/ui/TakeStrip';
 
 /**
- * PERFORM — play the system. Output dominates; the status rail answers
+ * PLAY — perform the system. Output dominates; the status rail answers
  * position/tempo/signals/MIDI at a glance; Looks, Macros and Actions are
  * flat strips below. HUD (Tab) collapses everything except output and the
  * trust-critical states.
@@ -25,7 +25,7 @@ export function PerformWorkspace() {
         <main className="perf-stage empty-stage">
           <WorkspaceEmpty
             title="BUILD A SYSTEM FIRST"
-            hint="PERFORM plays pinned Looks and Macros — there is nothing to play yet"
+            hint="PLAY runs pinned Looks and Macros — build a system first"
           />
         </main>
       </div>

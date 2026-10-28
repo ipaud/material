@@ -88,9 +88,9 @@ software value waits until you sweep across it, so nothing jumps. After a Look
 change the affected knobs go back to waiting — which is exactly what makes
 Look switching safe with fixed controllers.
 
-## 9. Perform
+## 9. Play
 
-Switch to the **PERFORM** workspace (⌘⌥3). The output takes over; below it sit the
+Switch to the **PLAY** workspace (⌘⌥3). The output takes over; below it sit the
 nine Look slots, your macros, the actions and the musical readout.
 
 Set **QUANT** to `BAR`. Now pressing `1`–`9` queues the Look and it lands on
@@ -104,10 +104,10 @@ interface back to output, Looks and macros.
 
 A macro is one 0–1 control wired to several parameters at once. Build them in
 BUILD (**Inspector → Macros → + ADD**, then **+ TARGET** per parameter);
-play them in PERFORMANCE.
+play them in PLAY.
 
 This is where MATERIAL's depth folds into something playable. In BUILD you
-might have five separate relationships; in PERFORMANCE you have `MEMORY 0.73`,
+might have five separate relationships; in PLAY you have `MEMORY 0.73`,
 and behind it four parameters move by different amounts.
 
 Right-click a macro → **MIDI Learn** to put it under a physical knob.

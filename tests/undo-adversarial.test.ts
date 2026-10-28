@@ -6,7 +6,7 @@ import { candidateRuntime } from '@/performance/candidateRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { captureLookCore } from '@/performance/lookCore';
 import { setMacroValue } from '@/performance/performanceActions';
-import { applyLook, pinCurrentLook, updateLook } from '@/projects/lookActions';
+import { applyLook, makeLook, pinCurrentLook, updateLook } from '@/projects/lookActions';
 import { freezeAll, clearAllFreezes } from '@/modulation/modulationActions';
 import { liveScheduler } from '@/signals/triggerRuntime';
 
@@ -180,5 +180,20 @@ describe('long undo / redo sequences', () => {
     const snapshot = JSON.stringify(store().project);
     store().undo();
     expect(JSON.stringify(store().project)).not.toBe(snapshot);
+  });
+});
+
+describe('Pins', () => {
+  beforeEach(() => {
+    useProjectStore.getState().loadProject('', { ...project(), pinnedLooks: [], activeLookId: null });
+  });
+
+  test('P captures an unslotted PIN, then Make Look assigns first free slot', () => {
+    const pin = pinCurrentLook();
+    expect(pin).toMatchObject({ label: 'PIN 001', slot: null });
+    expect(useProjectStore.getState().project.activeLookId).toBeNull();
+
+    expect(makeLook(pin!.id)).toBe(true);
+    expect(useProjectStore.getState().project.pinnedLooks[0]).toMatchObject({ label: 'LOOK 01', slot: 1 });
   });
 });

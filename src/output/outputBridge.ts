@@ -60,6 +60,7 @@ function toFrameMsg(frame: FrameState): FrameStateMsg {
     materialState: frame.materialState,
     // v0.6E: the rest of the stack, already resolved by the editor.
     layerParams: frame.layerParams,
+    layerStageParams: frame.layerStageParams,
     layerOpacity: frame.layerOpacity,
     layerSourceParams: frame.layerSourceParams,
   };

@@ -3,10 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
+import { assessTechniqueChain } from '@/techniques/chainCompatibility';
 import { defaultParams } from '@/techniques/types';
 import { groupParams } from './paramGroups';
 import { ParameterSlider } from '@/components/ParameterSlider';
 import { BUILTIN_MATERIALS } from '@/materials/builtins';
+import { TYPOGRAPHY_DEFAULTS } from '@/materials/typography';
 import { PresetBar } from './PresetBar';
 import { ModulationSection } from './ModulationSection';
 import { SignalScope } from './SignalScope';
@@ -16,7 +18,7 @@ import { MidiSection } from './MidiSection';
 import { MacrosSection } from './MacrosSection';
 import { PatternsSection } from '@/patterns/PatternsSection';
 import { MidiParamWrap } from './MidiParamWrap';
-import { performSelectedParam } from '@/performance/take/gestures';
+import { performSelectedParam, performTechniqueStageParam } from '@/performance/take/gestures';
 import type { ParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
 import { compileErrorFor, subscribePacks } from '@/shaders/packRegistry';
@@ -72,7 +74,8 @@ function ShaderStatus({ techniqueId }: { techniqueId: string | null }): React.Re
 
 export function InspectorPanel() {
   const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
-  const material = useProjectStore((s) => s.project.material);
+  const techniqueChain = useProjectStore((s) => selectedLayerOf(s.project).techniqueChain);
+  const material = useProjectStore((s) => selectedLayerOf(s.project).material);
   const hasSource = useProjectStore((s) => s.project.composition.sourceId !== null);
   const liveSource = useProjectStore((s) => {
     const src = s.project.sources.find((x) => x.id === s.project.composition.sourceId);
@@ -89,7 +92,14 @@ export function InspectorPanel() {
 
   const setMaterial = useCallback(
     (patch: Partial<typeof material>) => {
-      apply((p) => ({ ...p, material: { ...p.material, ...patch } }));
+      apply((p) => {
+        const layerId = p.selectedLayerId;
+        const current = selectedLayerOf(p).material;
+        const next = patch.materialId === 'typography'
+          ? { ...TYPOGRAPHY_DEFAULTS, ...patch }
+          : { ...current, ...patch };
+        return { ...p, material: next, layers: p.layers.map((layer) => layer.id === layerId ? { ...layer, material: next } : layer) };
+      });
     },
     [apply],
   );
@@ -106,6 +116,10 @@ export function InspectorPanel() {
     liveSource && technique !== null && techniqueNeedsTemporal(technique.techniqueId, technique.params);
   // Parameter ids currently driven by an enabled mapping.
   const modulatedTargets = new Set(modulations.filter((m) => m.enabled).map((m) => m.target));
+  const chainAssessment = technique ? assessTechniqueChain([
+    { techniqueId: technique.techniqueId, params: technique.params },
+    ...techniqueChain.filter((stage) => stage.enabled),
+  ]) : null;
 
   return (
     <>
@@ -178,6 +192,62 @@ export function InspectorPanel() {
                 </div>
               </div>
             </div>
+
+            <CollapsibleSection label="Technique chain" count={techniqueChain.length} defaultOpen={false}>
+              <div className="inspector-group">
+                {techniqueChain.length > 0 && chainAssessment && !chainAssessment.compatible && (
+                  <p className="inspector-live-note">Chain paused: {chainAssessment.reason}</p>
+                )}
+                {techniqueChain.map((stage, index) => {
+                  const stageDefinition = getTechnique(stage.techniqueId);
+                  if (!stageDefinition) return null;
+                  return (
+                    <CollapsibleSection key={stage.id} label={`${index + 2}. ${stageDefinition.name}`} count={0} defaultOpen={false}>
+                      <div className="param-row">
+                        <span className="param-label">Stage order</span>
+                        <div className="param-control">
+                          <button className="button" aria-label={`Move ${stageDefinition.name} up`} disabled={index === 0}
+                            onClick={() => moveTechniqueStage(index, -1)}>↑</button>
+                          <button className="button" aria-label={`Move ${stageDefinition.name} down`} disabled={index === techniqueChain.length - 1}
+                            onClick={() => moveTechniqueStage(index, 1)}>↓</button>
+                          <button className="button" aria-label={`Remove ${stageDefinition.name}`} onClick={() => removeTechniqueStage(index)}>Remove</button>
+                        </div>
+                      </div>
+                      {groupParams(stageDefinition).map((group) => (
+                        <CollapsibleSection key={group.label} label={group.label} count={0}>
+                          {group.params.map((param) => (
+                            <MidiParamWrap key={param.id} paramId={param.id} stageId={stage.id}>
+                              <ParamControl def={param} value={stage.params[param.id] ?? param.default}
+                                onChange={(value) => performTechniqueStageParam(stage.id, param.id, value)}
+                                onDragStart={beginTransient} onDragEnd={commitTransient} />
+                            </MidiParamWrap>
+                          ))}
+                        </CollapsibleSection>
+                      ))}
+                    </CollapsibleSection>
+                  );
+                })}
+                {techniqueChain.length < 2 && (
+                  <div className="param-row">
+                    <span className="param-label">Add stage</span>
+                    <div className="param-control">
+                      <select className="select" aria-label="Add technique stage" value=""
+                        onChange={(event) => addTechniqueStage(event.target.value)}>
+                        <option value="">Choose compatible technique…</option>
+                        {listTechniques().filter((candidate) => assessTechniqueChain([
+                          { techniqueId: technique.techniqueId, params: technique.params },
+                          ...techniqueChain.map((stage) => ({ techniqueId: stage.techniqueId, params: stage.params })),
+                          { techniqueId: candidate.id, params: defaultParams(candidate) },
+                        ]).compatible).map((candidate) => (
+                          <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+                <p className="inspector-live-note">Takes, MIDI, modulation and Morph preserve extra-stage parameters by stable ID.</p>
+              </div>
+            </CollapsibleSection>
 
             {/* v0.5: a shader from a pack can fail to compile, or its pack can
                 be gone. Either way the user needs the pack, the shader and the
@@ -302,6 +372,25 @@ export function InspectorPanel() {
                   </select>
                 </div>
               </div>
+              {material.materialId === 'typography' && (
+                <>
+                  <label className="param-row"><span className="param-label">Text</span>
+                    <textarea className="input" maxLength={4096} value={String(material.params.text ?? '')}
+                      onChange={(e) => setMaterial({ params: { ...material.params, text: e.target.value } })} />
+                  </label>
+                  <label className="param-row"><span className="param-label">Render</span><div className="param-control">
+                    <select className="select" aria-label="Typography render mode" value={String(material.params.mode ?? 'character')}
+                      onChange={(e) => setMaterial({ params: { ...material.params, mode: e.target.value } })}>
+                      <option value="character">Character</option><option value="word">Word</option><option value="phrase">Phrase</option>
+                    </select></div></label>
+                  <ParameterSlider label="Weight" value={Number(material.params.weight ?? 500)} min={100} max={900} step={100} defaultValue={500}
+                    onChange={(v) => setMaterial({ params: { ...material.params, weight: v } })} onDragStart={beginTransient} onDragEnd={commitTransient} />
+                  <ParameterSlider label="Size" value={Number(material.params.size ?? 320)} min={24} max={512} step={1} defaultValue={320}
+                    onChange={(v) => setMaterial({ params: { ...material.params, size: v } })} onDragStart={beginTransient} onDragEnd={commitTransient} />
+                  <ParameterSlider label="Tracking" value={Number(material.params.tracking ?? 2)} min={-20} max={80} step={1} defaultValue={2}
+                    onChange={(v) => setMaterial({ params: { ...material.params, tracking: v } })} onDragStart={beginTransient} onDragEnd={commitTransient} />
+                </>
+              )}
               <ParameterSlider
                 label="Aspect"
                 value={typeof material.params.aspect === 'number' ? material.params.aspect : 1}
@@ -319,6 +408,31 @@ export function InspectorPanel() {
       </div>
     </>
   );
+
+  function addTechniqueStage(id: string) {
+    const definition = getTechnique(id);
+    if (!definition || techniqueChain.length >= 2) return;
+    apply((p) => ({ ...p, layers: p.layers.map((layer) => layer.id === selectedLayerOf(p).id
+      ? { ...layer, techniqueChain: [...layer.techniqueChain, { id: uid('tech'), techniqueId: id, enabled: true, params: defaultParams(definition) }] }
+      : layer) }));
+  }
+
+  function removeTechniqueStage(index: number) {
+    apply((p) => ({ ...p, layers: p.layers.map((layer) => layer.id === selectedLayerOf(p).id
+      ? { ...layer, techniqueChain: layer.techniqueChain.filter((_, i) => i !== index) }
+      : layer) }));
+  }
+
+  function moveTechniqueStage(index: number, delta: number) {
+    apply((p) => ({ ...p, layers: p.layers.map((layer) => {
+      if (layer.id !== selectedLayerOf(p).id) return layer;
+      const next = index + delta;
+      if (next < 0 || next >= layer.techniqueChain.length) return layer;
+      const chain = [...layer.techniqueChain];
+      [chain[index], chain[next]] = [chain[next]!, chain[index]!];
+      return { ...layer, techniqueChain: chain };
+    }) }));
+  }
 }
 
 function CollapsibleSection({

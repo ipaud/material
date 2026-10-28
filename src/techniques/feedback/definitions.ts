@@ -54,6 +54,7 @@ function def(
     name,
     description,
     category: 'feedback',
+    chainBehavior: 'feedback',
     sections,
     createRenderer: () => new FeedbackRenderer(variant, bloom),
   };

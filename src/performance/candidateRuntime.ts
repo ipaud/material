@@ -9,6 +9,7 @@ import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { blockedByExport } from '@/export/exportGuard';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { captureLookCore, projectWithLookCore } from '@/performance/lookCore';
+import { createPin } from '@/projects/lookActions';
 import { mutateLookCore, type MutationIntensity, type MutationLocks, type MutationMetadata } from '@/performance/mutation';
 import { getTechnique } from '@/techniques/registry';
 import { uid } from '@/utils/id';
@@ -278,38 +279,12 @@ class CandidateRuntime {
     const candidate = this.candidate;
     if (!candidate) return null;
     const { project } = useProjectStore.getState();
-    let slot: number | null = null;
-    for (let s = 1; s <= 9; s++) {
-      if (!project.pinnedLooks.some((l) => l.slot === s)) {
-        slot = s;
-        break;
-      }
-    }
-    const look: PinnedLook = {
-      id: uid('look'),
-      createdAt: new Date().toISOString(),
-      label: candidate.label,
-      note: `seed ${candidate.seed} · gen ${candidate.metadata.generation}`,
-      slot,
-      seed: candidate.core.seed,
-      thumbnail: candidate.thumbnail,
-      techniques: [
-        {
-          id: uid('tech'),
-          techniqueId: candidate.core.techniqueId,
-          enabled: true,
-          params: { ...candidate.core.params },
-        },
-      ],
-      material: candidate.core.material,
-      modulations: candidate.core.modulations.map((m) => ({ ...m })),
-      triggers: candidate.core.triggers.map((t) => ({ ...t })),
-    };
-    useProjectStore.getState().apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, look] }));
-    useUiStore
-      .getState()
-      .pushToast('info', slot ? `Pinned ${look.label} → slot ${slot}` : `Pinned ${look.label}`);
-    return look;
+    const snapshot = projectWithLookCore(project, candidate.core, project.activeLookId);
+    const pin = createPin(project, snapshot, candidate.thumbnail, `seed ${candidate.seed} · gen ${candidate.metadata.generation}`);
+    if (!pin) return null;
+    useProjectStore.getState().apply((p) => ({ ...p, pinnedLooks: [...p.pinnedLooks, pin] }));
+    useUiStore.getState().pushToast('info', `Pinned ${pin.label}`);
+    return pin;
   }
 
   discard(): void {

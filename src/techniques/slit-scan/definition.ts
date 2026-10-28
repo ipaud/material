@@ -5,6 +5,7 @@ export const slitScanDefinition: TechniqueDefinition = {
   id: 'slit-scan',
   name: 'Slit Scan',
   category: 'time',
+  chainBehavior: 'temporal',
   description: 'Maps image position to different moments in time.',
   sections: [
     {

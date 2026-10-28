@@ -34,7 +34,7 @@ export interface LayerRuntime {
   setComposition(width: number, height: number, background: string): void;
   setSeed(seed: number): void;
   setTime(timeSec: number): void;
-  setParamTransform(fn: ((base: ParamRecord, timeSec: number) => ParamRecord) | null): void;
+  setParamTransform(fn: ((base: ParamRecord, timeSec: number, stageId?: string) => ParamRecord) | null): void;
   setSource(texture: THREE.Texture | null): void;
   /**
    * Serial layers: the composite beneath this layer, for THIS frame. While set it
@@ -89,6 +89,10 @@ export interface LayerRuntime {
   resetTemporal(): void;
   resetFeedback(): void;
   setTechniqueRenderer(renderer: TechniqueRenderer | null): void;
+  setTechniqueChain(stages: readonly { stageId: string; renderer: TechniqueRenderer; params: ParamRecord }[]): void;
+  setTechniqueStageParams(params: ReadonlyMap<string, ParamRecord>): void;
+  setTechniqueScratchTargets(targets: readonly [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null): void;
+  readonly hasTechniqueChain: boolean;
   setTemporalEnabled(enabled: boolean): void;
   resetFlowPair(): void;
   setMaterialTexture(texture: THREE.Texture | null): void;
@@ -105,6 +109,7 @@ export interface LayerRuntime {
   // ---- authority ------------------------------------------------------------
   /** What this layer last resolved for its technique, for the host to publish. */
   readonly lastResolved: ParamRecord | null;
+  readonly lastResolvedStageParams: Readonly<Record<string, ParamRecord>>;
   resolvedSourceParams(timeSec?: number): ParamRecord;
 }
 

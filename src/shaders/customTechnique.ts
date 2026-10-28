@@ -76,6 +76,7 @@ export function customTechniqueDefinition(
     id: customTechniqueId(shader.packId, shader.entry.id),
     name: shader.entry.name,
     category: 'image',
+    chainBehavior: 'stateless',
     description: shader.entry.description || `${shader.packName} — custom shader`,
     sections: toSections(shader.entry.params),
     createRenderer: () => new CustomShaderRenderer(shader, onState),
@@ -99,6 +100,7 @@ export function missingShaderDefinition(techniqueId: string): TechniqueDefinitio
     id: techniqueId,
     name: 'Missing Shader Pack',
     category: 'image',
+    chainBehavior: 'unsupported',
     description:
       'This project uses a shader from a pack that is not installed. Install or reload the pack to restore it — the settings are preserved in the meantime.',
     sections: [{ label: 'Structure', params: [] }],

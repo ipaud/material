@@ -20,11 +20,11 @@ describe('navigation is the only workspace surface', () => {
   it('shows exactly the four UI v2 workspaces — no legacy labels', () => {
     render(<WorkspaceNav />);
     const labels = screen.getAllByRole('button').map((b) => b.textContent);
-    expect(labels).toEqual(['BUILD', 'EXPLORE', 'PERFORM', 'OUTPUT']);
+    expect(labels).toEqual(['BUILD', 'EXPLORE', 'PLAY', 'OUTPUT']);
     expect(screen.queryByText('CREATE')).not.toBeInTheDocument();
     expect(screen.queryByText('TECHNIQUES')).not.toBeInTheDocument();
     expect(screen.queryByText('MODULATION')).not.toBeInTheDocument();
-    expect(screen.queryByText('PERFORMANCE')).not.toBeInTheDocument();
+    expect(screen.queryByText('PERFORM')).not.toBeInTheDocument();
   });
 
   it('has no legacy bottom tab strip', () => {
@@ -38,9 +38,9 @@ describe('shortcuts overlay', () => {
     useUiStore.setState({ showShortcuts: true });
     render(<ShortcutsOverlay />);
     expect(screen.getByText('Global')).toBeInTheDocument();
-    expect(screen.getByText('Candidate (Explore + Perform)')).toBeInTheDocument();
-    expect(screen.getByText('Perform only')).toBeInTheDocument();
-    expect(screen.getByText('BUILD · EXPLORE · PERFORM · OUTPUT')).toBeInTheDocument();
+    expect(screen.getByText('Candidate (Explore + Play)')).toBeInTheDocument();
+    expect(screen.getByText('Play only')).toBeInTheDocument();
+    expect(screen.getByText('BUILD · EXPLORE · PLAY · OUTPUT')).toBeInTheDocument();
     // Legacy workspace names must not appear as key targets.
     expect(screen.queryByText(/PERFORMANCE/)).not.toBeInTheDocument();
   });

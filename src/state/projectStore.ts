@@ -11,6 +11,9 @@ interface ProjectStore {
   future: Project[];
   /** Snapshot taken at the start of a transient gesture (slider drag). */
   transientBase: Project | null;
+  /** Renderer-only project during a held comparison; never persisted or edited. */
+  previewProject: Project | null;
+  previewLabel: string | null;
   /** Bumped when the document is REPLACED (new / open / recover), never on edits. */
   projectGeneration: number;
   /** See runSilently. */
@@ -27,6 +30,8 @@ interface ProjectStore {
    * commit happens at morph completion.
    */
   applySilent: (updater: (p: Project) => Project) => void;
+  beginPreview: (project: Project, label?: string | null) => void;
+  cancelPreview: () => void;
   /**
    * Run `fn` with every `apply` inside it behaving as `applySilent`.
    *
@@ -60,15 +65,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   past: [],
   future: [],
   transientBase: null,
+  previewProject: null,
+  previewLabel: null,
   projectGeneration: 0,
   silent: false,
 
   apply: (updater) => {
-    const { project, past, transientBase, silent } = get();
+    const state = get();
+    const { project, past, transientBase, silent } = state;
     const next = updater(project);
-    if (next === project) return;
+    if (next === project) {
+      if (state.previewProject) set({ previewProject: null, previewLabel: null });
+      return;
+    }
     if (silent) {
-      set({ project: next });
+      set({ project: next, previewProject: null, previewLabel: null });
       return;
     }
     if (transientBase !== null) {
@@ -78,6 +89,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
     set({
       project: next,
+      previewProject: null,
+      previewLabel: null,
       past: [...past.slice(-(HISTORY_LIMIT - 1)), project],
       future: [],
       dirty: true,
@@ -97,10 +110,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   applySilent: (updater) => {
     const { project } = get();
     const next = updater(project);
-    if (next !== project) set({ project: next });
+    if (next !== project || get().previewProject) set({ project: next, previewProject: null, previewLabel: null });
+  },
+
+  beginPreview: (preview, label = 'Preview') => {
+    const { transientBase } = get();
+    if (transientBase !== null) return;
+    set({ previewProject: preview, previewLabel: label });
+  },
+
+  cancelPreview: () => {
+    if (get().previewProject) set({ previewProject: null, previewLabel: null });
   },
 
   beginTransient: () => {
+    get().cancelPreview();
     if (get().transientBase === null) {
       set({ transientBase: get().project });
     }
@@ -128,6 +152,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   undo: () => {
+    get().cancelPreview();
     const { past, future, project, transientBase } = get();
     if (transientBase !== null || past.length === 0) return;
     const previous = past[past.length - 1];
@@ -141,6 +166,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   redo: () => {
+    get().cancelPreview();
     const { past, future, project, transientBase } = get();
     if (transientBase !== null || future.length === 0) return;
     const next = future[0];
@@ -161,6 +187,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       past: [],
       future: [],
       transientBase: null,
+      previewProject: null,
+      previewLabel: null,
       projectGeneration: s.projectGeneration + 1,
     }));
   },
@@ -173,6 +201,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       past: [],
       future: [],
       transientBase: null,
+      previewProject: null,
+      previewLabel: null,
       projectGeneration: s.projectGeneration + 1,
     }));
   },

@@ -37,6 +37,20 @@ Any imported SVG or raster image becomes the repeated element.
 Both are contain-fit into a 512² transparent atlas texture, so aspect ratio is
 preserved and the element footprint stays square in the grid.
 
+## Typography (`materialId: 'typography'`)
+
+Typography is a texture-backed material with `character`, `word` and `phrase`
+modes. Text is normalized to NFC, split into at most 64 atlas items, and rendered
+through the same 512² texture path as imported materials. The bundled Noto Sans
+Mono variable font uses SIL Open Font License 1.1; its license is in
+`src/materials/fonts/OFL.txt`. Projects store the stable font id, text, mode,
+weight, size and tracking, never a machine-specific font path. Mosaic's
+modulatable `glyphIndex` offsets source-luminance glyph selection.
+
+Canvas rasterization and GPU sampling use the same code in preview, output and
+still export. Cross-platform pixel identity has not been established; font
+rasterizers and GPU drivers can differ.
+
 ## Colour modes
 
 | mode | result |

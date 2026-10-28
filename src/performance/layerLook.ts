@@ -23,8 +23,11 @@ export function captureLayerLooks(project: Project): LayerLook[] {
     enabled: l.enabled,
     opacity: l.opacity,
     blendMode: l.blendMode,
+    input: l.input,
+    activity: l.activity ? { ...l.activity } : null,
     sourceId: l.sourceId,
     technique: l.technique ? { ...l.technique, params: { ...l.technique.params } } : null,
+    techniqueChain: l.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })),
     material: { ...l.material, params: { ...l.material.params } },
   }));
 }
@@ -59,6 +62,7 @@ export function projectWithLayerLooks(project: Project, look: PinnedLook): Proje
         blendMode: 'normal' as const,
         sourceId: null,
         technique: null,
+        techniqueChain: [],
         activity: null,
         input: 'source' as const,
         material: entry.material,
@@ -71,10 +75,15 @@ export function projectWithLayerLooks(project: Project, look: PinnedLook): Proje
       solo: existing?.solo ?? false,
       opacity: entry.opacity,
       blendMode: entry.blendMode,
+      input: entry.input ?? existing?.input ?? 'source',
+      activity: entry.activity === undefined ? (existing?.activity ?? null) : entry.activity,
       sourceId: entry.sourceId,
       technique: entry.technique
         ? { ...entry.technique, id: existing?.technique?.id ?? uid('tech'), params: { ...entry.technique.params } }
         : null,
+      // Stage ids are kept as pinned: the Look's modulations target them by
+      // id, and the core recall path restores the same ids.
+      techniqueChain: entry.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })),
       material: { ...entry.material, params: { ...entry.material.params } },
     };
   });

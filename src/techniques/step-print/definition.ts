@@ -5,6 +5,7 @@ export const stepPrintDefinition: TechniqueDefinition = {
   id: 'step-print',
   name: 'Step Print',
   category: 'time',
+  chainBehavior: 'temporal',
   description: 'Holds and repeats stepped frames — stutter and trail.',
   sections: [
     {

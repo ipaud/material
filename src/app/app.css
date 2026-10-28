@@ -16,7 +16,13 @@
 .workspace-build {
   grid-template-rows: auto 1fr auto auto;
 }
-/* EXPLORE, PERFORM, OUTPUT: viewport-dominant, no timeline strip. */
+.build-toolbar {
+  display: contents;
+}
+.build-mobile-panels {
+  display: none;
+}
+/* EXPLORE, PLAY, OUTPUT: viewport-dominant, no timeline strip. */
 .workspace-explore,
 .workspace-output {
   grid-template-rows: 1fr;
@@ -211,11 +217,19 @@
 /* ---- Empty state ---- */
 .empty-state {
   position: absolute;
+  top: 50%;
+  left: 50%;
   z-index: 15;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sp-5);
+  width: min(90%, 900px);
+  max-height: calc(100% - 32px);
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  transform: translate(-50%, -50%);
   text-align: center;
 }
 .empty-state-title {
@@ -223,17 +237,44 @@
   font-weight: 700;
   letter-spacing: 0.4em;
   margin-left: 0.4em; /* optically recenter tracked text */
+  margin-top: 0;
+  margin-bottom: 0;
   color: var(--text-0);
 }
 .empty-state-hint {
+  margin: 0;
   font-size: var(--text-sm);
   letter-spacing: 0.18em;
   color: var(--text-2);
 }
 .empty-state-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--sp-3);
   margin-top: var(--sp-4);
+}
+.empty-state .vp-btn,
+.empty-state .titlebar-action {
+  min-height: 32px;
+}
+.empty-state-recipe {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: center;
+  margin-top: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+}
+.empty-state-recipe .select {
+  width: min(280px, 80vw);
+  letter-spacing: normal;
+}
+.empty-state-source-hint {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-xs);
 }
 .empty-state.drag-over .empty-state-hint {
   color: var(--accent);
@@ -293,7 +334,7 @@
   top: calc(var(--titlebar-height) + var(--sp-3));
   right: var(--sp-4);
 }
-/* In PERFORM the top-right corner is the status rail (BAR/BEAT) — a toast
+/* In PLAY the top-right corner is the status rail (BAR/BEAT) — a toast
    must not cover the position readout mid-set. */
 .app:has(.workspace-perform:not(.hud)) .toasts {
   right: 224px;
@@ -424,6 +465,113 @@
   letter-spacing: 0.06em;
   line-height: 1.5;
   color: var(--text-2);
+}
+
+@media (max-width: 760px) {
+  .build-toolbar {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    border-bottom: 1px solid var(--border-0);
+  }
+  .build-toolbar > :first-child {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .build-mobile-panels {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+  }
+  .build-mobile-panels button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--border-1);
+    color: var(--text-1);
+  }
+  .main-row {
+    position: relative;
+  }
+  .main-row > .panel {
+    display: none;
+  }
+  .main-row > .panel.mobile-open {
+    display: flex;
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    bottom: 0;
+    width: min(360px, 86vw) !important;
+    box-shadow: 0 0 24px rgb(0 0 0 / 45%);
+  }
+  .main-row > .panel-right.mobile-open {
+    right: 0;
+  }
+  .main-row > .gutter-v {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .workspace {
+    overflow-y: auto;
+  }
+  .workspace-build {
+    grid-template-rows: auto minmax(280px, 1fr) auto auto;
+  }
+  .empty-state {
+    max-height: calc(100% - 56px);
+  }
+  .ws-none {
+    min-width: 0;
+    max-width: calc(100% - 32px);
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+  .titlebar {
+    min-height: var(--titlebar-height);
+    height: auto;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+  }
+  :root[data-platform='darwin'] .titlebar {
+    padding-left: 84px;
+  }
+  .titlebar-spacer {
+    display: none;
+  }
+  .workspace-nav {
+    order: 10;
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    margin-left: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .workspace-nav-item {
+    flex: 0 0 auto;
+    padding: 4px 2px;
+  }
+  .titlebar-project {
+    order: 20;
+    flex: 0 0 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .titlebar-action {
+    order: 30;
+    min-height: 36px;
+    flex-shrink: 0;
+  }
 }
 
 .toast-action {

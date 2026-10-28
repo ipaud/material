@@ -58,7 +58,12 @@ export function usePerformanceKeys(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.isContentEditable)
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      )
         return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const workspace = useUiStore.getState().workspace;

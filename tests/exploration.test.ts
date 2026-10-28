@@ -5,10 +5,14 @@ import {
   generatePopulation,
   generateVariation,
   mutatePopulation,
+  type Variation,
 } from '@/explore/exploration';
 import { mosaicDefinition } from '@/techniques/mosaic/definition';
 import { allParams, defaultParams } from '@/techniques/types';
 import { createEmptyProject, type ModulationMapping } from '@shared/schemas/project';
+import { useExploreStore } from '@/state/exploreStore';
+import { emptyMutationLocks } from '@/performance/mutation';
+import { useProjectStore } from '@/state/projectStore';
 
 const mapping: ModulationMapping = {
   id: 'map1',
@@ -119,6 +123,65 @@ describe('exploration', () => {
     const a = mutatePopulation(mosaicDefinition, [mapping], parent, 42, 5, emptyLocks());
     const b = mutatePopulation(mosaicDefinition, [mapping], parent, 42, 5, emptyLocks());
     expect(a).toEqual(b);
+  });
+
+  test('mutation modes are deterministic, bounded by mode, and honor family locks', () => {
+    const parent: Variation = {
+      seed: 900,
+      generation: 0,
+      parentSeed: null,
+      patch: { params: defaultParams(mosaicDefinition), modulations: { map1: { amount: 0.5 } } },
+    };
+    const low = mutatePopulation(mosaicDefinition, [mapping], parent, 37, 20, emptyLocks(), 'subtle');
+    const high = mutatePopulation(mosaicDefinition, [mapping], parent, 37, 20, emptyLocks(), 'wild');
+    expect(low).toEqual(mutatePopulation(mosaicDefinition, [mapping], parent, 37, 20, emptyLocks(), 'subtle'));
+    const distance = (population: Variation[]) => population.slice(1).reduce((sum, item) =>
+      sum + Object.keys(item.patch.params).filter((key) => item.patch.params[key] !== parent.patch.params[key]).length, 0);
+    expect(distance(high)).toBeGreaterThan(distance(low));
+
+    const locks = emptyMutationLocks();
+    locks.color = true;
+    locks.signals = true;
+    const locked = mutatePopulation(mosaicDefinition, [mapping], parent, 37, 20, emptyLocks(), 'wild', locks)[1]!;
+    expect(locked.patch.params.threshold).toBe(parent.patch.params.threshold);
+    expect(locked.patch.modulations.map1).toEqual(parent.patch.modulations.map1);
+  });
+
+  test('structure mode mutates structural sections only and locked values stay anchored', () => {
+    const parent: Variation = {
+      seed: 901,
+      generation: 0,
+      parentSeed: null,
+      patch: { params: defaultParams(mosaicDefinition), modulations: {} },
+    };
+    const children = mutatePopulation(mosaicDefinition, [], parent, 88, 20, emptyLocks(), 'structure');
+    expect(children.slice(1).some((child) => child.patch.params.columns !== parent.patch.params.columns)).toBe(true);
+    expect(children.slice(1).every((child) => child.patch.params.threshold === parent.patch.params.threshold)).toBe(true);
+    const locks = emptyLocks();
+    locks.params.add('columns');
+    const locked = mutatePopulation(mosaicDefinition, [], parent, 88, 20, locks, 'variation');
+    expect(locked.slice(1).every((child) => child.patch.params.columns === parent.patch.params.columns)).toBe(true);
+  });
+
+  test('generation back restores transient population, thumbnails, and selection only', () => {
+    const explore = useExploreStore.getState();
+    explore.clear();
+    const initialProject = createEmptyProject('History boundary');
+    useProjectStore.getState().loadProject('', initialProject);
+    const first: Variation = { seed: 101, generation: 0, parentSeed: null, patch: { params: {}, modulations: {} } };
+    const second: Variation = { seed: 202, generation: 1, parentSeed: 101, patch: { params: {}, modulations: {} } };
+    explore.startGeneration(1, [first]);
+    useExploreStore.getState().finishGeneration();
+    useExploreStore.getState().setThumbnail(101, 'thumb-a');
+    useExploreStore.getState().select(101);
+    useExploreStore.getState().startGeneration(2, [second]);
+    useExploreStore.getState().finishGeneration();
+    useExploreStore.getState().goBack();
+    expect(useExploreStore.getState()).toMatchObject({
+      populationSeed: 1, variations: [first], thumbnails: { 101: 'thumb-a' }, selectedSeed: 101,
+    });
+    expect(useProjectStore.getState().project).toEqual(initialProject);
+    expect(useExploreStore.getState().history).toHaveLength(0);
   });
 
   test('applyVariationToProject merges patch and records seed', () => {

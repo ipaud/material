@@ -214,6 +214,31 @@ describe('v1 → v2 migration', () => {
   });
 });
 
+describe('v5 → v6 migration', () => {
+  test('old stack snapshots remain valid and omit newly captured layer settings', () => {
+    const project = createEmptyProject('Legacy pin');
+    const v5 = {
+      ...project,
+      version: 5,
+      pinnedLooks: [
+        {
+          id: 'look-old',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          label: 'OLD',
+          techniques: [],
+          material: project.material,
+          modulations: [],
+          layers: [{ id: project.layers[0]!.id, material: project.material }],
+        },
+      ],
+    };
+    const migrated = parseProject(v5);
+    expect(migrated.version).toBe(7);
+    expect(migrated.pinnedLooks[0]!.layers![0]).not.toHaveProperty('input');
+    expect(migrated.pinnedLooks[0]!.layers![0]).not.toHaveProperty('activity');
+  });
+});
+
 describe('v2 round-trip', () => {
   test('a full v0.2 project survives serialization unchanged', () => {
     const project = {

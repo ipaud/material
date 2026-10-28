@@ -28,6 +28,7 @@ interface LayerModulation {
   readonly mappings: ModulationMapping[];
   /** Which layer's visual signals each of those mappings reads. */
   readonly signalSource: ReadonlyMap<string, string>;
+  readonly stageTechniqueIds?: ReadonlyMap<string, string>;
 }
 
 class ModulationRuntime {
@@ -285,7 +286,7 @@ class ModulationRuntime {
     // make one gesture rewrite the whole composition.
     const modulated = applyModulations(
       applyMacros(this.takeBase(layerId, base), this.takeMacros(), definition),
-      entry.mappings,
+      entry.mappings.filter((mapping) => !mapping.targetStageId),
       this.sourcesFor(entry, timeSec),
       definition,
       this.smoothing,
@@ -308,10 +309,11 @@ class ModulationRuntime {
    * layer; only the image and motion families are read per layer, from
    * whichever layer each mapping routes to.
    */
-  private sourcesFor(entry: LayerModulation, timeSec: number): Record<string, number> {
+  private sourcesFor(entry: LayerModulation, timeSec: number, mappings: readonly ModulationMapping[] = entry.mappings): Record<string, number> {
     const own = this.visualValuesFor(entry.layerId);
     const routed = new Set(
-      [...entry.signalSource.values()].filter((id) => id !== entry.layerId),
+      mappings.map((mapping) => entry.signalSource.get(mapping.id) ?? mapping.sourceLayerId ?? entry.layerId)
+        .filter((id) => id !== entry.layerId),
     );
     let visual = own;
     if (routed.size > 0) {
@@ -343,6 +345,21 @@ class ModulationRuntime {
 
   setTakeState(state: ResolvedTake | null): void {
     this.takeState = state;
+  }
+
+  transformStageFor(layerId: string, stageId: string, base: ParamRecord, timeSec = 0): ParamRecord {
+    const overlay = morphRuntime.resolveOverlay(timeSec) ?? candidateRuntime.resolveOverlay();
+    const morphStage = overlay?.techniqueChain?.find((stage) => stage.id === stageId);
+    const over = this.takeState?.stageParams.get(layerId)?.get(stageId);
+    const effectiveBase = morphStage ? { ...base, ...morphStage.params } : base;
+    const takeBase = over ? { ...effectiveBase, ...over } : effectiveBase;
+    const entry = this.layerMods.find((e) => e.layerId === layerId);
+    const techniqueId = morphStage?.techniqueId ?? entry?.stageTechniqueIds?.get(stageId);
+    const definition = techniqueId ? getTechnique(techniqueId) : null;
+    const morphMappings = overlay?.modulations;
+    const mappings = (morphMappings ?? entry?.mappings ?? []).filter((mapping) => mapping.targetStageId === stageId);
+    if (!entry || !definition || mappings.length === 0) return takeBase;
+    return applyModulations(takeBase, mappings, this.sourcesFor(entry, timeSec, mappings), definition, this.smoothing, this.previewDt(timeSec));
   }
 
   /** Base params for one layer, with any Take-controlled values substituted. */
@@ -467,7 +484,7 @@ class ModulationRuntime {
       this.takeMacros(),
       definition,
     );
-    const effectiveMappings = overlay ? overlay.modulations : this.mappings;
+    const effectiveMappings = (overlay ? overlay.modulations : this.mappings).filter((mapping) => !mapping.targetStageId);
     const modulated = applyModulations(
       effectiveBase,
       effectiveMappings,

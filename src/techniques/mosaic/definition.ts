@@ -6,6 +6,7 @@ export const mosaicDefinition: TechniqueDefinition = {
   id: 'mosaic',
   name: 'Mosaic',
   category: 'space',
+  chainBehavior: 'stateless',
   description: 'Reconstructs the source from a grid of repeated elements.',
   sections: [
     {
@@ -18,6 +19,7 @@ export const mosaicDefinition: TechniqueDefinition = {
     {
       label: 'Element',
       params: [
+        { type: 'number', id: 'glyphIndex', label: 'Glyph Index', min: 0, max: 63, step: 1, default: 0, modulatable: true, explore: { randomizable: true, min: 0, max: 63 } },
         { type: 'number', id: 'scale', label: 'Scale', min: 0, max: 3, step: 0.01, default: 1, modulatable: true, explore: { randomizable: true, min: 0.4, max: 1.8, coverage: 'up' } },
         { type: 'number', id: 'minScale', label: 'Min Scale', min: 0, max: 1, step: 0.01, default: 0, explore: { randomizable: false } },
         { type: 'number', id: 'maxScale', label: 'Max Scale', min: 0, max: 4, step: 0.01, default: 2, explore: { randomizable: false } },

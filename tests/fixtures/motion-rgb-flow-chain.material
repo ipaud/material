@@ -1,0 +1,167 @@
+{
+  "version": 7,
+  "name": "Motion RGB Flow Chain",
+  "sources": [
+    {
+      "id": "recipe-source",
+      "kind": "generator",
+      "generator": "waves",
+      "params": {
+        "frequency": 12,
+        "count": 4,
+        "speed": 0.5,
+        "spread": 0.62
+      },
+      "seed": 1
+    }
+  ],
+  "composition": {
+    "sourceId": "recipe-source",
+    "audioSourceId": null,
+    "width": 1920,
+    "height": 1080,
+    "background": "#000000"
+  },
+  "layers": [
+    {
+      "id": "recipe-layer",
+      "name": "Motion RGB Flow Chain",
+      "enabled": true,
+      "solo": false,
+      "opacity": 1,
+      "blendMode": "normal",
+      "sourceId": "recipe-source",
+      "technique": {
+        "id": "recipe-technique",
+        "techniqueId": "motion-rgb",
+        "enabled": true,
+        "params": {
+          "amount": 1.1,
+          "threshold": 0.025
+        }
+      },
+      "techniqueChain": [
+        {
+          "id": "qa-stage-2",
+          "techniqueId": "flow-displace",
+          "enabled": true,
+          "params": {
+            "amount": 1.2,
+            "threshold": 0.04,
+            "against": false
+          }
+        }
+      ],
+      "activity": null,
+      "input": "source",
+      "material": {
+        "materialId": "square",
+        "colorMode": "source",
+        "params": {
+          "aspect": 1
+        },
+        "assetPath": null
+      }
+    }
+  ],
+  "selectedLayerId": "recipe-layer",
+  "techniques": [
+    {
+      "id": "recipe-technique",
+      "techniqueId": "motion-rgb",
+      "enabled": true,
+      "params": {
+        "amount": 1.1,
+        "threshold": 0.025
+      }
+    }
+  ],
+  "material": {
+    "materialId": "square",
+    "colorMode": "source",
+    "params": {
+      "aspect": 1
+    },
+    "assetPath": null
+  },
+  "modulations": [
+    {
+      "id": "recipe-behavior",
+      "enabled": true,
+      "source": "motion.amount",
+      "target": "amount",
+      "amount": 1,
+      "min": 0.25,
+      "max": 1.8,
+      "invert": false,
+      "smoothing": 0.2,
+      "curve": "linear",
+      "frozenValue": null,
+      "targetLayerId": "recipe-layer"
+    }
+  ],
+  "triggers": [],
+  "timeline": {
+    "inSec": null,
+    "outSec": null,
+    "loop": true,
+    "bpm": 100,
+    "beatOffsetSec": 0,
+    "beatsPerBar": 4,
+    "markers": []
+  },
+  "pinnedLooks": [],
+  "activeLookId": null,
+  "morphEvents": [],
+  "midiMappings": [],
+  "patternSources": [],
+  "macros": [
+    {
+      "id": "recipe-macro",
+      "name": "DENSITY",
+      "value": 0,
+      "mappings": [
+        {
+          "targetParam": "amount",
+          "amount": -0.2,
+          "min": 0,
+          "max": 1,
+          "invert": false,
+          "curve": "linear",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "performancePads": [
+    {
+      "id": "recipe-pad",
+      "label": "PULSE",
+      "trigger": {
+        "id": "recipe-pad-trigger",
+        "enabled": true,
+        "source": "manual",
+        "action": "pulse",
+        "targetParam": "threshold",
+        "targetMappingId": null,
+        "lookSlot": null,
+        "quantize": "off",
+        "cooldownSec": 0,
+        "attackSec": 0.02,
+        "holdSec": 0.04,
+        "decaySec": 0.24,
+        "targetLayerId": "recipe-layer",
+        "amount": 0.25,
+        "curve": "easeOut"
+      },
+      "velocityScale": false
+    }
+  ],
+  "takes": [],
+  "activeTakeId": null,
+  "performanceQuantize": "bar",
+  "explore": {
+    "lockedParams": [],
+    "lastSeed": null
+  }
+}

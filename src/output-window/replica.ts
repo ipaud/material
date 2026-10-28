@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import { OutputLayer } from './outputLayer';
 import { RenderEngine } from '@/rendering/RenderEngine';
-import { getTechnique } from '@/techniques/registry';
+import { createTechniqueRenderer, getTechnique } from '@/techniques/registry';
 import type { LoadedShader } from '@shared/schemas/shaderPack';
 import { registerPack } from '@/shaders/packRegistry';
 import { OutputCameraSource } from './outputCameraSource';
@@ -60,6 +60,7 @@ export class OutputReplica {
   private generation = -999;
   private clock: ClockBase = { authorityTimeSec: 0, atWall: Date.now(), playing: false };
   private slaveTimer: ReturnType<typeof setInterval> | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   // Diagnostics for the spike overlay / QA.
   latest: FrameStateMsg | null = null;
@@ -73,12 +74,15 @@ export class OutputReplica {
       this.engine.fit();
       this.engine.invalidate();
     };
-    new ResizeObserver(fit).observe(canvas);
+    this.resizeObserver = new ResizeObserver(fit);
+    this.resizeObserver.observe(canvas);
     this.slaveTimer = setInterval(() => this.slaveVideo(), SLAVE_TICK_MS);
   }
 
   dispose(): void {
     if (this.slaveTimer) clearInterval(this.slaveTimer);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.source?.dispose();
     this.camera?.dispose();
     this.capture?.dispose();
@@ -140,9 +144,7 @@ export class OutputReplica {
     this.syncCustomShaders(msg.customShaders);
 
     this.engine.setComposition(msg.compWidth, msg.compHeight, msg.background);
-    this.syncMaterialAsset(
-      msg.materialState?.materialId === 'custom' ? msg.materialState.assetPath : null,
-    );
+    this.syncMaterialAsset(msg.materialState ?? null);
 
     // v0.6.1 — the single-source path is gone. Every source, generator and
     // technique now belongs to a LAYER, and the editor has sent a layer stack
@@ -196,7 +198,7 @@ export class OutputReplica {
       if (!branch) continue;
       let layer = this.layers.get(input.id);
       if (!layer) {
-        layer = new OutputLayer(input.id);
+        layer = new OutputLayer(input.id, this.engine);
         this.layers.set(input.id, layer);
       }
       layer.applyInputs(branch, input, msg.generation);
@@ -267,18 +269,23 @@ export class OutputReplica {
   }
 
 
-  private materialAssetPath: string | null = null;
-  private syncMaterialAsset(assetPath: string | null): void {
-    if (assetPath === this.materialAssetPath) return;
-    this.materialAssetPath = assetPath;
-    if (!assetPath) {
+  private materialAssetKey: string | null = null;
+  private syncMaterialAsset(material: RenderInputsMsg['materialState'] | null): void {
+    const key = material?.materialId === 'custom' ? `custom:${material.assetPath ?? ''}`
+      : material?.materialId === 'typography' ? `typography:${JSON.stringify(material.params)}` : null;
+    if (key === this.materialAssetKey) return;
+    this.materialAssetKey = key;
+    if (!material || !key) {
       this.engine.setMaterialTexture(null);
       return;
     }
     void import('@/materials/textureLoader')
-      .then(({ loadMaterialTexture }) => loadMaterialTexture(assetPath))
+      .then(({ loadMaterialTexture, loadTypographyTexture }) => material.materialId === 'typography'
+        ? loadTypographyTexture(material)
+        : material.assetPath ? loadMaterialTexture(material.assetPath) : null)
       .then((texture) => {
-        if (this.materialAssetPath === assetPath) this.engine.setMaterialTexture(texture);
+        if (!texture) return;
+        if (this.materialAssetKey === key) this.engine.setMaterialTexture(texture);
         else texture.dispose();
       })
       .catch((err) => console.warn('[replica] material load failed:', err));
@@ -318,6 +325,13 @@ export class OutputReplica {
         this.activeTechniqueId = null;
         this.syncTechnique(id, false);
       }
+      for (const [layerId, outputLayer] of this.layers) {
+        const branch = this.engine.branchFor(layerId);
+        if (branch) {
+          outputLayer.refreshCustomPrimaryRenderer(branch, packId);
+          outputLayer.refreshCustomChainRenderers(branch, packId);
+        }
+      }
     }
   }
 
@@ -325,8 +339,11 @@ export class OutputReplica {
     if (techniqueId !== this.activeTechniqueId) {
       const definition = getTechnique(techniqueId);
       if (!definition) return;
-      this.engine.setTechniqueRenderer(definition.createRenderer());
+      this.engine.setTechniqueRenderer(createTechniqueRenderer(techniqueId));
       this.activeTechniqueId = techniqueId;
+      const selected = this.selectedLayerId ? this.layers.get(this.selectedLayerId) : null;
+      const branch = this.selectedLayerId ? this.engine.branchFor(this.selectedLayerId) : null;
+      if (selected && branch) selected.setActiveTechnique(branch, techniqueId);
     }
     if (temporalActive !== this.temporalActive) {
       this.engine.setTemporalEnabled(temporalActive);
@@ -402,6 +419,14 @@ export class OutputReplica {
     // enough on its own. It applies to the SELECTED layer, which is the one
     // a morph acts on.
     if (msg.techniqueId) this.syncTechnique(msg.techniqueId, msg.temporalActive);
+    if (this.selectedLayerId) {
+      this.layers.get(this.selectedLayerId)?.noteParams(msg.finalParams);
+    }
+    for (const [id, layer] of this.layers) {
+      if (id === this.selectedLayerId) continue;
+      layer.noteParams(msg.layerParams?.[id] ?? null);
+    }
+    for (const [id, layer] of this.layers) layer.noteStageParams(msg.layerStageParams?.[id] ?? {});
     this.engine.setTime(msg.compTime);
     // Engine's own dirty-flag rAF draws at this display's cadence —
     // latest-wins by construction, stale frames collapse into one draw.

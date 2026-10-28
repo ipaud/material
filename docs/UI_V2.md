@@ -1,4 +1,4 @@
-# UI v2 — BUILD / EXPLORE / PERFORM / OUTPUT
+# UI v2 — BUILD / EXPLORE / PLAY / OUTPUT
 
 UI v2 is a shell and workspace redesign. No engine, data model, project format,
 or deterministic behaviour changed: `.material` v1 and v2 projects open exactly
@@ -10,7 +10,7 @@ as before.
 | ----------- | ------------------------------------- | ----------------------------------- |
 | **BUILD**   | How is the visual system constructed? | CREATE + TECHNIQUES + MODULATION    |
 | **EXPLORE** | What else could this be?              | EXPLORE / Candidate                 |
-| **PERFORM** | How does it play live?                | PERFORMANCE                         |
+| **PLAY**    | How does it play live?                | PERFORMANCE                         |
 | **OUTPUT**  | How does it leave the app?            | new (export lived only in a dialog) |
 
 ### Rationale
@@ -18,7 +18,7 @@ as before.
 The old five tabs exposed the implementation: TECHNIQUES and MODULATION are
 _parts of building_, not places you go. Collapsing them into BUILD leaves four
 modes that map to intent, and frees the bottom of the window — which now belongs
-entirely to the timeline (BUILD) or the performance strip (PERFORM).
+entirely to the timeline (BUILD) or the performance strip (PLAY).
 
 Navigation moved into the header. Active workspace = Signal Yellow text plus a
 1px underline, never a pill or filled tab, and always with `aria-current` so the
@@ -216,7 +216,7 @@ cost: the comparison reads better with hold-to-audition on the big stage.
 - APPLY is the existing atomic commit (quantized only when a beat grid
   exists — that behaviour is candidateRuntime's, untouched).
 - The candidate keyboard cluster (G, ⇧G, B, Enter, ⌫) now also works in
-  EXPLORE; it was PERFORM-only before. Same handlers, workspace-gated.
+  EXPLORE; it was PLAY-only before. Same handlers, workspace-gated.
 - The population strip is the existing Explore population system (counts,
   generate, mutate-around-selected, pin, apply, per-param locks untouched
   under the hood).
@@ -226,9 +226,9 @@ cost: the comparison reads better with hold-to-audition on the big stage.
 Yellow = CURRENT / selection / primary action. Cyan = CANDIDATE only. No
 filled panels — hairline frames and text labels carry the state.
 
-## PERFORM (Phase D)
+## PLAY (workspace id: `perform`; Phase D)
 
-PERFORM is the instrument: output on top (60–70% of useful height), a status
+PLAY is the instrument: output on top (60–70% of useful height), a status
 rail on the right, then three flat strips — LOOKS 1–9, MACROS, ACTIONS.
 
 ```
@@ -284,7 +284,7 @@ TAB EXIT HUD. Control strips disappear; all keyboard control remains.
 
 BAR/BEAT/queue/meters are imperative textContent writes at 10Hz; beat pulse
 and pad flash are CSS animations restarted imperatively; MIDI and macro
-engine paths untouched. Toasts shift left of the rail in PERFORM so they
+engine paths untouched. Toasts shift left of the rail in PLAY so they
 never cover the BAR readout.
 
 ## Shared viewport strategy
@@ -302,15 +302,15 @@ language: graphite surface, hairline border, 4px radius, one subtle elevation
 shadow (the only sanctioned shadows besides popover menus). Empty states
 share one component (`WorkspaceEmpty`): short technical title, one hint line,
 GO TO BUILD. Toasts anchor top-right and shift left of the status rail in
-PERFORM so they never cover BAR/BEAT.
+PLAY so they never cover BAR/BEAT.
 
 ## Phase status
 
 | Phase | Scope                                                                      | State         |
 | ----- | -------------------------------------------------------------------------- | ------------- |
 | A     | tokens, header, workspace model, router, App shell                         | done          |
-| B     | BUILD: library, system path, viewport chrome, inspector grouping, timeline | pending       |
-| C     | EXPLORE: CURRENT/CANDIDATE, population, mutation rail                      | pending       |
-| D     | PERFORM: output dominance, looks, macros, actions, status rail, HUD        | pending       |
-| E     | OUTPUT: full workspace                                                     | stub in place |
-| F     | dialogs, toasts, empty state, small-window QA, accessibility pass          | pending       |
+| B     | BUILD: library, system path, viewport chrome, inspector grouping, timeline | done          |
+| C     | EXPLORE: CURRENT/CANDIDATE, population, mutation rail                      | done          |
+| D     | PLAY: output dominance, looks, macros, actions, status rail, HUD            | done          |
+| E     | OUTPUT: full workspace                                                     | done          |
+| F     | dialogs, toasts, empty state, responsive layout, accessibility sign-off     | implementation done; manual sign-off open |

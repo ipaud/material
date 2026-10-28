@@ -170,7 +170,8 @@ describe('Looks carry configuration only (§23)', () => {
       modulations: core.modulations,
       triggers: core.triggers,
     };
-    expect(lookToCore(look)).toEqual(core);
+    const { techniqueChain: _chain, ...legacyCore } = core;
+    expect(lookToCore(look)).toEqual(legacyCore);
   });
 });
 

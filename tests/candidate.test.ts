@@ -382,14 +382,22 @@ describe('candidate pin (§10)', () => {
     useProjectStore.getState().loadProject('', perfProject());
   });
 
-  test('pin creates a Look without changing output', () => {
+  test('pin captures candidate over full composition without changing output', () => {
+    const current = perfProject();
+    useProjectStore.getState().loadProject('', {
+      ...current,
+      layers: [...current.layers, { ...current.layers[0]!, id: 'layer_2', technique: null }],
+    });
     const candidate = candidateRuntime.generate()!;
     const currentBefore = captureLookCore(useProjectStore.getState().project)!;
     const look = candidateRuntime.pin()!;
     const project = useProjectStore.getState().project;
     expect(project.pinnedLooks).toHaveLength(1);
-    expect(look.slot).toBe(1);
+    expect(look.slot).toBeNull();
+    expect(look.label).toBe('PIN 001');
     expect(look.techniques[0]!.params).toEqual(candidate.core.params);
+    expect(look.layers).toHaveLength(2);
+    expect(look.layers![0]!.technique?.params).toEqual(candidate.core.params);
     // Output untouched.
     expect(captureLookCore(project)!.params).toEqual(currentBefore.params);
     // Candidate survives so the performer can still apply it.

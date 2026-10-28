@@ -4,6 +4,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { createEmptyProject, type PinnedLook, type Project } from '@shared/schemas/project';
 import { getTechnique } from '@/techniques/registry';
 import { defaultParams } from '@/techniques/types';
+import { modulationRuntime } from '@/modulation/runtime';
 
 const mosaic = getTechnique('mosaic')!;
 function project(): Project {
@@ -43,6 +44,24 @@ describe('morph zombie regression (P9 hotfix)', () => {
     expect(morphRuntime.progressAt(0)).toBe(0);
     expect(morphRuntime.progressAt(-0.001)).toBeNull(); // before the start
     expect(morphRuntime.progressAt(99)).toBe(1);
+  });
+
+  it('preview stage transform uses interpolated Morph parameters by stable stage ID', () => {
+    const p = project();
+    const layer = p.layers[0]!;
+    const from = { id: 'shared-stage', techniqueId: 'mosaic', enabled: true, params: { scale: 2 } };
+    const to = { ...from, params: { scale: 10 } };
+    p.layers = [{ ...layer, techniqueChain: [from] }];
+    const baseLook = p.pinnedLooks[0]!;
+    p.pinnedLooks = [{
+      ...baseLook,
+      selectedLayerId: layer.id,
+      layers: [{ ...p.layers[0]!, techniqueChain: [to] }],
+    }];
+    useProjectStore.setState({ project: p, past: [], future: [] });
+    morphRuntime.start('look-1', { startQuantize: 'off', duration: { mode: 'seconds', seconds: 4 }, curve: 'linear' }, 0);
+
+    expect(modulationRuntime.transformStageFor(layer.id, 'shared-stage', { scale: 2 }, 2).scale).toBeCloseTo(6);
   });
 
   it('a pattern-driven composition is not frozen by an armed future morph', () => {

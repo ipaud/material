@@ -34,6 +34,7 @@ export function MidiSection() {
   const learn = useMidiStore((s) => s.learn);
   const statusById = useMidiStore((s) => s.status);
   const mappings = useProjectStore((s) => s.project.midiMappings);
+  const macros = useProjectStore((s) => s.project.macros);
 
   // ESC cancels an armed learn (§5).
   useEffect(() => {
@@ -90,7 +91,12 @@ export function MidiSection() {
       )}
 
       {mappings.map((m) => (
-        <MappingRow key={m.id} mapping={m} status={statusById[m.id] ?? 'idle'} />
+        <MappingRow
+          key={m.id}
+          mapping={m}
+          status={statusById[m.id] ?? 'idle'}
+          macroName={macros.find((macro) => macro.id === m.targetParam)?.name}
+        />
       ))}
 
       <NoteLearnRow />
@@ -104,18 +110,35 @@ function mappingSourceLabel(m: MidiMapping): string {
   return m.messageType === 'cc' ? `CC ${m.control}${ch}` : `NOTE ${m.control}${ch}`;
 }
 
-function mappingTargetLabel(m: MidiMapping): string {
+function mappingTargetLabel(m: MidiMapping, macroName?: string): string {
   if (m.targetType === 'param') {
-    const technique = selectedLayerOf(useProjectStore.getState().project).technique;
+    const project = useProjectStore.getState().project;
+    const layer = m.targetLayerId
+      ? project.layers.find((entry) => entry.id === m.targetLayerId)
+      : selectedLayerOf(project);
+    const stage = m.targetStageId ? layer?.techniqueChain.find((entry) => entry.id === m.targetStageId) : null;
+    const technique = stage ?? layer?.technique;
     const definition = technique ? getTechnique(technique.techniqueId) : null;
     const def = definition ? allParams(definition).find((p) => p.id === m.targetParam) : null;
-    return def?.label ?? m.targetParam ?? '?';
+    const stageLabel = stage ? `Stage ${(layer?.techniqueChain.findIndex((entry) => entry.id === stage.id) ?? -1) + 2} · ` : '';
+    return `${stageLabel}${def?.label ?? m.targetParam ?? '?'}`;
+  }
+  if (m.targetType === 'macro') {
+    return macroName ?? m.targetParam ?? '?';
   }
   const action = NOTE_ACTIONS.find((a) => a.value === m.action)?.label ?? m.action ?? '?';
   return m.lookSlot ? `${action.replace(' N', ` ${m.lookSlot}`)}` : action;
 }
 
-function MappingRow({ mapping, status }: { mapping: MidiMapping; status: MappingStatus }) {
+function MappingRow({
+  mapping,
+  status,
+  macroName,
+}: {
+  mapping: MidiMapping;
+  status: MappingStatus;
+  macroName: string | undefined;
+}) {
   const valueRef = useRef<HTMLSpanElement>(null);
 
   // Live activity, imperative at UI rate (§14) — no React churn per event.
@@ -133,15 +156,22 @@ function MappingRow({ mapping, status }: { mapping: MidiMapping; status: Mapping
   const relearn = () => {
     void midiEngine.startLearn(
       mapping.targetType === 'param'
-        ? { targetType: 'param', targetParam: mapping.targetParam ?? '' }
-        : {
-            targetType: 'triggerAction',
-            action: mapping.action ?? 'toggleFreeze',
-            lookSlot: mapping.lookSlot,
-            targetMappingId: mapping.targetMappingId,
-            quantize: mapping.quantize,
-          },
-      mappingTargetLabel(mapping),
+        ? {
+            targetType: 'param',
+            targetParam: mapping.targetParam ?? '',
+            ...(mapping.targetLayerId ? { targetLayerId: mapping.targetLayerId } : {}),
+            ...(mapping.targetStageId ? { targetStageId: mapping.targetStageId } : {}),
+          }
+        : mapping.targetType === 'macro'
+          ? { targetType: 'macro', targetParam: mapping.targetParam ?? '' }
+          : {
+              targetType: 'triggerAction',
+              action: mapping.action ?? 'toggleFreeze',
+              lookSlot: mapping.lookSlot,
+              targetMappingId: mapping.targetMappingId,
+              quantize: mapping.quantize,
+            },
+      mappingTargetLabel(mapping, macroName),
     );
   };
 
@@ -170,7 +200,7 @@ function MappingRow({ mapping, status }: { mapping: MidiMapping; status: Mapping
       />
       <span className="midi-src mono">{mappingSourceLabel(mapping)}</span>
       <span className="midi-arrow">→</span>
-      <span className="midi-target">{mappingTargetLabel(mapping)}</span>
+      <span className="midi-target">{mappingTargetLabel(mapping, macroName)}</span>
       <span ref={valueRef} className="midi-value mono" />
       <span className={`midi-status mono s-${status}`}>{STATUS_LABEL[status]}</span>
       <button className="vp-btn" title="Relearn" onClick={relearn}>

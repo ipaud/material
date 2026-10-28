@@ -69,6 +69,9 @@ export interface RenderInputsMsg {
 export interface OutputLayerInput {
   id: string;
   techniqueId: string | null;
+  techniqueParams?: ParamRecord;
+  /** Ordered additional stages; params are base values, not re-evaluated by replica. */
+  techniqueChain?: TechniqueChainInput[];
   materialState: MaterialState | null;
   blendMode: string;
   /** Serial layer (see Layer.input). Absent = 'source'. */
@@ -76,6 +79,13 @@ export interface OutputLayerInput {
   enabled: boolean;
   opacity: number;
   source: RenderInputsMsg['source'];
+}
+
+export interface TechniqueChainInput {
+  id: string;
+  techniqueId: string;
+  enabled: boolean;
+  params: ParamRecord;
 }
 
 /** High rate — one evaluated frame from the authority's live render pass. */
@@ -106,6 +116,8 @@ export interface FrameStateMsg {
    * be driving it and the replica must never work that out for itself.
    */
   layerParams?: Record<string, ParamRecord> | undefined;
+  /** Per-frame resolved params for extra technique stages, keyed by stable stage id. */
+  layerStageParams?: Record<string, Record<string, ParamRecord>> | undefined;
   layerOpacity?: Record<string, number> | undefined;
   /** Each generator layer's resolved SOURCE parameters — a different set from
    * its technique's, and what the replica drives its local generator with. */

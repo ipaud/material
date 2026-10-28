@@ -8,6 +8,7 @@ import { planRelink } from './relink';
 import { isFileSource, isLiveSource, type Project } from '@shared/schemas/project';
 import { selectedLayerOf, withSelectedSource, withSelectedTechnique } from '@shared/schemas/project';
 import { basename } from '@/utils/platform';
+import { generatorDefaults, getGenerator } from '@/sources/generators/definitions';
 
 /** Ensure the project has an enabled technique chain (defaults to Mosaic). */
 /**
@@ -224,6 +225,46 @@ export async function collectMedia(): Promise<void> {
 
 export function newProject(): void {
   useProjectStore.getState().newProject();
+}
+
+/** Add a procedural source to the selected layer, preserving existing edits. */
+export function addGeneratorSource(generatorId = 'noise'): boolean {
+  const definition = getGenerator(generatorId);
+  if (!definition) return false;
+  const id = uid('gen');
+  useProjectStore.getState().apply((project) =>
+    withTechniqueEnsured(
+      withSelectedSource(
+        {
+          ...project,
+          sources: [
+            ...project.sources,
+            { id, kind: 'generator' as const, generator: definition.id, params: generatorDefaults(definition.id), seed: 1 },
+          ],
+        },
+        id,
+      ),
+    ),
+  );
+  return true;
+}
+
+/** Add a capture input reference; the Library's START control obtains permission. */
+export function addCaptureSource(kind: 'camera' | 'screen'): boolean {
+  const project = useProjectStore.getState().project;
+  const existing = project.sources.find((source) => source.kind === kind);
+  if (existing) {
+    useProjectStore.getState().apply((current) => withSelectedSource(current, existing.id));
+    return true;
+  }
+  const id = uid(kind === 'camera' ? 'cam' : 'scr');
+  const source = kind === 'camera'
+    ? { id, kind: 'camera' as const, deviceId: null }
+    : { id, kind: 'screen' as const, displayId: null };
+  useProjectStore.getState().apply((current) =>
+    withTechniqueEnsured(withSelectedSource({ ...current, sources: [...current.sources, source] }, id)),
+  );
+  return true;
 }
 
 /** Import media files (from drag-drop or dialog) into the project library. */

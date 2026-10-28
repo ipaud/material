@@ -20,6 +20,7 @@ export function captureLookCore(project: Project): LookCore | null {
   return {
     techniqueId: active.techniqueId,
     params: { ...active.params },
+    techniqueChain: layer.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })),
     material: {
       ...layer.material,
       params: { ...layer.material.params },
@@ -32,9 +33,11 @@ export function captureLookCore(project: Project): LookCore | null {
 
 export function lookToCore(look: PinnedLook): LookCore {
   const active = look.techniques.find((t) => t.enabled);
+  const selectedLayer = look.layers?.find((layer) => layer.id === look.selectedLayerId);
   return {
     techniqueId: active?.techniqueId ?? 'mosaic',
     params: { ...(active?.params ?? {}) },
+    ...(selectedLayer ? { techniqueChain: selectedLayer.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })) } : {}),
     material: { ...look.material, params: { ...look.material.params } },
     modulations: look.modulations.map((m) => ({ ...m })),
     triggers: look.triggers.map((t) => ({ ...t })),
@@ -70,6 +73,9 @@ export function projectWithLookCore(
               enabled: true,
               params: { ...core.params },
             },
+            ...(core.techniqueChain ? {
+              techniqueChain: core.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })),
+            } : {}),
             material: { ...core.material, params: { ...core.material.params } },
           }
         : l,
@@ -98,5 +104,10 @@ function stable(value: unknown): string {
 export function isLookDirty(project: Project, look: PinnedLook): boolean {
   const current = captureLookCore(project);
   if (!current) return false;
-  return stable(current) !== stable(lookToCore(look));
+  const target = lookToCore(look);
+  if (target.techniqueChain === undefined) {
+    const { techniqueChain: _chain, ...legacyCurrent } = current;
+    return stable(legacyCurrent) !== stable(target);
+  }
+  return stable(current) !== stable(target);
 }

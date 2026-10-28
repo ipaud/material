@@ -100,6 +100,27 @@ export const materialStateSchema = z.object({
   params: paramRecordSchema,
   /** For custom SVG / image materials: source asset path. */
   assetPath: z.string().nullable(),
+}).superRefine((material, ctx) => {
+  if (material.materialId !== 'typography') return;
+  const { text, mode, fontId, weight, size, tracking } = material.params;
+  if (typeof text !== 'string' || text.length > 4096) {
+    ctx.addIssue({ code: 'custom', path: ['params', 'text'], message: 'Typography text must be a string of at most 4096 characters' });
+  }
+  if (mode !== 'character' && mode !== 'word' && mode !== 'phrase') {
+    ctx.addIssue({ code: 'custom', path: ['params', 'mode'], message: 'Unsupported typography mode' });
+  }
+  if (fontId !== 'noto-sans-mono') {
+    ctx.addIssue({ code: 'custom', path: ['params', 'fontId'], message: 'Unsupported typography font' });
+  }
+  if (typeof weight !== 'number' || weight < 100 || weight > 900) {
+    ctx.addIssue({ code: 'custom', path: ['params', 'weight'], message: 'Typography weight must be between 100 and 900' });
+  }
+  if (typeof size !== 'number' || size < 24 || size > 512) {
+    ctx.addIssue({ code: 'custom', path: ['params', 'size'], message: 'Typography size must be between 24 and 512' });
+  }
+  if (typeof tracking !== 'number' || tracking < -20 || tracking > 80) {
+    ctx.addIssue({ code: 'custom', path: ['params', 'tracking'], message: 'Typography tracking must be between -20 and 80' });
+  }
 });
 export type MaterialState = z.infer<typeof materialStateSchema>;
 
@@ -156,6 +177,8 @@ export const modulationMappingSchema = z.object({
    * composition cannot silently repoint a route at a different layer.
    */
   sourceLayerId: z.string().optional(),
+  /** Stable extra-stage target; absent keeps legacy primary-stage behavior. */
+  targetStageId: z.string().nullable().optional(),
 });
 /**
  * The v0.4C fields are OPTIONAL rather than defaulted, so ABSENT and `'add'`
@@ -318,6 +341,19 @@ export const blendModeSchema = z.enum([
   'darken',
 ]);
 
+/** Layer participation interval in composition time. */
+export const activityWindowSchema = z
+  .object({
+    start: z.number().min(0),
+    end: z.number().min(0).nullable().default(null),
+    fadeIn: z.number().min(0).default(0),
+    fadeOut: z.number().min(0).default(0),
+  })
+  .refine((w) => w.end === null || w.end > w.start, {
+    message: 'activity end must be after start',
+    path: ['end'],
+  });
+
 /**
  * One layer's worth of a Look: everything that makes the layer look the way it
  * does, and nothing about the layer's identity beyond the id used to match it
@@ -330,8 +366,12 @@ export const layerLookSchema = z.object({
   enabled: z.boolean().default(true),
   opacity: z.number().min(0).max(1).default(1),
   blendMode: blendModeSchema.default('normal'),
+  /** v6 Pins capture routing/timing. Absent on older Looks to preserve recall semantics. */
+  input: z.enum(['source', 'below']).optional(),
+  activity: activityWindowSchema.nullable().optional(),
   sourceId: z.string().nullable().default(null),
   technique: techniqueInstanceSchema.nullable().default(null),
+  techniqueChain: z.array(techniqueInstanceSchema).max(2).default([]),
   material: materialStateSchema,
 });
 export type LayerLook = z.infer<typeof layerLookSchema>;
@@ -386,6 +426,8 @@ export type MorphCurve = z.infer<typeof morphCurveSchema>;
 export const lookCoreSchema = z.object({
   techniqueId: z.string(),
   params: paramRecordSchema,
+  /** Optional for old Takes/morph events that predate technique chains. */
+  techniqueChain: z.array(techniqueInstanceSchema).max(2).optional(),
   material: materialStateSchema,
   modulations: z.array(modulationMappingSchema),
   triggers: z.array(triggerMappingSchema),
@@ -513,6 +555,10 @@ export const midiMappingSchema = z.object({
   targetType: z.enum(['param', 'triggerAction', 'macro']),
   /** param target: technique parameter id. */
   targetParam: z.string().nullable().default(null),
+  /** Optional stable owner for scoped layer or extra-stage CC targets. */
+  targetLayerId: z.string().nullable().optional(),
+  /** Optional extra-stage id; absent keeps legacy selected-primary semantics. */
+  targetStageId: z.string().nullable().optional(),
   /** triggerAction target: reuses the trigger-engine action vocabulary. */
   action: triggerActionSchema.nullable().default(null),
   lookSlot: z.number().int().min(1).max(9).nullable().default(null),
@@ -550,6 +596,8 @@ export type Composition = z.infer<typeof compositionSchema>;
  * in docs/LAYERS.md.
  */
 export const MAX_LAYERS = 8;
+/** New compositions stay at four layers; existing v7 files retain eight-layer compatibility. */
+export const MAX_NEW_LAYERS = 4;
 
 export type BlendMode = z.infer<typeof blendModeSchema>;
 
@@ -558,24 +606,6 @@ export type BlendMode = z.infer<typeof blendModeSchema>;
  * composition. Everything here is CONFIG — no runtime, no textures, no GPU
  * state ever reaches a project file.
  */
-/**
- * When this layer takes part, in composition seconds (see shared/activity.ts).
- * Outside the window its opacity is multiplied by exactly 0, so the layers
- * beneath show untouched; inside, fades ramp the opacity 0→1 and 1→0. Absent
- * (null) = always active, which is what every v5 file already means.
- */
-export const activityWindowSchema = z
-  .object({
-    start: z.number().min(0),
-    end: z.number().min(0).nullable().default(null),
-    fadeIn: z.number().min(0).default(0),
-    fadeOut: z.number().min(0).default(0),
-  })
-  .refine((w) => w.end === null || w.end > w.start, {
-    message: 'activity end must be after start',
-    path: ['end'],
-  });
-
 export const layerSchema = z.object({
   id: z.string().min(1),
   name: z.string().max(48).default(''),
@@ -590,9 +620,10 @@ export const layerSchema = z.object({
   blendMode: blendModeSchema.default('normal'),
   /** Which of `sources[]` this layer draws from. */
   sourceId: z.string().nullable().default(null),
-  /** Exactly one technique instance per layer — a layer is a branch, not a
-   * stack. Effect chains inside a layer are deliberately out of scope. */
+  /** First stage; kept for compatibility with existing inspectors and Looks. */
   technique: techniqueInstanceSchema.nullable().default(null),
+  /** Additional ordered stages; total chain capped at three. */
+  techniqueChain: z.array(techniqueInstanceSchema).max(2).default([]),
   /** When the layer takes part; null = always. Not part of a Look: it is timeline structure. */
   activity: activityWindowSchema.nullable().default(null),
   /**
@@ -603,6 +634,14 @@ export const layerSchema = z.object({
    */
   input: z.enum(['source', 'below']).default('source'),
   material: materialStateSchema,
+}).superRefine((layer, ctx) => {
+  if (layer.technique === null && layer.techniqueChain.length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['techniqueChain'],
+      message: 'Additional technique stages require a primary technique',
+    });
+  }
 });
 export type Layer = z.infer<typeof layerSchema>;
 
@@ -906,6 +945,7 @@ export function emptyLayer(id: string, name = ''): Layer {
     blendMode: 'normal',
     sourceId: null,
     technique: null,
+    techniqueChain: [],
     activity: null,
     input: 'source' as const,
     material: { materialId: 'square', colorMode: 'source', params: {}, assetPath: null },
@@ -1013,6 +1053,16 @@ function migrateV4toV5(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, version: 5 };
 }
 
+/** v5 → v6: Pins can now snapshot layer routing and activity windows. */
+function migrateV5toV6(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, version: 6 };
+}
+
+/** v6 → v7: Add ordered extra technique stages to each layer. */
+function migrateV6toV7(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, version: 7 };
+}
+
 /** v1 → v2: musical-clock fields appear, everything else is unchanged. */
 function migrateV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
   const timeline = (raw.timeline ?? {}) as Record<string, unknown>;
@@ -1055,6 +1105,12 @@ function migrateToCurrent(raw: unknown): Record<string, unknown> {
   }
   if (candidate.version === 4) {
     candidate = migrateV4toV5(candidate);
+  }
+  if (candidate.version === 5) {
+    candidate = migrateV5toV6(candidate);
+  }
+  if (candidate.version === 6) {
+    candidate = migrateV6toV7(candidate);
   }
   if (candidate.version !== PROJECT_FORMAT_VERSION) {
     throw new Error(`Unsupported project version: ${String(candidate.version)}`);

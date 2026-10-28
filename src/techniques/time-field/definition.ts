@@ -12,6 +12,7 @@ export const timeFieldDefinition: TechniqueDefinition = {
   description:
     'A spatial field decides which moment each pixel is made of — the generalized slit scan. Luminance mode lets the image sculpt its own time.',
   category: 'time',
+  chainBehavior: 'temporal',
   sections: [
     {
       label: 'Field',

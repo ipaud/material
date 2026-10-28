@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SystemPath } from '@/build/SystemPath';
 import { ParameterSlider } from '@/components/ParameterSlider';
@@ -10,6 +10,15 @@ import { getTechnique, listTechniques } from '@/techniques/registry';
 import { allParams, defaultParams } from '@/techniques/types';
 import { createEmptyProject } from '@shared/schemas/project';
 import { uid } from '@/utils/id';
+
+vi.mock('@/components/Gutter', () => ({ Gutter: () => <div /> }));
+vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }));
+vi.mock('@/library/LibraryPanel', () => ({ LibraryPanel: () => <div>Library content</div> }));
+vi.mock('@/viewport/Viewport', () => ({ Viewport: () => <div /> }));
+vi.mock('@/inspector/InspectorPanel', () => ({ InspectorPanel: () => <div>Inspector content</div> }));
+vi.mock('@/timeline/TimelinePanel', () => ({ TimelinePanel: () => <div /> }));
+vi.mock('@/techniques/TechniquesBrowser', () => ({ TechniquesBrowser: () => null }));
+import { BuildWorkspace } from '@/workspaces/BuildWorkspace';
 
 function loadProject(
   mutate: (p: ReturnType<typeof createEmptyProject>) => ReturnType<typeof createEmptyProject>,
@@ -165,6 +174,41 @@ describe('SystemPath', () => {
   });
 });
 
+describe('BUILD narrow panel controls', () => {
+  it('opens one side panel at a time and closes it on second activation', () => {
+    render(<BuildWorkspace isDragOver={false} />);
+    expect(screen.getByRole('group', { name: 'Workspace panels' })).toBeInTheDocument();
+    const library = screen.getByRole('button', { name: 'Library' });
+    const inspector = screen.getByRole('button', { name: 'Inspector' });
+
+    expect(library).toHaveAttribute('aria-controls', 'build-library-panel');
+    expect(library).toHaveAttribute('aria-expanded', 'false');
+    const viewport = document.querySelector('.viewport-area');
+    expect(viewport).not.toHaveAttribute('inert');
+    fireEvent.click(library);
+    expect(library).toHaveAttribute('aria-expanded', 'true');
+    expect(inspector).toHaveAttribute('aria-expanded', 'false');
+    expect(viewport).toHaveAttribute('inert');
+    fireEvent.click(inspector);
+    expect(library).toHaveAttribute('aria-expanded', 'false');
+    expect(inspector).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(inspector);
+    expect(inspector).toHaveAttribute('aria-expanded', 'false');
+    expect(viewport).not.toHaveAttribute('inert');
+  });
+
+  it('moves focus into the opened panel and Escape returns it to the toggle', () => {
+    render(<BuildWorkspace isDragOver={false} />);
+    const inspector = screen.getByRole('button', { name: 'Inspector' });
+    fireEvent.click(inspector);
+    const panel = screen.getByRole('complementary', { name: 'Inspector' });
+    expect(panel).toHaveFocus();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(inspector).toHaveAttribute('aria-expanded', 'false');
+    expect(inspector).toHaveFocus();
+  });
+});
+
 describe('Inspector parameter grouping', () => {
   it('keeps every technique parameter exactly once', () => {
     for (const definition of listTechniques()) {
@@ -195,6 +239,7 @@ describe('Inspector parameter grouping', () => {
       id: 'fake',
       name: 'Fake',
       category: 'space' as const,
+      chainBehavior: 'stateless' as const,
       description: '',
       sections: [
         {

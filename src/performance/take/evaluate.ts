@@ -38,10 +38,12 @@ export interface ResolvedTake {
   macros: Map<string, number>;
   /** layer id → param id → value, in the parameter's own domain */
   params: Map<string, Record<string, number>>;
+  /** layer id → stable technique-stage id → param id → value */
+  stageParams: Map<string, Map<string, Record<string, number>>>;
 }
 
 export function emptyResolvedTake(): ResolvedTake {
-  return { opacity: new Map(), macros: new Map(), params: new Map() };
+  return { opacity: new Map(), macros: new Map(), params: new Map(), stageParams: new Map() };
 }
 
 /**
@@ -74,6 +76,14 @@ export function resolveTakeAt(take: PerformanceTake, compositionSec: number): Re
     } else if (target.kind === 'macro') {
       out.macros.set(target.macroId, Math.min(Math.max(v, 0), 1));
     } else {
+      if (target.stageId) {
+        const stages = out.stageParams.get(target.layerId) ?? new Map();
+        const bucket = stages.get(target.stageId) ?? {};
+        bucket[target.paramId] = v;
+        stages.set(target.stageId, bucket);
+        out.stageParams.set(target.layerId, stages);
+        continue;
+      }
       const bucket = out.params.get(target.layerId) ?? {};
       bucket[target.paramId] = v;
       out.params.set(target.layerId, bucket);

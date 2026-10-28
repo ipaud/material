@@ -16,7 +16,10 @@ import { findShader } from './packRegistry';
  */
 export function shadersReferencedBy(project: Project): LoadedShader[] {
   const ids = new Set<string>();
-  for (const l of project.layers) if (l.technique) ids.add(l.technique.techniqueId);
+  for (const l of project.layers) {
+    if (l.technique) ids.add(l.technique.techniqueId);
+    for (const stage of l.techniqueChain) if (stage.enabled) ids.add(stage.techniqueId);
+  }
   for (const look of project.pinnedLooks) for (const t of look.techniques) ids.add(t.techniqueId);
 
   const out: LoadedShader[] = [];

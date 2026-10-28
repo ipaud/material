@@ -7,7 +7,8 @@ import {
   GLSL_TEMPORAL_SAMPLE,
   temporalModeIndex,
 } from '@/rendering/shaders/temporal';
-import { shapeIndexForMaterial } from '@/materials/builtins';
+import { isTextureMaterial, shapeIndexForMaterial } from '@/materials/builtins';
+import { typographyTokens } from '@/materials/typography';
 import { MAX_MOSAIC_INSTANCES } from '@shared/constants/app';
 
 const VERTEX = /* glsl */ `
@@ -50,6 +51,7 @@ out vec2 vLocal;
 out vec3 vCellColor;
 out float vOpacity;
 out float vOffsetSeconds;
+out float vCellIndex;
 
 const float PI = 3.141592653589793;
 
@@ -90,6 +92,7 @@ void main() {
 
   vOpacity = uOpacity * mapAmount(s, uLumOpacity) * alive;
   vCellColor = src;
+  vCellIndex = id;
   vLocal = position.xy;
 
   // Per-cell temporal offset, in SECONDS of composition time.
@@ -121,12 +124,16 @@ uniform int uColorMode; // 0 source-fill, 1 mono, 2 original, 3 source-tint
 uniform vec3 uMonoColor;
 uniform sampler2D uMatTex;
 uniform int uUseTex;
+uniform float uTextItemCount;
+uniform float uTextCols;
+uniform float uGlyphIndex;
 uniform int uTileMode; // 0 off, 1 video tile
 
 in vec2 vLocal;
 in vec3 vCellColor;
 in float vOpacity;
 in float vOffsetSeconds;
+in float vCellIndex;
 
 out vec4 fragColor;
 
@@ -145,6 +152,12 @@ void main() {
   } else if (uUseTex == 1) {
     vec2 tuv = vec2(vLocal.x / max(uAspect, 0.0001), vLocal.y) + 0.5;
     if (tuv.x < 0.0 || tuv.x > 1.0 || tuv.y < 0.0 || tuv.y > 1.0) discard;
+    if (uTextItemCount > 0.0) {
+      float item = mod(floor((1.0 - dot(vCellColor, vec3(0.2126, 0.7152, 0.0722))) * uTextItemCount) + uGlyphIndex + vCellIndex, uTextItemCount);
+      float textRows = ceil(uTextItemCount / uTextCols);
+      vec2 tile = vec2(mod(item, uTextCols), textRows - 1.0 - floor(item / uTextCols));
+      tuv = (tuv + tile) / vec2(uTextCols, textRows);
+    }
     vec4 t = texture(uMatTex, tuv);
     alpha = t.a * vOpacity;
     if (uColorMode == 2) color = t.rgb;
@@ -216,6 +229,9 @@ export class MosaicRenderer implements TechniqueRenderer {
         uMonoColor: { value: new THREE.Color('#ffffff') },
         uMatTex: { value: null },
         uUseTex: { value: 0 },
+        uTextItemCount: { value: 0 },
+        uTextCols: { value: 1 },
+        uGlyphIndex: { value: 0 },
         uSquareElement: { value: 0 },
         uTileMode: { value: 0 },
         uOffsetMode: { value: 0 },
@@ -280,9 +296,14 @@ export class MosaicRenderer implements TechniqueRenderer {
     set('uSeed', ctx.seed);
     set('uShape', shapeIndexForMaterial(ctx.material.materialId));
     set('uAspect', typeof ctx.material.params.aspect === 'number' ? ctx.material.params.aspect : 1);
-    const useTex = ctx.material.materialId === 'custom' && ctx.materialTexture !== null;
+    const useTex = isTextureMaterial(ctx.material.materialId) && ctx.materialTexture !== null;
     if (u.uMatTex) u.uMatTex.value = useTex ? ctx.materialTexture : null;
     set('uUseTex', useTex ? 1 : 0);
+    const textMode = ctx.material.params.mode === 'word' || ctx.material.params.mode === 'phrase' ? ctx.material.params.mode : 'character';
+    const itemCount = ctx.material.materialId === 'typography' ? typographyTokens(typeof ctx.material.params.text === 'string' ? ctx.material.params.text : '', textMode).length : 0;
+    set('uTextItemCount', itemCount);
+    set('uTextCols', Math.ceil(Math.sqrt(itemCount)) || 1);
+    set('uGlyphIndex', num(params, 'glyphIndex', 0));
     const COLOR_MODES: Record<string, number> = { source: 0, mono: 1, original: 2, sourceColor: 3 };
     set('uColorMode', COLOR_MODES[ctx.material.colorMode] ?? 0);
 

@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createEmptyProject, type PinnedLook, type Project } from '@shared/schemas/project';
+import { createEmptyProject, DEFAULT_MORPH_TRANSITION, type PinnedLook, type Project } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
-import { createFrameEvaluator } from '@/export/exportRunner';
+import { createFrameEvaluator, createSecondaryLayerEvaluator } from '@/export/exportRunner';
+import { captureLookCore } from '@/performance/lookCore';
 
 /**
  * v0.8.3 — an export follows a Look that changes what a layer is MADE OF.
@@ -34,8 +35,8 @@ function look(id: string, slot: number, stack: { l1: string; l2: string }): Pinn
     techniques: [tech(1)],
     // The stack a v0.6D Look carries: which source each layer reads.
     layers: [
-      { id: L1, name: 'A', enabled: true, opacity: 1, blendMode: 'normal', sourceId: stack.l1, technique: tech(1), material: base.layers[0]!.material },
-      { id: L2, name: 'B', enabled: true, opacity: 0.5, blendMode: 'screen', sourceId: stack.l2, technique: tech(2), material: base.layers[0]!.material },
+      { id: L1, name: 'A', enabled: true, opacity: 1, blendMode: 'normal', sourceId: stack.l1, technique: tech(1), techniqueChain: [], material: base.layers[0]!.material },
+      { id: L2, name: 'B', enabled: true, opacity: 0.5, blendMode: 'screen', sourceId: stack.l2, technique: tech(2), techniqueChain: [], material: base.layers[0]!.material },
     ],
     selectedLayerId: L1,
     material: base.layers[0]!.material,
@@ -74,6 +75,36 @@ beforeEach(() => {
 });
 
 describe('the export working copy carries the layer stack', () => {
+  it('exports interpolated Morph stage parameters by stable ID', () => {
+    const p = project();
+    const layer = p.layers[0]!;
+    const from = { id: 'morph-stage', techniqueId: 'mosaic', enabled: true, params: { scale: 2 } };
+    const to = { ...from, params: { scale: 10 } };
+    p.layers = [{ ...layer, techniqueChain: [from] }, ...p.layers.slice(1)];
+    const target = { ...look('morph-target', 1, { l1: 'gA', l2: 'gA' }), selectedLayerId: layer.id,
+      layers: [{ ...p.layers[0]!, techniqueChain: [to] }, ...p.layers.slice(1)] };
+    p.pinnedLooks = [target];
+    p.morphEvents = [{ id: 'morph-stage-event', startTime: 0, endTime: 4, curve: 'linear',
+      sourceSnapshot: captureLookCore(p)!, targetLookId: target.id, transition: DEFAULT_MORPH_TRANSITION }];
+    useProjectStore.setState({ project: p, past: [], future: [], dirty: false });
+    const frame = createFrameEvaluator(0, 30)(60);
+    expect(frame.stageParams.get(layer.id)?.get('morph-stage')?.scale).toBeCloseTo(6);
+  });
+
+  it('evaluates stage-scoped modulation in export without touching primary params', () => {
+    const p = project();
+    const layer = p.layers[1]!;
+    layer.techniqueChain = [{ id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { scale: 2 } }];
+    p.modulations = [{
+      id: 'stage-mod', enabled: true, source: 'time.sec', target: 'scale', targetLayerId: layer.id,
+      targetStageId: 'stage-a', amount: 1, min: 0, max: 1, invert: false, smoothing: 0,
+      curve: 'linear', frozenValue: null, mode: 'replace',
+    }];
+    const evaluator = createSecondaryLayerEvaluator(p, L1, 30, () => ({}));
+    expect(evaluator.paramsAt(1).get(layer.id)?.scale).toBe(2);
+    expect(evaluator.stageParamsAt(1).get(layer.id)?.get('stage-a')?.scale).toBeGreaterThan(2);
+  });
+
   it('starts as the document', () => {
     const evaluate = createFrameEvaluator(0, 30);
     evaluate(0);

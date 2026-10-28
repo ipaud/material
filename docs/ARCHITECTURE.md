@@ -29,7 +29,7 @@ never re-render anything above the slider itself.
 
 ## Layers are branches of the same engine
 
-A composition is up to four layers, and a layer is a `RenderEngine` in
+A composition is up to eight layers, and a layer is a `RenderEngine` in
 **branch mode** — the same class, constructed differently. A branch owns one
 creative chain (source, generator, temporal history, optical flow, technique,
 analysis, feedback) and owns no canvas, no loop and no view transform, because

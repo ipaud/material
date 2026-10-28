@@ -74,6 +74,10 @@ export function buildAppMenu(
           click: send('toggle-debug-overlay'),
         },
         { type: 'separator' },
+        { role: 'zoomIn' },
+        { role: 'resetZoom' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(process.env.NODE_ENV === 'development'
           ? ([{ role: 'toggleDevTools' }, { role: 'reload' }] as MenuItemConstructorOptions[])

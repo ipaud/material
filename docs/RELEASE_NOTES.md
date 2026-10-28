@@ -1,5 +1,32 @@
 # Release Notes
 
+## v0.9.0 — CHAINS, RECIPES, A FIRST RUN THAT WORKS
+
+The last feature release before 1.0. Build a visual system, explore what it can become, play it.
+
+- **Technique chains.** A layer can run up to three techniques in a row (BUILD → Add stage). Only combinations that
+  render correctly are offered: stateless and flow techniques chain; temporal, feedback and simulation techniques
+  stay single, and BUILD says why. Takes, MIDI Learn, modulation and Morph reach each stage's parameters, in the
+  preview, on Output and in the export. See [TECHNIQUE_CHAINS](TECHNIQUE_CHAINS.md).
+- **Recipes.** Thirteen tested starting points (source, technique, material, a Behavior mapping, a Macro and a trigger
+  Pad). A Recipe fills a blank layer or adds one, never overwrites what you built, and one undo takes it back.
+- **First run.** The empty screen offers VIDEO / IMAGE, CAMERA, SCREEN, a generator, or a Recipe, and each leads
+  straight to a running system. CAMERA and SCREEN ask for permission only when you press START.
+- **Pins and Looks.** **P** now saves a Pin: a snapshot kept in the project. **Make Look** gives a Pin one of the nine
+  performance slots. Hold **Compare** on a Pin to see it on the output without changing anything; **Explore Around**
+  generates variations centred on it.
+- **Typography material.** Characters, words or phrases as the repeated material, set in the bundled Noto Sans Mono.
+- **Macros.** Each mapping has its own range, curve and invert.
+- **PERFORM is now PLAY.** Same workspace, same shortcut (⌘⌥3).
+- **Narrow windows and zoom.** BUILD panels become drawers below 760 px, Explore and Output stack their rails, and
+  View → Zoom works up to the point where everything still fits and scrolls.
+
+**Projects saved by 0.9.0 do not open in 0.8.x** (project format 7, for the chains). Older builds refuse them
+instead of opening them with the chains silently removed. Projects from every earlier version open here unchanged.
+
+**Not 1.0 yet.** Still open before 1.0: macOS notarization (macOS warns the first time you open the app),
+physical MIDI and second-display testing, and an assistive-technology pass.
+
 ## v0.8.7 — FEEDBACK EXPORTS START FROM THE REAL FRAME
 
 One fix, for an export that did not always match itself.

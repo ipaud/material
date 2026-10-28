@@ -60,6 +60,7 @@ One lane per control target. Targets carry their scope:
 layer:<layerId>:opacity     0..1
 macro:<macroId>             0..1
 param:<layerId>:<paramId>   the parameter's own domain
+stage-param:<layerId>:<stageId>:<paramId>   extra-stage parameter by stable ID
 ```
 
 Never an index — a reorder must not repoint a lane. A target string that does
@@ -228,7 +229,9 @@ predicate export already trusts to decide what it replays.
 
 MIDI is captured as the **semantic host control** it resolved to, never as
 device plus CC number, so a Take replays with nothing plugged in and does not
-depend on a mapping that may since have been reassigned.
+depend on a mapping that may since have been reassigned. Stage-scoped MIDI and
+modulation mappings store layer/stage IDs; old mappings without stage IDs keep
+targeting the primary technique.
 
 ## 9. Export
 

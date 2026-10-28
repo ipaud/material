@@ -4,11 +4,12 @@ import { useProjectStore } from '@/state/projectStore';
 import { useExportStore } from '@/state/exportStore';
 import { useUiStore } from '@/state/uiStore';
 import { applyCurve, SmoothingState } from '@/modulation/evaluator';
+import { targetLayerOf } from '@/modulation/layerRouting';
 import { getTriggerState, liveScheduler } from '@/signals/triggerRuntime';
 import { morphRuntime } from '@/performance/morphRuntime';
 import { playback } from '@/playback/PlaybackController';
 import { takeRecorder } from '@/performance/take/recorder';
-import { macroTarget, paramTarget } from '@/performance/take/model';
+import { macroTarget, paramTarget, stageParamTarget } from '@/performance/take/model';
 import { getTechnique } from '@/techniques/registry';
 import { allParams, type NumberParamDef } from '@/techniques/types';
 import { uid } from '@/utils/id';
@@ -36,6 +37,8 @@ export type MappingStatus = 'live' | 'waiting' | 'frozen' | 'morph' | 'offline' 
 export interface LearnRequest {
   targetType: 'param' | 'triggerAction' | 'macro';
   targetParam?: string;
+  targetLayerId?: string;
+  targetStageId?: string;
   action?: TriggerAction;
   lookSlot?: number | null;
   targetMappingId?: string | null;
@@ -310,6 +313,8 @@ class MidiEngine {
       control,
       targetType: request.targetType,
       targetParam: request.targetParam ?? null,
+      ...(request.targetLayerId ? { targetLayerId: request.targetLayerId } : {}),
+      ...(request.targetStageId ? { targetStageId: request.targetStageId } : {}),
       action: request.action ?? null,
       lookSlot: request.lookSlot ?? null,
       targetMappingId: request.targetMappingId ?? null,
@@ -332,6 +337,8 @@ class MidiEngine {
             !(
               m.targetType === mapping.targetType &&
               m.targetParam === mapping.targetParam &&
+              (m.targetLayerId ?? null) === (mapping.targetLayerId ?? null) &&
+              (m.targetStageId ?? null) === (mapping.targetStageId ?? null) &&
               m.action === mapping.action &&
               m.lookSlot === mapping.lookSlot
             ),
@@ -355,11 +362,7 @@ class MidiEngine {
 
   private handleCc(event: Extract<MidiEvent, { type: 'cc' }>): void {
     const { project } = useProjectStore.getState();
-    const technique = selectedLayerOf(project).technique ?? undefined;
-    if (!technique) return;
-    const definition = getTechnique(technique.techniqueId);
-    if (!definition) return;
-    const params = allParams(definition);
+    const selectedLayer = selectedLayerOf(project);
 
     for (const mapping of project.midiMappings) {
       if (mapping.messageType !== 'cc') continue;
@@ -370,7 +373,19 @@ class MidiEngine {
         continue;
       }
       if (mapping.targetType !== 'param') continue;
-      const def = params.find(
+      const layer = mapping.targetLayerId
+        ? project.layers.find((entry) => entry.id === mapping.targetLayerId)
+        : selectedLayer;
+      if (!layer) continue;
+      const stage = mapping.targetStageId
+        ? layer.techniqueChain.find((entry) => entry.id === mapping.targetStageId)
+        : null;
+      if (mapping.targetStageId && !stage) continue;
+      const technique = stage ?? layer.technique;
+      if (!technique) continue;
+      const definition = getTechnique(technique.techniqueId);
+      if (!definition) continue;
+      const def = allParams(definition).find(
         (p) => p.id === mapping.targetParam && p.type === 'number',
       ) as NumberParamDef | undefined;
       if (!def) continue;
@@ -380,7 +395,12 @@ class MidiEngine {
 
       // Frozen target: MIDI never unfreezes implicitly (§17).
       const frozen = project.modulations.some(
-        (m) => m.enabled && m.target === mapping.targetParam && m.frozenValue !== null,
+        (m) =>
+          m.enabled &&
+          m.target === mapping.targetParam &&
+          m.frozenValue !== null &&
+          (m.targetStageId ?? null) === (stage?.id ?? null) &&
+          targetLayerOf(project, m) === layer.id,
       );
       if (frozen) {
         this.setStatus(mapping.id, 'frozen');
@@ -415,7 +435,7 @@ class MidiEngine {
         continue;
       }
       this.setStatus(mapping.id, 'live');
-      this.writeParam(technique.id, mapping.targetParam as string, def, shaped);
+      this.writeParam(layer.id, stage?.id ?? null, mapping.targetParam as string, def, shaped);
     }
   }
 
@@ -475,7 +495,8 @@ class MidiEngine {
   }
 
   private writeParam(
-    techniqueInstanceId: string,
+    layerId: string,
+    stageId: string | null,
     paramId: string,
     def: NumberParamDef,
     norm: number,
@@ -486,11 +507,12 @@ class MidiEngine {
     // as device + CC number. The Take then replays without the controller
     // plugged in, and without depending on a mapping that may since have been
     // reassigned (§57/§80). Raw MIDI capture is backlogged as its own mode.
-    const layer = store.project.layers.find((l) => l.technique?.id === techniqueInstanceId);
+    const layer = store.project.layers.find((l) => l.id === layerId);
+    const stage = stageId ? layer?.techniqueChain.find((entry) => entry.id === stageId) : null;
     if (layer) {
-      const current = layer.technique?.params[paramId];
+      const current = stage ? stage.params[paramId] : layer.technique?.params[paramId];
       takeRecorder.control(
-        paramTarget(layer.id, paramId),
+        stage ? stageParamTarget(layer.id, stage.id, paramId) : paramTarget(layer.id, paramId),
         value,
         playback.getTime(),
         typeof current === 'number' ? current : value,
@@ -507,10 +529,11 @@ class MidiEngine {
     store.apply((p) => ({
       ...p,
       layers: p.layers.map((l) =>
-        l.technique && l.technique.id === techniqueInstanceId
-          ? { ...l, technique: { ...l.technique, params: { ...l.technique.params, [paramId]: value } } }
-          : l,
-        ),
+        l.id !== layerId ? l : stageId
+          ? { ...l, techniqueChain: l.techniqueChain.map((entry) => entry.id === stageId
+              ? { ...entry, params: { ...entry.params, [paramId]: value } } : entry) }
+          : l.technique ? { ...l, technique: { ...l.technique, params: { ...l.technique.params, [paramId]: value } } } : l,
+      ),
     }));
     this.selfWrite = false;
     this.armGestureCommit();
@@ -576,11 +599,6 @@ class MidiEngine {
 
   private reevaluatePickup(): void {
     const { project } = useProjectStore.getState();
-    const technique = selectedLayerOf(project).technique ?? undefined;
-    if (!technique) return;
-    const definition = getTechnique(technique.techniqueId);
-    if (!definition) return;
-    const params = allParams(definition);
     for (const mapping of project.midiMappings) {
       if (mapping.messageType !== 'cc' || mapping.pickupMode !== 'pickup') continue;
       const state = this.pickup.get(mapping.id);
@@ -589,16 +607,21 @@ class MidiEngine {
       if (mapping.targetType === 'macro') {
         const macro = project.macros.find((m) => m.id === mapping.targetParam);
         if (macro) currentNorm = macro.value;
-      } else {
-        const def = params.find((p) => p.id === mapping.targetParam && p.type === 'number') as
-          | NumberParamDef
-          | undefined;
-        if (def) {
-          const current = technique.params[mapping.targetParam ?? ''];
-          currentNorm =
-            typeof current === 'number'
-              ? (current - def.min) / Math.max(def.max - def.min, 1e-9)
-              : 0;
+      } else if (mapping.targetType === 'param') {
+        const layer = mapping.targetLayerId
+          ? project.layers.find((entry) => entry.id === mapping.targetLayerId)
+          : selectedLayerOf(project);
+        const stage = mapping.targetStageId ? layer?.techniqueChain.find((entry) => entry.id === mapping.targetStageId) : null;
+        const technique = stage ?? layer?.technique;
+        const definition = technique ? getTechnique(technique.techniqueId) : null;
+        const def = definition ? allParams(definition).find(
+          (param) => param.id === mapping.targetParam && param.type === 'number',
+        ) as NumberParamDef | undefined : undefined;
+        const current = technique?.params[mapping.targetParam ?? ''];
+        if (def && (!mapping.targetStageId || stage)) {
+          currentNorm = typeof current === 'number'
+            ? (current - def.min) / Math.max(def.max - def.min, 1e-9)
+            : 0;
         }
       }
       if (currentNorm !== null && Math.abs(state.lastKnob - currentNorm) > PICKUP_EPSILON) {

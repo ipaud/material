@@ -53,6 +53,7 @@ describe('authoring a lane by hand', () => {
           ...emptyLayer('l2', 'Grit'),
           opacity: 0.4,
           technique: { id: 't', techniqueId: 'flow-displace', enabled: true, params: { amount: 2 } },
+          techniqueChain: [{ id: 'stage-1', techniqueId: 'mosaic', enabled: true, params: { glyphIndex: 5 } }],
         },
       ],
     }));
@@ -71,19 +72,22 @@ describe('authoring a lane by hand', () => {
     expect(targets).toContain('layer:l1:opacity');
     expect(targets).toContain('layer:l2:opacity');
     expect(targets).toContain('param:l2:amount');
+    expect(targets).toContain('stage-param:l2:stage-1:glyphIndex');
   });
 
   it('a new lane starts flat at the control\'s current value', () => {
     const id = createManualTake(30);
     addLaneToTake(id, 'layer:l2:opacity');
     addLaneToTake(id, 'param:l2:amount');
+    addLaneToTake(id, 'stage-param:l2:stage-1:glyphIndex');
     expect(take().lanes.find((l) => l.target === 'layer:l2:opacity')!.samples).toEqual([
       { t: 0, v: 0.4 },
       { t: 30, v: 0.4 },
     ]);
     expect(take().lanes.find((l) => l.target === 'param:l2:amount')!.samples[0]!.v).toBe(2);
+    expect(take().lanes.find((l) => l.target === 'stage-param:l2:stage-1:glyphIndex')!.samples[0]!.v).toBe(5);
     addLaneToTake(id, 'layer:l2:opacity'); // idempotent
-    expect(take().lanes).toHaveLength(2);
+    expect(take().lanes).toHaveLength(3);
   });
 
   it('pure edits: add a key without moving the curve, set the interpolation', () => {

@@ -30,7 +30,7 @@ import {
 } from '@/modulation/modulationActions';
 import { modulationRuntime } from '@/modulation/runtime';
 import { getTriggerState } from '@/signals/triggerRuntime';
-import { pulseContribution } from '@/signals/pulseEngine';
+import { pulseContribution, triggersForLayer } from '@/signals/pulseEngine';
 import { playback } from '@/playback/PlaybackController';
 import { allParams } from '@/techniques/types';
 import { replaceConflicts } from '@/modulation/evaluator';
@@ -85,7 +85,12 @@ export function ModulationSection() {
   const anyFrozen = mappings.some((m) => m.frozenValue !== null);
   // A second REPLACE on one target is inert. Saying so is the difference
   // between a considered rule and a row that silently does nothing.
-  const inertReplace = replaceConflicts(mappings);
+  const inertReplace = new Set<string>();
+  for (const layer of layers) {
+    for (const id of replaceConflicts(mappings.filter((mapping) => targetLayerOf(project, mapping) === layer.id))) {
+      inertReplace.add(id);
+    }
+  }
 
   return (
     <div className="inspector-section">
@@ -108,7 +113,13 @@ export function ModulationSection() {
       </div>
       {mappings.map((m) => {
         const isOpen = expanded === m.id;
-        const targetDef = targets.find((t) => t.id === m.target);
+        const targetLayer = layers.find((layer) => layer.id === targetLayerOf(project, m));
+        const targetInstance = m.targetStageId
+          ? targetLayer?.techniqueChain.find((stage) => stage.id === m.targetStageId)
+          : targetLayer?.technique;
+        const mappingDefinition = targetInstance ? getTechnique(targetInstance.techniqueId) : null;
+        const mappingTargets = mappingDefinition ? allParams(mappingDefinition).filter((param) => param.type === 'number' && param.modulatable) : [];
+        const targetDef = mappingTargets.find((t) => t.id === m.target);
         return (
           <div key={m.id} className={`mod-row-wrap${m.frozenValue !== null ? ' frozen' : ''}`}>
             <div className="mod-row">
@@ -147,7 +158,7 @@ export function ModulationSection() {
                 value={m.target}
                 onChange={(e) => updateMapping(m.id, { target: e.target.value })}
               >
-                {targets.map((t) => (
+                {mappingTargets.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
                   </option>
@@ -192,13 +203,36 @@ export function ModulationSection() {
                         aria-label="Mapping layer"
                         value={targetLayerOf(project, m)}
                         title="Which layer this mapping drives. Other layers do not react to it."
-                        onChange={(e) => updateMapping(m.id, { targetLayerId: e.target.value })}
+                        onChange={(e) => {
+                          const layer = layers.find((entry) => entry.id === e.target.value);
+                          const next = layer?.technique ? getTechnique(layer.technique.techniqueId) : null;
+                          const valid = next ? allParams(next).find((param) => param.type === 'number' && param.modulatable)?.id : undefined;
+                          updateMapping(m.id, { targetLayerId: e.target.value, targetStageId: null, ...(valid ? { target: valid } : {}) });
+                        }}
                       >
                         {layers.map((l, i) => (
                           <option key={l.id} value={l.id}>
                             {l.name || `Layer ${i + 1}`}
                           </option>
                         ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+                {targetLayer && targetLayer.techniqueChain.length > 0 && (
+                  <div className="param-row">
+                    <span className="param-label">Stage</span>
+                    <div className="param-control">
+                      <select className="select" aria-label="Mapping stage" value={m.targetStageId ?? ''}
+                        onChange={(e) => {
+                          const stageId = e.target.value || null;
+                          const instance = stageId ? targetLayer.techniqueChain.find((stage) => stage.id === stageId) : targetLayer.technique;
+                          const next = instance ? getTechnique(instance.techniqueId) : null;
+                          const valid = next ? allParams(next).find((param) => param.type === 'number' && param.modulatable)?.id : undefined;
+                          updateMapping(m.id, { targetStageId: stageId, ...(valid ? { target: valid } : {}) });
+                        }}>
+                        <option value="">Primary stage</option>
+                        {targetLayer.techniqueChain.map((stage, index) => <option key={stage.id} value={stage.id}>Stage {index + 2}</option>)}
                       </select>
                     </div>
                   </div>
@@ -356,7 +390,12 @@ export function ModulationSection() {
  */
 function ValueBreakdown({ mapping }: { mapping: ModulationMapping }) {
   const ref = useRef<HTMLDivElement>(null);
-  const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
+  const project = useProjectStore((s) => s.project);
+  const layerId = targetLayerOf(project, mapping);
+  const layer = project.layers.find((entry) => entry.id === layerId);
+  const technique = mapping.targetStageId
+    ? layer?.techniqueChain.find((stage) => stage.id === mapping.targetStageId)
+    : layer?.technique;
 
   useEffect(() => {
     if (!technique) return;
@@ -384,7 +423,7 @@ function ValueBreakdown({ mapping }: { mapping: ModulationMapping }) {
       const modDelta = mapping.amount * shaped * span;
       const { triggers, ctx } = getTriggerState();
       let pulseDelta = 0;
-      for (const trig of triggers) {
+      for (const trig of mapping.targetStageId ? [] : triggersForLayer(triggers, layerId, selectedLayerOf(useProjectStore.getState().project).id)) {
         if (trig.targetParam === mapping.target) {
           pulseDelta += pulseContribution(trig, t, ctx) * span;
         }
@@ -398,7 +437,7 @@ function ValueBreakdown({ mapping }: { mapping: ModulationMapping }) {
         `  ·  FINAL ${fmt(final)}`;
     }, 100);
     return () => clearInterval(timer);
-  }, [mapping, technique]);
+  }, [mapping, technique, layerId]);
 
   return <div ref={ref} className="mod-breakdown mono" />;
 }

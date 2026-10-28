@@ -553,3 +553,9 @@ the mean luminance" cannot run in `npm test`. Run it by hand before a release:
 `npm run gate:identity` automates steps 1–3 through the headless CLI (needs a
 GPU and `npm run build`). On 0.8.4 it FAILS for mosaic, motion-* and
 flow-* (see docs/REVIEW_2026-10.md).
+
+Latest local run (2026-10-26, rebuilt macOS CLI): video/image mean-luma parity
+passed within ±2/255 for all 11 registered built-ins. Mosaic and Motion Trails
+remain non-neutral by design, but their video and still outputs agree. This gate
+checks cross-source parity; it does not claim that every technique preserves
+input luminance.

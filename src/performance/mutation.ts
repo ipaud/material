@@ -19,36 +19,12 @@ import type { LookCore, ModulationMapping, ParamValue } from '@shared/schemas/pr
 export type MutationIntensity = 'low' | 'med' | 'high';
 
 /** Fraction of a parameter's explore span a value may wander, per intensity. */
-const SIGMA: Record<MutationIntensity, number> = {
-  low: 0.1,
-  med: 0.25, // matches the established Explore sigma
-  high: 0.45,
-};
-
-/** Probability an enum/boolean flips, per intensity. */
-const FLIP_CHANCE: Record<MutationIntensity, number> = {
-  low: 0.05,
-  med: 0.15,
-  high: 0.3,
-};
-
-/**
- * Share of eligible parameters a mutation touches at all.
- *
- * This matters more than sigma. Moving every parameter at once is not a
- * variation — it is a new random state, and a dozen small changes compound
- * (tighter spacing × lower scale × higher threshold × stronger luminance
- * mapping) into sparse, near-black images. Measured on the six official
- * looks: touching everything produced 10–15 changes per candidate and a
- * systematic collapse of mean luminance. Mutating a HANDFUL of parameters
- * keeps the parent recognisable, which is what makes a candidate useful
- * rather than merely different.
- */
-const MUTATION_RATE: Record<MutationIntensity, number> = {
-  low: 0.22,
-  med: 0.4,
-  high: 0.6,
-};
+/** Shared profile keeps Candidate and seeded Explore mutation calibrated alike. */
+export const MUTATION_PROFILE = {
+  low: { sigma: 0.1, flipChance: 0.05, rate: 0.22 },
+  med: { sigma: 0.25, flipChance: 0.15, rate: 0.4 },
+  high: { sigma: 0.45, flipChance: 0.3, rate: 0.6 },
+} as const satisfies Record<MutationIntensity, { sigma: number; flipChance: number; rate: number }>;
 
 /**
  * Performance-level lock groups (§15). TECHNIQUE is the superset of the
@@ -75,23 +51,30 @@ export function emptyMutationLocks(): MutationLocks {
 const TIMING_SECTION = /temporal|time|offset|step|scan/i;
 const COLOR_SECTION = /sampling|colou?r|blend/i;
 
-/** Section label → lock family. Section-based so new techniques classify too. */
-function sectionFamily(label: string): 'timing' | 'color' | 'geometry' {
+export type MutationFamily = 'timing' | 'color' | 'structure';
+
+/** Section label → shared lock family. */
+export function mutationParamFamily(label: string): MutationFamily {
   if (TIMING_SECTION.test(label)) return 'timing';
   if (COLOR_SECTION.test(label)) return 'color';
-  return 'geometry';
+  return 'structure';
+}
+
+const STRUCTURE_SECTION = /grid|element|scatter|depth|geometry|layout|transform|spatial|shape|position|displacement/i;
+export function isStructuralParam(sectionLabel: string, def: ParamDef): boolean {
+  return STRUCTURE_SECTION.test(sectionLabel) || /column|row|scale|spacing|rotation|size|width|height|geometry|displacement|offset|center/i.test(`${def.id} ${def.label}`);
 }
 
 interface MutableParam {
   def: ParamDef;
-  family: 'timing' | 'color' | 'geometry';
+  family: MutationFamily;
 }
 
 function mutableParams(definition: TechniqueDefinition, locks: MutationLocks): MutableParam[] {
   if (locks.technique) return [];
   const out: MutableParam[] = [];
   for (const section of definition.sections) {
-    const family = sectionFamily(section.label);
+    const family = mutationParamFamily(section.label);
     if (family === 'timing' && locks.timing) continue;
     if (family === 'color' && locks.color) continue;
     for (const def of section.params) {
@@ -136,9 +119,7 @@ export function mutateLookCore(
   generation = 1,
 ): MutationResult {
   const rng = mulberry32(seed);
-  const sigmaFraction = SIGMA[intensity];
-  const flipChance = FLIP_CHANCE[intensity];
-  const rate = MUTATION_RATE[intensity];
+  const { sigma: sigmaFraction, flipChance, rate } = MUTATION_PROFILE[intensity];
 
   const params: Record<string, ParamValue> = { ...parent.params };
   let changedParams = 0;

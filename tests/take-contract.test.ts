@@ -8,6 +8,7 @@ import {
   layerOpacityTarget,
   macroTarget,
   paramTarget,
+  stageParamTarget,
   parseControlTarget,
   simplifyLane,
   sortedEvents,
@@ -81,6 +82,18 @@ describe('control target scoping', () => {
     });
   });
 
+  it('scopes additional-stage lanes by stable stage id and keeps param namespace whole', () => {
+    expect(stageParamTarget('layer_2', 'tech_7', 'pack:shader:hue')).toBe(
+      'stage-param:layer_2:tech_7:pack:shader:hue',
+    );
+    expect(parseControlTarget(stageParamTarget('layer_2', 'tech_7', 'pack:shader:hue'))).toEqual({
+      kind: 'param', layerId: 'layer_2', stageId: 'tech_7', paramId: 'pack:shader:hue',
+    });
+    expect(parseControlTarget(paramTarget('layer_2', 'scale'))).toEqual({
+      kind: 'param', layerId: 'layer_2', paramId: 'scale',
+    });
+  });
+
   it('rejects an unknown target instead of guessing', () => {
     expect(parseControlTarget('blend:layer_1')).toBeNull();
     expect(parseControlTarget('layer_1')).toBeNull();
@@ -125,6 +138,16 @@ describe('continuous lane evaluation', () => {
   it('returns null for an empty lane rather than a neutral 0', () => {
     // 0 is a real opacity. Absence has to be distinguishable from silence.
     expect(laneValueAt({ target: 'macro:m1', samples: [] }, 1)).toBeNull();
+  });
+
+  it('resolves stage-scoped lanes separately from primary params', () => {
+    const resolved = resolveTakeAt(take({
+      lanes: [{ target: stageParamTarget('layer_2', 'tech_7', 'scale'), samples: [
+        { t: 0, v: 1 }, { t: 2, v: 3 },
+      ] }],
+    }), 1);
+    expect(resolved.params.has('layer_2')).toBe(false);
+    expect(resolved.stageParams.get('layer_2')?.get('tech_7')?.scale).toBe(2);
   });
 
   it('agrees with a linear scan on a long lane (binary search sanity)', () => {

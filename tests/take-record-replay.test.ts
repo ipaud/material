@@ -6,7 +6,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { playback } from '@/playback/PlaybackController';
 import { takeRecorder, CONTROL_EPSILON, SAMPLE_HZ } from '@/performance/take/recorder';
 import { takePlayer } from '@/performance/take/player';
-import { laneValueAt, layerOpacityTarget, macroTarget, paramTarget } from '@/performance/take/model';
+import { laneValueAt, layerOpacityTarget, macroTarget, paramTarget, stageParamTarget } from '@/performance/take/model';
 import {
   performFreeze,
   performLayerEnabled,
@@ -14,8 +14,9 @@ import {
   performLookRecall,
   performMacroValue,
   performSelectedParam,
+  performTechniqueStageParam,
 } from '@/performance/take/gestures';
-import { captureBaseline, stopRecording } from '@/performance/take/takeActions';
+import { captureBaseline, stopRecording, stopTake } from '@/performance/take/takeActions';
 import { modulationRuntime } from '@/modulation/runtime';
 
 const src = (...p: string[]) => readFileSync(resolve(process.cwd(), 'src', ...p), 'utf8');
@@ -200,6 +201,32 @@ describe('the vertical slice: record, replay, seek', () => {
       'layer.enable',
     ]);
     expect(take.durationSec).toBe(10);
+  });
+
+  it('records and commits extra-stage params by stable ID across reorder', () => {
+    const project = useProjectStore.getState().project;
+    const layer = project.layers[0]!;
+    const chain = [
+      { id: 'stage_a', techniqueId: 'mosaic', enabled: true, params: { columns: 12 } },
+      { id: 'stage_b', techniqueId: 'mosaic', enabled: true, params: { columns: 24 } },
+    ];
+    useProjectStore.setState({ project: { ...project, layers: [{ ...layer, techniqueChain: chain }] } });
+    const baseline = captureBaseline(useProjectStore.getState().project);
+    takeRecorder.begin(0, baseline);
+    clock = 1;
+    performTechniqueStageParam('stage_a', 'columns', 40);
+    const take = takeRecorder.stop(2, 'TAKE 01')!;
+    const target = stageParamTarget(layer.id, 'stage_a', 'columns');
+    expect(take.lanes.some((lane) => lane.target === target)).toBe(true);
+
+    takePlayer.start(take, 1);
+    expect(modulationRuntime.transformStageFor(layer.id, 'stage_a', { columns: 12 }).columns).toBe(40);
+    useProjectStore.setState((s) => ({
+      project: { ...s.project, layers: s.project.layers.map((entry) => ({ ...entry, techniqueChain: [...entry.techniqueChain].reverse() })) },
+    }));
+    stopTake();
+    expect(useProjectStore.getState().project.layers[0]!.techniqueChain.find((stage) => stage.id === 'stage_a')?.params.columns).toBe(40);
+    expect(useProjectStore.getState().project.layers[0]!.techniqueChain.find((stage) => stage.id === 'stage_b')?.params.columns).toBe(24);
   });
 
   it('replays the gesture it recorded, within the simplification tolerance', () => {

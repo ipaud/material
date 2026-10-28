@@ -9,7 +9,7 @@ import { useAudioStore } from '@/state/audioStore';
 import { usePlaybackStore } from '@/state/playbackStore';
 import { useExportStore } from '@/state/exportStore';
 import { reportError, useUiStore } from '@/state/uiStore';
-import { getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
+import { createTechniqueRenderer, getTechnique, techniqueNeedsTemporal } from '@/techniques/registry';
 import { allParams, type TechniqueRenderer } from '@/techniques/types';
 import { evalSources, type SourceContext } from '@/modulation/sources';
 import { resolvePatternHandles } from '@/pattern/patternSourceRuntime';
@@ -198,6 +198,7 @@ export function createFrameEvaluator(
   const workingCore = (): LookCore => ({
     techniqueId: working.techniqueId ?? 'mosaic',
     params: { ...working.params },
+    techniqueChain: working.layers.find((layer) => layer.id === selectedLayerOf(project).id)?.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })) ?? [],
     material: working.material,
     modulations: working.modulations.map((m) => ({ ...m })),
     triggers: working.triggers.map((t) => ({ ...t })),
@@ -207,6 +208,12 @@ export function createFrameEvaluator(
   const applyCoreToWorking = (core: LookCore) => {
     working.techniqueId = core.techniqueId;
     working.params = { ...core.params };
+    if (core.techniqueChain) {
+      const layerId = selectedLayerOf(project).id;
+      working.layers = working.layers.map((layer) => layer.id === layerId
+        ? { ...layer, techniqueChain: core.techniqueChain!.map((stage) => ({ ...stage, params: { ...stage.params } })) }
+        : layer);
+    }
     working.material = core.material;
     working.modulations = core.modulations.map((m) => ({ ...m }));
     working.triggers = core.triggers.map((t) => ({ ...t }));
@@ -447,6 +454,7 @@ export function createFrameEvaluator(
     params: ParamRecord;
     techniqueId: string | null;
     transition: ExportTransition | null;
+    stageParams: Map<string, Map<string, ParamRecord>>;
   } => {
     const timeSec = compositionTimeAt(startSec, fps, frameIndex);
     // A morph that has REACHED ITS END settles into the working copy before
@@ -502,9 +510,23 @@ export function createFrameEvaluator(
       }
     }
 
+    const primaryId = selectedLayerOf(project).id;
+    if (overlay?.techniqueChain) {
+      const current = working.layers.find((layer) => layer.id === primaryId)?.techniqueChain ?? [];
+      const structureChanged = current.length !== overlay.techniqueChain.length || current.some((stage, index) =>
+        stage.id !== overlay.techniqueChain![index]?.id || stage.techniqueId !== overlay.techniqueChain![index]?.techniqueId ||
+        stage.enabled !== overlay.techniqueChain![index]?.enabled,
+      );
+      if (structureChanged) {
+        working.layers = working.layers.map((layer) => layer.id === primaryId
+          ? { ...layer, techniqueChain: overlay!.techniqueChain!.map((stage) => ({ ...stage, params: { ...stage.params } })) }
+          : layer);
+      }
+    }
+
     const techniqueId = overlay?.techniqueId ?? working.techniqueId;
     const definition = techniqueId ? getTechnique(techniqueId) : null;
-    if (!definition) return { timeSec, params: working.params, techniqueId, transition };
+    if (!definition) return { timeSec, params: working.params, techniqueId, transition, stageParams: new Map() };
     // A replayed look apply can change the working seed mid-export; live
     // preview reconfigures its context on the same store change, so mirror
     // it here for exact parity.
@@ -516,7 +538,6 @@ export function createFrameEvaluator(
     // when a Take recorded it, and then it enters as a value the macro HAS,
     // fanned out through whatever mappings the macro carries now (§82/§83).
     const resolved = take ? resolveTakeAt(take, timeSec) : null;
-    const primaryId = selectedLayerOf(project).id;
     const takeParams = resolved?.params.get(primaryId);
     const macros =
       resolved && resolved.macros.size > 0
@@ -534,9 +555,23 @@ export function createFrameEvaluator(
       macros,
       definition,
     );
-    const mappings = overlay ? overlay.modulations : working.modulations;
+    const mappings = (overlay ? overlay.modulations : working.modulations).filter((mapping) => !mapping.targetStageId);
     const activeTriggers = overlay ? overlay.triggers : working.triggers;
     const modulated = applyModulations(baseParams, mappings, sources, definition, smoothing, dt);
+    const primaryLayer = working.layers.find((layer) => layer.id === primaryId);
+    const chain = overlay?.techniqueChain ?? primaryLayer?.techniqueChain ?? [];
+    const stageValues = new Map<string, ParamRecord>();
+    for (const stage of chain) {
+      if (!stage.enabled) continue;
+      const stageDefinition = getTechnique(stage.techniqueId);
+      if (!stageDefinition) continue;
+      const takeStage = resolved?.stageParams.get(primaryId)?.get(stage.id);
+      const stageBase = { ...stage.params, ...(takeStage ?? {}) };
+      const stageMappings = (overlay ? overlay.modulations : working.modulations).filter((mapping) => mapping.targetStageId === stage.id);
+      stageValues.set(stage.id, stageMappings.length > 0
+        ? applyModulations(stageBase, stageMappings, sources, stageDefinition, smoothing, dt)
+        : stageBase);
+    }
     return {
       timeSec,
       params: applyPulses(
@@ -548,6 +583,7 @@ export function createFrameEvaluator(
       ),
       techniqueId,
       transition,
+      stageParams: new Map([[primaryId, stageValues]]),
     };
   };
 
@@ -585,7 +621,11 @@ export function createSecondaryLayerEvaluator(
   /** v0.7: the Take supplies the BASE for any layer opacity or parameter it
    * recorded — before this layer's own mappings, exactly as a fader would. */
   take: PerformanceTake | null = null,
-): { paramsAt: (t: number) => Map<string, ParamRecord>; opacityAt: (t: number) => Map<string, number> } {
+): {
+  paramsAt: (t: number) => Map<string, ParamRecord>;
+  opacityAt: (t: number) => Map<string, number>;
+  stageParamsAt: (t: number) => Map<string, Map<string, ParamRecord>>;
+} {
   const analysis = useAudioStore.getState().analysis;
   const byTarget = mappingsByTarget(project);
   const entries = project.layers
@@ -599,6 +639,13 @@ export function createSecondaryLayerEvaluator(
       ),
       smoothing: new SmoothingState(),
     }));
+  const stageEntries = project.layers.flatMap((layer) => layer.techniqueChain.filter((stage) => stage.enabled).map((stage) => ({
+    layerId: layer.id,
+    stage,
+    mappings: byTarget.get(layer.id) ?? [],
+    signalSource: new Map((byTarget.get(layer.id) ?? []).map((m) => [m.id, sourceLayerOf(project, m)])),
+    smoothing: new SmoothingState(),
+  })));
   const ctx: SourceContext = {
     analysis,
     durationSec: usePlaybackStore.getState().durationSec,
@@ -676,7 +723,7 @@ export function createSecondaryLayerEvaluator(
           macros,
           definition,
         ),
-        e.mappings,
+        e.mappings.filter((mapping) => !mapping.targetStageId),
         sources,
         definition,
         e.smoothing,
@@ -697,7 +744,29 @@ export function createSecondaryLayerEvaluator(
     }
     return out;
   };
-  return { paramsAt, opacityAt };
+  const stageParamsAt = (timeSec: number): Map<string, Map<string, ParamRecord>> => {
+    const resolved = take ? resolveTakeAt(take, timeSec) : null;
+    const out = new Map<string, Map<string, ParamRecord>>();
+    for (const e of stageEntries) {
+      const definition = getTechnique(e.stage.techniqueId);
+      if (!definition) continue;
+      const mappings = e.mappings.filter((mapping) => mapping.targetStageId === e.stage.id);
+      const base = { ...e.stage.params, ...(resolved?.stageParams.get(e.layerId)?.get(e.stage.id) ?? {}) };
+      const params = mappings.length === 0 ? base : applyModulations(
+        base,
+        mappings,
+        evalSources(timeSec, { ...ctx, visual: visualFrom(e) }),
+        definition,
+        e.smoothing,
+        dt,
+      );
+      const layerStages = out.get(e.layerId) ?? new Map<string, ParamRecord>();
+      layerStages.set(e.stage.id, params);
+      out.set(e.layerId, layerStages);
+    }
+    return out;
+  };
+  return { paramsAt, opacityAt, stageParamsAt };
 }
 
 /**
@@ -740,7 +809,7 @@ export function createExportRendererSync(
       const wasTemporal = host.isTemporalActive;
       // setTechniqueRenderer disposes the previous renderer (including the
       // bridge's pre-export one — restore() rebuilds it afterwards).
-      host.setTechniqueRenderer(definition.createRenderer());
+      host.setTechniqueRenderer(createTechniqueRenderer(techniqueId));
       host.setTemporalEnabled(techniqueNeedsTemporal(techniqueId, params));
       activeId = techniqueId;
       switched = true;
@@ -750,8 +819,7 @@ export function createExportRendererSync(
     /** Rebuild the live technique's renderer so the editor resumes untouched. */
     restore(liveTechniqueId: string | null, liveParams: ParamRecord): void {
       if (!switched) return;
-      const definition = liveTechniqueId ? getTechnique(liveTechniqueId) : null;
-      host.setTechniqueRenderer(definition ? definition.createRenderer() : null);
+      host.setTechniqueRenderer(liveTechniqueId ? createTechniqueRenderer(liveTechniqueId) : null);
       host.setTemporalEnabled(
         liveTechniqueId ? techniqueNeedsTemporal(liveTechniqueId, liveParams) : false,
       );
@@ -1027,12 +1095,15 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         // subrange disagreed with each other — the exact CE1H failure, one
         // layer along.
         const prerollLayers = new Map(evaluateLayers.paramsAt(frame.timeSec));
+        const prerollStageParams = evaluateLayers.stageParamsAt(frame.timeSec);
+        for (const [layerId, stages] of frame.stageParams) prerollStageParams.set(layerId, stages);
         const walkOpacity = evaluateLayers.opacityAt(frame.timeSec); // walk opacity smoothing too
         if (!walkGpu || f < walkFrom) continue;
         prerollLayers.set(selectedLayerOf(project0).id, frame.params);
         engine.setAuthorityLayerParams(prerollLayers);
         engine.setAuthorityLayerEnabled(evaluate.layerEnabled());
         followStack();
+        engine.setTechniqueStageParams(prerollStageParams);
         rendererSync.sync(frame.techniqueId, frame.params);
         engine.prepareGeneratorForExport(frame.timeSec, request.width, request.height);
         engine.prepareFlowForExport(
@@ -1073,7 +1144,7 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
         store.finish('cancelled', 'Export cancelled');
         return;
       }
-      const { timeSec, params, techniqueId, transition } = evaluate(startFrame + i);
+      const { timeSec, params, techniqueId, transition, stageParams } = evaluate(startFrame + i);
       // Cross-technique morph: the renderer must match the evaluated frame's
       // technique before drawing it (see createExportRendererSync).
       if (rendererSync.sync(techniqueId, params)) primeTemporal = true;
@@ -1090,6 +1161,9 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       engine.setAuthorityLayerOpacity(evaluateLayers.opacityAt(timeSec));
       engine.setAuthorityLayerEnabled(evaluate.layerEnabled());
       followStack();
+      const resolvedStageParams = evaluateLayers.stageParamsAt(timeSec);
+      for (const [layerId, stages] of stageParams) resolvedStageParams.set(layerId, stages);
+      engine.setTechniqueStageParams(resolvedStageParams);
       engine.setExportPreviousTime(i === 0 ? Math.max(timeSec - 1 / request.fps, 0) : null);
       engine.prepareGeneratorForExport(timeSec, request.width, request.height);
       // CE1H: optical flow is a source-derived pair and must advance per

@@ -1,4 +1,4 @@
-import { MAX_LAYERS, emptyLayer, type BlendMode, type Layer } from '@shared/schemas/project';
+import { MAX_NEW_LAYERS, emptyLayer, type BlendMode, type Layer } from '@shared/schemas/project';
 import { useProjectStore } from '@/state/projectStore';
 import { uid } from '@/utils/id';
 
@@ -13,7 +13,7 @@ import { uid } from '@/utils/id';
 
 export function addLayer(): string | null {
   const { project } = useProjectStore.getState();
-  if (project.layers.length >= MAX_LAYERS) return null;
+  if (project.layers.length >= MAX_NEW_LAYERS) return null;
   const id = uid('layer');
   useProjectStore.getState().apply((p) => ({
     ...p,
@@ -146,7 +146,7 @@ export function clearLayerSolo(): void {
  */
 export function duplicateLayer(layerId: string): string | null {
   const { project } = useProjectStore.getState();
-  if (project.layers.length >= MAX_LAYERS) return null;
+  if (project.layers.length >= MAX_NEW_LAYERS) return null;
   const source = project.layers.find((l) => l.id === layerId);
   if (!source) return null;
   const id = uid('layer');
@@ -157,6 +157,7 @@ export function duplicateLayer(layerId: string): string | null {
       id,
       name: source.name ? `${source.name} copy` : '',
       technique: source.technique ? { ...source.technique, id: uid('tech') } : null,
+      techniqueChain: source.techniqueChain.map((stage) => ({ ...stage, id: uid('tech') })),
     };
     const layers = [...p.layers];
     layers.splice(index + 1, 0, copy);

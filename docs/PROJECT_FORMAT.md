@@ -5,7 +5,7 @@ They are meant to be readable and diffable.
 
 ```jsonc
 {
-  "version": 4,
+  "version": 7,
   "name": "Burnout",
   "sources": [
     {
@@ -21,7 +21,7 @@ They are meant to be readable and diffable.
     "width": 3840, "height": 2160,
     "background": "#000000"
   },
-  // v4: a composition is a stack of up to four layers, each a complete
+  // v4 introduced a composition stack; current schema permits up to eight layers.
   // instrument. Order is bottom-first — layers[0] is underneath.
   "layers": [
     {
@@ -32,6 +32,8 @@ They are meant to be readable and diffable.
       "opacity": 1,
       "blendMode": "normal",     // normal|add|screen|multiply|difference|lighten|darken
       "sourceId": "src_a1d8858c",
+      "activity": null,
+      "input": "source",
       "technique": { "id": "tech_1", "techniqueId": "mosaic", "enabled": true, "params": { "columns": 18, … } },
       "material": { "materialId": "square", "colorMode": "source", "params": { "aspect": 1 }, "assetPath": null }
     }
@@ -149,16 +151,17 @@ They are meant to be readable and diffable.
   renders nothing, deliberately, because a silent fallback makes "which source
   is this layer showing" unanswerable. Single-layer output is byte-identical
   to v0.5.0, verified against a v0.5.0 build rather than asserted.
-- **`layers` is capped at eight** (`MAX_LAYERS`; four before the activity
-  windows, see docs/LAYERS.md).
+- **`layers` persists up to eight** (`MAX_LAYERS`) so existing projects remain
+  compatible. New layer creation and duplication stop at four (`MAX_NEW_LAYERS`);
+  the smaller cap is a BUILD/PLAY creation rule, not a schema migration.
 - **`layer.input`** (`"source"` default | `"below"`): what the layer's technique
   processes. `"below"` = the composite of the layers beneath it this frame (effects
-  in series); see docs/LAYERS.md. Absent = `"source"`, no version bump. Not part of
-  a Look.
+  in series); see docs/LAYERS.md. Absent = `"source"`. Added to new snapshots in
+  project v6; older Looks without it preserve the receiving layer's setting.
 - **`layer.activity`** (optional, `null` = always active): `{ start, end,
   fadeIn, fadeOut }` in composition seconds; `end: null` is open-ended and
-  `end` must be after `start`. Files without it parse unchanged (no version
-  bump). It is timeline structure, so a Look does not carry it.
+  `end` must be after `start`. It remains absent on old snapshots and is
+  preserved on the receiving layer; v6 snapshots capture and restore it.
 - **`trigger.targetLayerId`** (optional): the layer a pulse drives. Absent =
   the primary layer, which is what an untargeted trigger always did in the
   export.
@@ -346,11 +349,28 @@ Version 4 → 5 is a stamp; `migrateV4toV5` changes no data. The number moved so
 v0.6.1 refuses a project carrying a Take rather than opening it and stripping
 the performance as an unknown key.
 
+### Version 6
+
+Version 5 → 6 is a stamp. New Pin/Look layer snapshots can carry optional
+`input` and `activity` settings, so v5 snapshots retain their old behavior:
+recall leaves those receiving-layer settings alone. Older builds refuse v6
+projects instead of silently stripping the new nested snapshot data.
+
+### Version 7
+
+Version 6 → 7 is a stamp. Each layer now has `techniqueChain`, an ordered list
+of up to two additional `TechniqueInstance` values; `layer.technique` remains
+the first stage so existing one-technique projects keep their current meaning.
+Extra stages require a primary technique. Layer Look snapshots capture the
+same ordered chain. Older builds refuse v7 projects instead of dropping stages.
+
 ## Keyframes
 
 Keyframes are **hand-authored Take lanes**: a Take is a set of `(t, v)` lanes
 addressed by scoped targets (`layer:<id>:opacity`, `param:<layerId>:<paramId>`,
-`macro:<id>`), replayed at the base of the evaluation chain, before modulation.
+`stage-param:<layerId>:<stageId>:<paramId>`, `macro:<id>`), replayed at the
+base of the evaluation chain, before modulation. Extra-stage lanes resolve by
+stable stage ID, so reordering stages does not retarget them.
 A recorded performance and a drawn one are the same object. In the Perform
 strip, **+ NEW KEYFRAMES** makes an empty Take, **+ LANE** adds a lane that
 starts flat at the control's current value, double-click a lane to add a key,
