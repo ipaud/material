@@ -53,14 +53,25 @@ export interface PickOptions {
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
+const NOTES_MAX = 400;
+
+/** Release text as a native dialog can show it: no Markdown syntax, cut at a word. */
 function notesOf(body: string): string {
-  return body
+  const text = body
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l && !/^#{1,6}\s/.test(l) && !/sha-?256/i.test(l))
     .slice(0, 4)
-    .join('\n')
-    .slice(0, 400);
+    .map((l) =>
+      l
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // [text](url) → text
+        .replace(/(\*\*|__|\*|`)/g, '') // bold, italics, code
+        .replace(/^[-*]\s+/, '• '),
+    )
+    .join('\n');
+  if (text.length <= NOTES_MAX) return text;
+  const cut = text.slice(0, NOTES_MAX);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 0)).trimEnd()}…`;
 }
 
 export interface Notice {
