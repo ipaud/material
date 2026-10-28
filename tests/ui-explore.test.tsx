@@ -314,6 +314,27 @@ describe('PopulationStrip', () => {
     expect(useProjectStore.getState().project.explore.lastSeed).toBeNull();
   });
 
+  it('keeps a held compare preview while thumbnails render', async () => {
+    const project = createEmptyProject('Explore compare');
+    useProjectStore.getState().loadProject('', {
+      ...project,
+      layers: [{
+        ...project.layers[0]!,
+        technique: { id: 'tech-compare', techniqueId: 'mosaic', enabled: true, params: { scale: 1 } },
+      }],
+    });
+    useExploreStore.setState({ count: 5, mode: 'variation' });
+    vi.spyOn(engine, 'renderStill').mockReturnValue(new Uint8Array(220 * 220 * 4));
+    generateExploration(500);
+    const held = useProjectStore.getState().project;
+    useProjectStore.getState().beginPreview(held, 'Compare held');
+
+    await waitFor(() => expect(useExploreStore.getState().generating).toBe(false));
+
+    expect(useProjectStore.getState().previewLabel).toBe('Compare held');
+    expect(useProjectStore.getState().previewProject).toBe(held);
+  });
+
   it('stops thumbnail work when document is replaced by same object reference', async () => {
     const project = createEmptyProject('Replaced Explore');
     const document = {

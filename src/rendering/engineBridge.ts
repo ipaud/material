@@ -306,8 +306,18 @@ function applyGeneratorParams(
   branch.setSourceParamTransform((base, t) => modulationRuntime.transformSource(base, t, numeric));
 }
 
-/** Mount (or replace) one layer's technique renderer. */
-function syncLayerTechnique(project: Project, layer: Project['layers'][number]): void {
+/**
+ * Mount (or replace) one layer's technique renderer.
+ *
+ * `primary: false` leaves the primary renderer, its params and the temporal
+ * switch alone — during export those belong to createExportRendererSync,
+ * which drives them from the evaluated frame, not the static stack.
+ */
+function syncLayerTechnique(
+  project: Project,
+  layer: Project['layers'][number],
+  { primary = true }: { primary?: boolean } = {},
+): void {
   const branch = engine.branchFor(layer.id);
   if (!branch) return;
   const state = bridgeState(layer.id);
@@ -330,19 +340,21 @@ function syncLayerTechnique(project: Project, layer: Project['layers'][number]):
   }
   const instance = layer.technique?.enabled === false ? null : layer.technique;
   const techniqueId = instance?.techniqueId ?? null;
-  if (techniqueId !== state.techniqueId) {
-    state.techniqueId = techniqueId;
-    if (techniqueId) {
-      const definition = getTechnique(techniqueId);
-      state.renderer = definition ? createTechniqueRenderer(techniqueId) : null;
-      branch.setTechniqueRenderer(state.renderer);
-      if (!definition) reportError('Technique', new Error(`Unknown technique: ${techniqueId}`));
-    } else {
-      state.renderer = null;
-      branch.setTechniqueRenderer(null);
+  if (primary) {
+    if (techniqueId !== state.techniqueId) {
+      state.techniqueId = techniqueId;
+      if (techniqueId) {
+        const definition = getTechnique(techniqueId);
+        state.renderer = definition ? createTechniqueRenderer(techniqueId) : null;
+        branch.setTechniqueRenderer(state.renderer);
+        if (!definition) reportError('Technique', new Error(`Unknown technique: ${techniqueId}`));
+      } else {
+        state.renderer = null;
+        branch.setTechniqueRenderer(null);
+      }
     }
+    if (instance) branch.setTechniqueParams(instance.params);
   }
-  if (instance) branch.setTechniqueParams(instance.params);
   const activeStages = instance
     ? [instance, ...layer.techniqueChain.filter((stage) => stage.enabled)]
     : [];
@@ -371,6 +383,7 @@ function syncLayerTechnique(project: Project, layer: Project['layers'][number]):
     engine.setTechniqueChain(layer.id, []);
   }
   branch.setMaterialState(layer.material);
+  if (!primary) return;
   const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
   branch.setTemporalEnabled(needsTemporal);
   if (needsTemporal) branch.setTemporalSource(state.temporalSource);
@@ -715,7 +728,7 @@ export function syncLayersForExport(project: Project): void {
     })),
   );
   for (const layer of project.layers) {
-    syncLayerTechnique(project, layer);
+    syncLayerTechnique(project, layer, { primary: layer.id !== selectedId });
     const source = findSource(project, layer.sourceId);
     if (source && source.kind !== 'generator') continue;
     syncLayerSource(project, layer, null, null);

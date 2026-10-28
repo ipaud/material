@@ -65,7 +65,11 @@ async function ensureTypographyFont(): Promise<void> {
     const font = new FontFace('Material Noto Sans Mono', `url("${notoSansMonoUrl}")`, { weight: '100 900' });
     await font.load();
     document.fonts.add(font);
-  })();
+  })().catch((err: unknown) => {
+    // A failed load must not stick: the next typography load retries.
+    fontReady = null;
+    throw err;
+  });
   await fontReady;
 }
 

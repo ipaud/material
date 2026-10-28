@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { typographyTokens } from '@/materials/typography';
 import { BUILTIN_MATERIALS, shapeIndexForMaterial } from '@/materials/builtins';
 import { materialStateSchema } from '@shared/schemas/project';
@@ -31,6 +31,23 @@ describe('Typography material', () => {
     expect(materialStateSchema.safeParse(material).success).toBe(true);
     expect(materialStateSchema.safeParse({ ...material, params: { ...material.params, fontId: '/System/Library/Fonts/Any.ttf' } }).success).toBe(false);
     expect(materialStateSchema.safeParse({ ...material, params: { ...material.params, text: 'x'.repeat(4097) } }).success).toBe(false);
+  });
+
+  test('a failed font load is retried on the next typography load', async () => {
+    let loads = 0;
+    vi.stubGlobal('FontFace', class {
+      load(): Promise<void> {
+        loads++;
+        return loads === 1 ? Promise.reject(new Error('font fetch failed')) : Promise.resolve();
+      }
+    });
+    Object.defineProperty(document, 'fonts', { value: { add: vi.fn() }, configurable: true });
+    const { loadTypographyTexture } = await import('@/materials/textureLoader');
+    const material = { materialId: 'typography', colorMode: 'source' as const, assetPath: null, params: { text: 'A' } };
+    await expect(loadTypographyTexture(material)).rejects.toThrow('font fetch failed');
+    await loadTypographyTexture(material).catch(() => undefined);
+    expect(loads).toBe(2);
+    vi.unstubAllGlobals();
   });
 
   test('glyph selection joins existing modulation and Explore parameter paths', () => {

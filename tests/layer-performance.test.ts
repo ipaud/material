@@ -108,6 +108,16 @@ describe('v0.6D — a Look is the whole composition', () => {
     expect(restored.layers.map((l) => l.id)).toEqual(p.layers.map((l) => l.id));
   });
 
+  it('recall restores pinned chain stage ids, which stage modulations target', () => {
+    const p = stack();
+    const pinned = { ...p.layers[0]!, techniqueChain: [{ id: 'stage-pinned', techniqueId: 'mosaic', enabled: true, params: {} }] };
+    const look = lookFrom({ ...p, layers: [pinned, ...p.layers.slice(1)] });
+    // The performer deleted that stage and added another after pinning.
+    const edited = { ...pinned, techniqueChain: [{ id: 'stage-live', techniqueId: 'echo', enabled: true, params: {} }] };
+    const restored = projectWithLayerLooks({ ...p, layers: [edited, ...p.layers.slice(1)] }, look);
+    expect(restored.layers[0]!.techniqueChain.map((s) => s.id)).toEqual(['stage-pinned']);
+  });
+
   it('recall does not re-solo something the performer released', () => {
     // Solo is live performance state, not part of a look.
     const p = stack();

@@ -149,6 +149,35 @@ describe('engine bridge technique-chain installation', () => {
       setChain.mockRestore();
     }
   });
+
+  it('leaves the selected layer primary renderer and temporal switch to the export', () => {
+    const base = createEmptyProject('export owns primary');
+    const layer = base.layers[0]!;
+    const recalled = {
+      ...base,
+      selectedLayerId: layer.id,
+      layers: [{
+        ...layer,
+        technique: { id: 'primary', techniqueId: 'echo', enabled: true, params: {} },
+        techniqueChain: [],
+      }],
+    };
+    const branch = engine.branchFor(layer.id)!;
+    const setRenderer = vi.spyOn(branch, 'setTechniqueRenderer');
+    const setTemporal = vi.spyOn(branch, 'setTemporalEnabled');
+    const setParams = vi.spyOn(branch, 'setTechniqueParams');
+    try {
+      syncLayersForExport(recalled);
+      expect(setRenderer).not.toHaveBeenCalled();
+      expect(setTemporal).not.toHaveBeenCalled();
+      expect(setParams).not.toHaveBeenCalled();
+    } finally {
+      setRenderer.mockRestore();
+      setTemporal.mockRestore();
+      setParams.mockRestore();
+      resyncFromStore();
+    }
+  });
 });
 
 describe('LayerRuntimeImpl technique-chain render integration', () => {

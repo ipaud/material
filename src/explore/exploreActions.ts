@@ -189,6 +189,9 @@ async function generateThumbnails(variations: Variation[], sourceProject: Projec
     }
     const variation = variations[i];
     if (!variation) continue;
+    // The preview slot is shared with hold-to-compare: hand back whatever the
+    // performer is holding instead of dropping it.
+    const { previewProject: held, previewLabel: heldLabel } = useProjectStore.getState();
     try {
       const preview = applyVariationToProject(sourceProject, variation);
       useProjectStore.getState().beginPreview(preview, null);
@@ -201,7 +204,8 @@ async function generateThumbnails(variations: Variation[], sourceProject: Projec
       reportError('Explore thumbnail', err);
       break;
     } finally {
-      useProjectStore.getState().cancelPreview();
+      if (held) useProjectStore.getState().beginPreview(held, heldLabel);
+      else useProjectStore.getState().cancelPreview();
     }
     useExploreStore.getState().setProgress(i + 1);
     // Yield so the UI stays responsive during generation.

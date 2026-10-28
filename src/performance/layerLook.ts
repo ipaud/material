@@ -81,11 +81,9 @@ export function projectWithLayerLooks(project: Project, look: PinnedLook): Proje
       technique: entry.technique
         ? { ...entry.technique, id: existing?.technique?.id ?? uid('tech'), params: { ...entry.technique.params } }
         : null,
-      techniqueChain: entry.techniqueChain.map((stage, index) => ({
-        ...stage,
-        id: existing?.techniqueChain[index]?.id ?? uid('tech'),
-        params: { ...stage.params },
-      })),
+      // Stage ids are kept as pinned: the Look's modulations target them by
+      // id, and the core recall path restores the same ids.
+      techniqueChain: entry.techniqueChain.map((stage) => ({ ...stage, params: { ...stage.params } })),
       material: { ...entry.material, params: { ...entry.material.params } },
     };
   });
