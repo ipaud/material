@@ -1,5 +1,11 @@
 # Release Notes
 
+## v0.9.3 — QUIET RECALLS
+
+- **Recalling a Look no longer pops up “Chain active in preview, Output and export…”** every time. A layer with
+  a technique chain announced it again on each recall, because a recall gives the technique a new internal id. It
+  now says so once, and again only when the chain itself changes. Found while recording the demo for the website.
+
 ## v0.9.2 — IT STARTS RUNNING
 
 Found by installing 0.9.1 the way a new user does and using it. Same project format.
