@@ -295,7 +295,9 @@ describe('release gates (18G)', () => {
     // for any project with a temporal technique on a non-selected layer.
     // v0.8.7 decodes the first video frame before priming feedback; exports
     // that used to start black now start from the real frame.
-    expect(pkg.version).toBe('0.8.7');
+    // v0.9.0 ships technique chains (format 7), Recipes and onboarding; the
+    // 1.0 sign-off gates in docs/V1_PLAN.md Phase K remain open.
+    expect(pkg.version).toBe('0.9.0');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     // v1 Pin snapshots capture input routing and activity windows; v6 marks
     // the nested addition so older builds refuse it instead of stripping it.
