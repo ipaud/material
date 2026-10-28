@@ -269,3 +269,17 @@ describe('smoothing state is subrange-stable (§78)', () => {
     expect(runner).toContain('const frame = evaluate(f);');
   });
 });
+
+describe('cold first frame of a feedback export', () => {
+  it('decodes the source before the feedback surface is primed', () => {
+    // exportBegin copies the source texture into the feedback surface at once.
+    // Priming before the first decode wrote black into it on ~1 in 4 exports
+    // of a feedback technique on video (packaged-app gate, 2026-10-28).
+    const runner = readFileSync(join(process.cwd(), 'src/export/exportRunner.ts'), 'utf8');
+    const loop = runner.slice(runner.indexOf('for (let i = 0; i < totalFrames; i++)'));
+    const coldSeek = loop.indexOf('if (video && i === 0) await seekVideoExact(video, timeSec, true);');
+    const prime = loop.indexOf('engine.prepareFeedbackForExport(timeSec, i === 0 && !prerolled, params);');
+    expect(coldSeek).toBeGreaterThan(-1);
+    expect(prime).toBeGreaterThan(coldSeek);
+  });
+});
