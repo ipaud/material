@@ -55,6 +55,7 @@ export function LooksPanel() {
   const project = useProjectStore((s) => s.project);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const previewLabel = useProjectStore((s) => s.previewLabel);
   const [comparingId, setComparingId] = useState<string | null>(null);
 
@@ -122,12 +123,22 @@ export function LooksPanel() {
                 type="button"
                 aria-label={`Actions for ${look.label}`}
                 aria-expanded={menuFor === look.id}
+                ref={menuFor === look.id ? menuButtonRef : undefined}
                 onClick={() => setMenuFor(menuFor === look.id ? null : look.id)}
               >
                 ⋯
               </button>
               {menuFor === look.id && (
-                <div className="look-menu" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="look-menu"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Escape') return;
+                    e.stopPropagation();
+                    menuButtonRef.current?.focus();
+                    setMenuFor(null);
+                  }}
+                >
                   {look.slot === null && (
                     <>
                       <button onClick={() => { exploreAroundPin(look); setMenuFor(null); }}>

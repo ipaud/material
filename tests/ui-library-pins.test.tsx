@@ -42,6 +42,23 @@ describe('Pins in Library', () => {
     });
   });
 
+  it('closes the actions menu on Escape and returns focus to its button', () => {
+    const project = createEmptyProject('Pin menu keys');
+    useProjectStore.getState().loadProject('', {
+      ...project,
+      layers: [{ ...project.layers[0]!, technique: { id: 'tech-pin-esc', techniqueId: 'mosaic', enabled: true, params: {} } }],
+    });
+    const pin = pinCurrentLook()!;
+
+    render(<LooksPanel />);
+    const actions = screen.getByRole('button', { name: `Actions for ${pin.label}` });
+    fireEvent.click(actions);
+    fireEvent.keyDown(screen.getByText('Rename'), { key: 'Escape' });
+
+    expect(actions).toHaveAttribute('aria-expanded', 'false');
+    expect(actions).toHaveFocus();
+  });
+
   it('opens Explore around compatible Pin values without changing Current', () => {
     const project = createEmptyProject('Explore Pin');
     const original = {

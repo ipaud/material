@@ -141,10 +141,13 @@ function MacroMappingRow({
         <button
           className={`mod-enable${mapping.enabled ? ' on' : ''}`}
           title={mapping.enabled ? 'Disable' : 'Enable'}
+          aria-label="Mapping enabled"
+          aria-pressed={mapping.enabled}
           onClick={() => patch({ enabled: !mapping.enabled })}
         />
         <select
           className="select mod-select"
+          aria-label="Mapping target"
           value={mapping.targetParam}
           onChange={(e) => patch({ targetParam: e.target.value })}
         >
@@ -168,7 +171,7 @@ function MacroMappingRow({
           {mapping.amount >= 0 ? '+' : ''}
           {mapping.amount.toFixed(2)}
         </span>
-        <button className="vp-btn danger" onClick={remove}>
+        <button className="vp-btn danger" aria-label="Remove mapping" onClick={remove}>
           ✕
         </button>
       </div>

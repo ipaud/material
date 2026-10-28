@@ -196,6 +196,17 @@ describe('BUILD narrow panel controls', () => {
     expect(inspector).toHaveAttribute('aria-expanded', 'false');
     expect(viewport).not.toHaveAttribute('inert');
   });
+
+  it('moves focus into the opened panel and Escape returns it to the toggle', () => {
+    render(<BuildWorkspace isDragOver={false} />);
+    const inspector = screen.getByRole('button', { name: 'Inspector' });
+    fireEvent.click(inspector);
+    const panel = screen.getByRole('complementary', { name: 'Inspector' });
+    expect(panel).toHaveFocus();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(inspector).toHaveAttribute('aria-expanded', 'false');
+    expect(inspector).toHaveFocus();
+  });
 });
 
 describe('Inspector parameter grouping', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUiStore } from '@/state/uiStore';
 import { useProjectStore } from '@/state/projectStore';
 import { Gutter } from '@/components/Gutter';
@@ -21,6 +21,25 @@ interface Props {
  */
 export function BuildWorkspace({ isDragOver }: Props) {
   const [mobilePanel, setMobilePanel] = useState<'library' | 'inspector' | null>(null);
+  const panelRefs = { library: useRef<HTMLElement>(null), inspector: useRef<HTMLElement>(null) };
+  const toggleRefs = { library: useRef<HTMLButtonElement>(null), inspector: useRef<HTMLButtonElement>(null) };
+  const lastOpened = useRef<'library' | 'inspector' | null>(null);
+  // Drawer focus: into the panel on open, back to its toggle on close.
+  useEffect(() => {
+    if (mobilePanel) {
+      lastOpened.current = mobilePanel;
+      panelRefs[mobilePanel].current?.focus();
+    } else if (lastOpened.current) {
+      toggleRefs[lastOpened.current].current?.focus();
+      lastOpened.current = null;
+    }
+  }, [mobilePanel]);
+  const closeOnEscape = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape' && mobilePanel) {
+      event.stopPropagation();
+      setMobilePanel(null);
+    }
+  };
   useEffect(() => {
     const breakpoint = window.matchMedia?.('(min-width: 761px)');
     if (!breakpoint) return;
@@ -39,12 +58,12 @@ export function BuildWorkspace({ isDragOver }: Props) {
       <div className="build-toolbar">
         <SystemPath />
         <div className="build-mobile-panels" role="group" aria-label="Workspace panels">
-          <button aria-controls="build-library-panel" aria-expanded={mobilePanel === 'library'} onClick={() => setMobilePanel((panel) => panel === 'library' ? null : 'library')}>Library</button>
-          <button aria-controls="build-inspector-panel" aria-expanded={mobilePanel === 'inspector'} onClick={() => setMobilePanel((panel) => panel === 'inspector' ? null : 'inspector')}>Inspector</button>
+          <button ref={toggleRefs.library} aria-controls="build-library-panel" aria-expanded={mobilePanel === 'library'} onClick={() => setMobilePanel((panel) => panel === 'library' ? null : 'library')}>Library</button>
+          <button ref={toggleRefs.inspector} aria-controls="build-inspector-panel" aria-expanded={mobilePanel === 'inspector'} onClick={() => setMobilePanel((panel) => panel === 'inspector' ? null : 'inspector')}>Inspector</button>
         </div>
       </div>
       <div className="main-row">
-        <aside id="build-library-panel" className={`panel panel-left${mobilePanel === 'library' ? ' mobile-open' : ''}`} style={{ width: libraryWidth }}>
+        <aside id="build-library-panel" ref={panelRefs.library} aria-label="Library" tabIndex={-1} onKeyDown={closeOnEscape} className={`panel panel-left${mobilePanel === 'library' ? ' mobile-open' : ''}`} style={{ width: libraryWidth }}>
           <LibraryPanel />
         </aside>
         <Gutter panel="library" />
@@ -55,7 +74,7 @@ export function BuildWorkspace({ isDragOver }: Props) {
           {isDragOver && <div className="drop-overlay" />}
         </main>
         <Gutter panel="inspector" />
-        <aside id="build-inspector-panel" className={`panel panel-right${mobilePanel === 'inspector' ? ' mobile-open' : ''}`} style={{ width: inspectorWidth }}>
+        <aside id="build-inspector-panel" ref={panelRefs.inspector} aria-label="Inspector" tabIndex={-1} onKeyDown={closeOnEscape} className={`panel panel-right${mobilePanel === 'inspector' ? ' mobile-open' : ''}`} style={{ width: inspectorWidth }}>
           <InspectorPanel />
         </aside>
       </div>
