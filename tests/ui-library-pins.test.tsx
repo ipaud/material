@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createEmptyProject } from '@shared/schemas/project';
 import { LooksPanel } from '@/library/LooksPanel';
-import { pinCurrentLook } from '@/projects/lookActions';
+import { overwriteSlotWithCurrent, pinCurrentLook } from '@/projects/lookActions';
 import { useProjectStore } from '@/state/projectStore';
 import { useExploreStore } from '@/state/exploreStore';
 import { useUiStore } from '@/state/uiStore';
@@ -40,6 +40,19 @@ describe('Pins in Library', () => {
       label: 'LOOK 01',
       slot: 1,
     });
+  });
+
+  it('overwriting an empty slot is one undo step, leaving no orphan Pin', () => {
+    const project = createEmptyProject('Slot overwrite undo');
+    useProjectStore.getState().loadProject('', {
+      ...project,
+      layers: [{ ...project.layers[0]!, technique: { id: 'tech-slot', techniqueId: 'mosaic', enabled: true, params: {} } }],
+    });
+    overwriteSlotWithCurrent(4);
+    expect(useProjectStore.getState().project.pinnedLooks).toMatchObject([{ slot: 4, label: 'LOOK 04' }]);
+
+    useProjectStore.getState().undo();
+    expect(useProjectStore.getState().project.pinnedLooks).toEqual([]);
   });
 
   it('closes the actions menu on Escape and returns focus to its button', () => {

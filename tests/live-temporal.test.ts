@@ -297,7 +297,9 @@ describe('release gates (18G)', () => {
     // that used to start black now start from the real frame.
     // v0.9.0 ships technique chains (format 7), Recipes and onboarding; the
     // 1.0 sign-off gates in docs/V1_PLAN.md Phase K remain open.
-    expect(pkg.version).toBe('0.9.0');
+    // v0.9.1 gives each layer its own material texture; rendered output
+    // changes for projects with two or more typography/custom-image layers.
+    expect(pkg.version).toBe('0.9.1');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     // v1 Pin snapshots capture input routing and activity windows; v6 marks
     // the nested addition so older builds refuse it instead of stripping it.

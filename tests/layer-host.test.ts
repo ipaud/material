@@ -89,17 +89,33 @@ describe('v0.6.1 — LayerHost owns identity and lifetime', () => {
     expect(initial[0].width).toBe(1920);
     expect(initial[0].height).toBe(1080);
     const disposeInitial = vi.spyOn(initial[0], 'dispose');
+    const lastTargets = () => (runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0];
 
     host.setComposition(1280, 720, '#000');
-    const resized = (runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0];
-    expect(disposeInitial).toHaveBeenCalledOnce();
+    const resized = lastTargets();
     expect(resized).toHaveLength(2);
     expect(resized[0].width).toBe(1280);
     expect(resized[0].height).toBe(720);
     const disposeResized = vi.spyOn(resized[0], 'dispose');
 
     host.setComposition(1280, 720, '#fff');
-    expect((runtime.setTechniqueScratchTargets as ReturnType<typeof vi.fn>).mock.lastCall?.[0]).toBe(resized);
+    expect(lastTargets()).toBe(resized);
+
+    // renderStill flips export size ↔ preview size every frame: both pairs are
+    // reused, nothing is reallocated or disposed.
+    for (let frame = 0; frame < 3; frame++) {
+      host.setComposition(1920, 1080, '#000');
+      expect(lastTargets()).toBe(initial);
+      host.setComposition(1280, 720, '#000');
+      expect(lastTargets()).toBe(resized);
+    }
+    expect(disposeInitial).not.toHaveBeenCalled();
+
+    // A third size evicts the least recently used pair (1920×1080 here).
+    host.setComposition(640, 360, '#000');
+    expect(disposeInitial).toHaveBeenCalledOnce();
+    expect(disposeResized).not.toHaveBeenCalled();
+    expect(lastTargets()[0].width).toBe(640);
 
     (runtime as { hasTechniqueChain: boolean }).hasTechniqueChain = false;
     host.setTechniqueChain('a', []);

@@ -382,3 +382,15 @@ describe('interpolateLookCore — one-sided param keys', () => {
     expect(interpolateLookCore(a, b, 1).core.params).toEqual({ scale: 2, gap: 0.4 });
   });
 });
+
+describe('morph against a Look from before chains', () => {
+  test('carries the chained side through instead of fading it out and popping back', () => {
+    const chain = [{ id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { columns: 24 } }];
+    const chained = core({ techniqueChain: chain });
+    const legacy = core({}); // no techniqueChain: recall leaves the layer's chain alone
+    for (const p of [0, 0.5, 1]) {
+      expect(interpolateLookCore(chained, legacy, p).core.techniqueChain).toEqual(chain);
+      expect(interpolateLookCore(legacy, chained, p).core.techniqueChain).toEqual(chain);
+    }
+  });
+});

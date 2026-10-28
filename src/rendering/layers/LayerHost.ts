@@ -7,6 +7,8 @@ import type { LayerRenderState } from './layerTypes';
 import type { TechniqueRenderer } from '@/techniques/types';
 
 const EMPTY_DEMAND: ReadonlySet<VisualSignalId> = new Set();
+/** Scratch pairs kept per size: the preview's and one export size. */
+const MAX_SCRATCH_SIZES = 2;
 
 interface Slot {
   readonly id: string;
@@ -40,7 +42,7 @@ export class LayerHost {
   private readonly compositor = new LayerCompositor();
 
   private renderer: THREE.WebGLRenderer | null = null;
-  private techniqueScratch: [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget] | null = null;
+  private readonly techniqueScratchBySize = new Map<string, [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget]>();
   /**
    * Bumped every time the host installs a different renderer.
    *
@@ -588,8 +590,8 @@ export class LayerHost {
   }
 
   private releaseTechniqueScratch(): void {
-    this.techniqueScratch?.forEach((target) => target.dispose());
-    this.techniqueScratch = null;
+    this.techniqueScratchBySize.forEach((pair) => pair.forEach((target) => target.dispose()));
+    this.techniqueScratchBySize.clear();
     for (const slot of this.slots) slot.runtime.setTechniqueScratchTargets(null);
   }
 
@@ -601,8 +603,14 @@ export class LayerHost {
     }
     const w = Math.max(this.compWidth, 1);
     const h = Math.max(this.compHeight, 1);
-    if (!this.techniqueScratch || this.techniqueScratch[0].width !== w || this.techniqueScratch[0].height !== h) {
-      this.releaseTechniqueScratch();
+    // renderStill flips the composition to the export size and back on EVERY
+    // frame. Keeping one pair per size (preview + export) stops that from
+    // reallocating two full-size targets twice a frame.
+    const key = `${w}x${h}`;
+    let pair = this.techniqueScratchBySize.get(key);
+    if (pair) {
+      this.techniqueScratchBySize.delete(key); // re-insert: most recently used last
+    } else {
       const create = () => new THREE.WebGLRenderTarget(w, h, {
         depthBuffer: false,
         stencilBuffer: false,
@@ -610,9 +618,16 @@ export class LayerHost {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
       });
-      this.techniqueScratch = [create(), create()];
+      pair = [create(), create()];
     }
-    for (const slot of this.slots) slot.runtime.setTechniqueScratchTargets(this.techniqueScratch);
+    this.techniqueScratchBySize.set(key, pair);
+    // ponytail: two sizes cover preview + one export size; a third evicts the oldest.
+    for (const [oldKey, old] of this.techniqueScratchBySize) {
+      if (this.techniqueScratchBySize.size <= MAX_SCRATCH_SIZES) break;
+      old.forEach((target) => target.dispose());
+      this.techniqueScratchBySize.delete(oldKey);
+    }
+    for (const slot of this.slots) slot.runtime.setTechniqueScratchTargets(pair);
   }
 
   /** Render every visible layer and blend them. */

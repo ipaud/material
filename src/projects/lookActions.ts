@@ -179,20 +179,19 @@ export function overwriteSlotWithCurrent(slot: number): void {
     useUiStore.getState().pushToast('info', `Slot ${slot} overwritten with current state`);
     return;
   }
-  const pinned = pinCurrentLook();
-  if (pinned && pinned.slot !== slot) {
-    useProjectStore.getState().apply((p) => ({
-      ...p,
-      pinnedLooks: p.pinnedLooks.map((l) =>
-        l.id === pinned.id
-          ? { ...l, slot, label: `LOOK ${String(slot).padStart(2, '0')}` }
-          : l.slot === slot
-            ? { ...l, slot: null }
-            : l,
-      ),
-      activeLookId: pinned.id,
-    }));
+  // One apply, so one undo removes the new Look entirely — never an orphan Pin.
+  const pin = createPin(project);
+  if (!pin) {
+    useUiStore.getState().pushToast('info', 'Nothing to pin yet');
+    return;
   }
+  const look = { ...pin, slot, label: `LOOK ${String(slot).padStart(2, '0')}` };
+  useProjectStore.getState().apply((p) => ({
+    ...p,
+    pinnedLooks: [...p.pinnedLooks, look],
+    activeLookId: look.id,
+  }));
+  useUiStore.getState().pushToast('info', `Pinned ${look.label}`);
 }
 
 /** Intentional overwrite of a stored look with the current state (§24). */

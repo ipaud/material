@@ -1,5 +1,5 @@
 import { selectedLayerOf, withSelectedTechnique } from '@shared/schemas/project';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { getTechnique, listTechniques } from '@/techniques/registry';
@@ -69,6 +69,35 @@ function ShaderStatus({ techniqueId }: { techniqueId: string | null }): React.Re
       <pre className="mono">{error}</pre>
       <span>Still showing the last version that worked.</span>
     </div>
+  );
+}
+
+/**
+ * Typing is one undo step per edit, not per keystroke: the first change opens
+ * a transient gesture, leaving the field (or the field unmounting) commits it.
+ */
+function TypographyText({ value, onChange }: { value: string; onChange: (text: string) => void }) {
+  const editing = useRef(false);
+  const commit = () => {
+    if (!editing.current) return;
+    editing.current = false;
+    useProjectStore.getState().commitTransient();
+  };
+  useEffect(() => commit, []);
+  return (
+    <textarea
+      className="input"
+      maxLength={4096}
+      value={value}
+      onChange={(e) => {
+        if (!editing.current) {
+          editing.current = true;
+          useProjectStore.getState().beginTransient();
+        }
+        onChange(e.target.value);
+      }}
+      onBlur={commit}
+    />
   );
 }
 
@@ -375,8 +404,8 @@ export function InspectorPanel() {
               {material.materialId === 'typography' && (
                 <>
                   <label className="param-row"><span className="param-label">Text</span>
-                    <textarea className="input" maxLength={4096} value={String(material.params.text ?? '')}
-                      onChange={(e) => setMaterial({ params: { ...material.params, text: e.target.value } })} />
+                    <TypographyText value={String(material.params.text ?? '')}
+                      onChange={(text) => setMaterial({ params: { ...material.params, text } })} />
                   </label>
                   <label className="param-row"><span className="param-label">Render</span><div className="param-control">
                     <select className="select" aria-label="Typography render mode" value={String(material.params.mode ?? 'character')}

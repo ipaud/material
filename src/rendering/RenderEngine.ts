@@ -405,12 +405,6 @@ export class RenderEngine {
     this.invalidate();
   }
 
-  /** Material texture is composition-wide; every layer gets the same one. */
-  setMaterialTexture(texture: THREE.Texture | null): void {
-    this.layerHost.forEachRuntime((r) => r.setMaterialTexture(texture));
-    this.invalidate();
-  }
-
   /** Temporal diagnostics for the layer the scope is watching. */
   getTemporalStats(): TemporalStats | null {
     return this.layerHost.selectedRuntime?.getTemporalStats() ?? null;

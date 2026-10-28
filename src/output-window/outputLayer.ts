@@ -10,6 +10,7 @@ import { GeneratorSource } from '@/sources/generators/GeneratorSource';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { OutputLayerInput } from '@shared/outputChannel';
 import type { ParamRecord } from '@shared/schemas/project';
+import { MaterialTextureSlot } from '@/materials/materialTextureSlot';
 
 /**
  * v0.6E — one layer's worth of the Output replica.
@@ -34,6 +35,7 @@ export class OutputLayer {
   private generator: GeneratorSource | null = null;
   private generatorParams: Record<string, string | number | boolean> = {};
   private loadGeneration = 0;
+  private readonly materialTexture = new MaterialTextureSlot();
   /** Last resolved technique params, for capability questions that read them. */
   private lastParams: ParamRecord | null = null;
 
@@ -75,6 +77,7 @@ export class OutputLayer {
 
   /** Rebuild media only when the description actually changed. */
   applyInputs(branch: LayerRuntimeImpl, input: OutputLayerInput, generation: number): void {
+    if (this.branch !== branch) this.materialTexture.reset(); // a new runtime holds no texture
     this.branch = branch;
     const src = input.source;
     if (input.techniqueParams) {
@@ -118,7 +121,17 @@ export class OutputLayer {
       }
     }
 
-    if (input.materialState) branch.setMaterialState(input.materialState);
+    if (input.materialState) {
+      branch.setMaterialState(input.materialState);
+      this.materialTexture.sync(
+        input.materialState,
+        (texture) => {
+          if (this.branch === branch) branch.setMaterialTexture(texture);
+          else texture?.dispose();
+        },
+        (err) => console.warn('[replica] material load failed:', err),
+      );
+    }
     if (input.techniqueId !== this.techniqueId) {
       const definition = input.techniqueId ? getTechnique(input.techniqueId) : null;
       branch.setTechniqueRenderer(definition ? createTechniqueRenderer(input.techniqueId!) : null);

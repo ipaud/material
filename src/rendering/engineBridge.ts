@@ -31,6 +31,7 @@ import { setProxy, UnsupportedMediaError } from '@/sources/mediaProxy';
 import type { SourceRuntime } from '@/sources/SourceRuntime';
 import type { TemporalSource } from './temporal/TemporalFrameProvider';
 import type { TechniqueRenderer } from '@/techniques/types';
+import { MaterialTextureSlot } from '@/materials/materialTextureSlot';
 
 /**
  * v0.6 — everything the bridge tracks is now PER LAYER.
@@ -62,6 +63,7 @@ interface LayerBridgeState {
   renderer: TechniqueRenderer | null;
   chainRenderers: { id: string; techniqueId: string; renderer: TechniqueRenderer }[];
   loadGeneration: number;
+  materialTexture: MaterialTextureSlot;
 }
 
 const layerBridge = new Map<string, LayerBridgeState>();
@@ -79,6 +81,7 @@ function bridgeState(layerId: string): LayerBridgeState {
       renderer: null,
       chainRenderers: [],
       loadGeneration: 0,
+      materialTexture: new MaterialTextureSlot(),
     };
     layerBridge.set(layerId, state);
   }
@@ -94,8 +97,6 @@ function disposeLayerBridge(layerId: string): void {
 }
 
 let loadedAudioPath: string | null = null;
-let loadedMaterialAsset: string | null = null;
-let materialGeneration = 0;
 
 /** Re-attach the temporal source after it (or the technique) changed. */
 function syncTemporalSource(): void {
@@ -158,6 +159,7 @@ function syncLayerSource(
     state.configuredRuntime = branch;
     state.sourceKey = null;
     state.techniqueId = null;
+    state.materialTexture.reset();
   }
   const source = findSource(project, layer.sourceId);
   const key = sourceKeyOf(source);
@@ -383,6 +385,16 @@ function syncLayerTechnique(
     engine.setTechniqueChain(layer.id, []);
   }
   branch.setMaterialState(layer.material);
+  state.materialTexture.sync(
+    layer.material,
+    (texture) => {
+      // The layer may be gone by the time the load lands.
+      const live = engine.branchFor(layer.id);
+      if (live) live.setMaterialTexture(texture);
+      else texture?.dispose();
+    },
+    (err) => reportError('Load material', err),
+  );
   if (!primary) return;
   const needsTemporal = techniqueNeedsTemporal(techniqueId, instance?.params ?? {});
   branch.setTemporalEnabled(needsTemporal);
@@ -557,36 +569,7 @@ function syncFromProject(): void {
     })),
     generation: projectGeneration,
   });
-
-  // Custom material texture (SVG or raster image).
-  const materialKey = project.material.materialId === 'custom'
-    ? `custom:${project.material.assetPath ?? ''}`
-    : project.material.materialId === 'typography'
-      ? `typography:${JSON.stringify(project.material.params)}`
-      : null;
-  if (materialKey !== loadedMaterialAsset) {
-    loadedMaterialAsset = materialKey;
-    const generation = ++materialGeneration;
-    if (!materialKey) {
-      engine.setMaterialTexture(null);
-    } else {
-      import('@/materials/textureLoader')
-        .then(({ loadMaterialTexture, loadTypographyTexture }) => project.material.materialId === 'typography'
-          ? loadTypographyTexture(project.material)
-          : project.material.assetPath ? loadMaterialTexture(project.material.assetPath) : null)
-        .then((texture) => {
-          if (!texture) return;
-          if (generation === materialGeneration) engine.setMaterialTexture(texture);
-          else texture.dispose();
-        })
-        .catch((err) => {
-          if (generation === materialGeneration) {
-            reportError('Load material', err);
-            engine.setMaterialTexture(null);
-          }
-        });
-    }
-  }
+  // Material textures are per layer: see syncLayerTechnique.
 }
 
 function syncFromUi(): void {
@@ -814,6 +797,5 @@ export function startEngineBridge(): () => void {
     engine.setParamTransform(null);
     for (const layerId of [...layerBridge.keys()]) disposeLayerBridge(layerId);
     loadedAudioPath = null;
-    loadedMaterialAsset = null;
   };
 }
