@@ -22,6 +22,8 @@ interface RecipeSpec {
   source: Record<string, number | string | boolean>;
   technique: string;
   params: Record<string, number | string | boolean>;
+  /** Extra chain stages after `technique` (must be chain-compatible). */
+  stages?: { technique: string; params: Record<string, number | string | boolean> }[];
   material: string;
   materialParams: Record<string, number | string | boolean>;
   behavior: { source: string; target: string; min: number; max: number };
@@ -195,9 +197,12 @@ const RECIPE_SPECS: RecipeSpec[] = [
     category: 'Typography',
     description: 'Large repeated type bends along the generator field’s motion.',
     generator: 'noise',
-    source: { scale: 4, speed: 0.48, warp: 0.7, detail: 4 },
-    technique: 'flow-displace',
-    params: { amount: 1.1, threshold: 0.035 },
+    source: { scale: 4, speed: 1, warp: 0.7, detail: 4 },
+    // Mosaic draws the letters; Flow Displace bends them. Flow Displace alone
+    // ignores the material, so the type never appeared (found on 0.9.1).
+    technique: 'mosaic',
+    params: { columns: 32, rows: 18, scale: 1.1, lumToScale: 0.6 },
+    stages: [{ technique: 'flow-displace', params: { amount: 2.2, threshold: 0.035 } }],
     material: 'typography',
     materialParams: {
       text: 'DRIFT',
@@ -207,9 +212,9 @@ const RECIPE_SPECS: RecipeSpec[] = [
       size: 192,
       tracking: 8,
     },
-    behavior: { source: 'motion.amount', target: 'amount', min: 0.2, max: 1.6 },
-    macro: { name: 'DRIFT', target: 'amount', amount: 0.25 },
-    pad: { label: 'PULL', target: 'amount' },
+    behavior: { source: 'motion.amount', target: 'scale', min: 0.8, max: 1.5 },
+    macro: { name: 'DRIFT', target: 'jitterX', amount: 0.25 },
+    pad: { label: 'PULL', target: 'scale' },
     bpm: 88,
   },
   {
@@ -310,6 +315,8 @@ export function buildRecipeProject(id: string): Project | null {
   const generator = spec && getGenerator(spec.generator);
   const technique = spec && getTechnique(spec.technique);
   if (!spec || !generator || !technique) return null;
+  const stageDefinitions = (spec.stages ?? []).map((stage) => getTechnique(stage.technique));
+  if (stageDefinitions.some((definition) => !definition)) return null;
 
   const project = createEmptyProject(spec.name);
   const sourceId = 'recipe-source';
@@ -330,6 +337,12 @@ export function buildRecipeProject(id: string): Project | null {
       enabled: true,
       params: { ...defaultParams(technique), ...spec.params },
     },
+    techniqueChain: (spec.stages ?? []).map((stage, index) => ({
+      id: `recipe-stage-${index}`,
+      techniqueId: stage.technique,
+      enabled: true,
+      params: { ...defaultParams(stageDefinitions[index]!), ...stage.params },
+    })),
     material,
   };
 
@@ -433,6 +446,9 @@ export function applyRecipe(id: string): boolean {
         id: layer.id,
         sourceId,
         technique: { ...technique, id: uid('tech') },
+        // Stage ids must be unique per layer: a second Liquid Letter layer
+        // would otherwise share them.
+        techniqueChain: candidate.layers[0]!.techniqueChain.map((stage) => ({ ...stage, id: uid('tech') })),
       };
       const modulations = candidate.modulations.map((mapping) => ({
         ...mapping,
