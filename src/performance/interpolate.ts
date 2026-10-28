@@ -233,8 +233,19 @@ export function interpolateLookCore(
     core: {
       techniqueId,
       params,
+      // A side without a chain (a Look from before chains) leaves the layer's
+      // chain alone when committed, so the morph carries the other side's
+      // chain through rather than fading it out and popping it back at the end.
       ...(a.techniqueChain !== undefined || b.techniqueChain !== undefined
-        ? { techniqueChain: interpolateTechniqueChain(a.techniqueChain ?? [], b.techniqueChain ?? [], p, switchAt, stats) }
+        ? {
+            techniqueChain: interpolateTechniqueChain(
+              a.techniqueChain ?? b.techniqueChain ?? [],
+              b.techniqueChain ?? a.techniqueChain ?? [],
+              p,
+              switchAt,
+              stats,
+            ),
+          }
         : {}),
       material,
       modulations: interpolateModulations(a.modulations, b.modulations, p, switchAt, stats),
