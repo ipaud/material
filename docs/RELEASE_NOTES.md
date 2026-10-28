@@ -1,5 +1,18 @@
 # Release Notes
 
+## v0.8.7 — FEEDBACK EXPORTS START FROM THE REAL FRAME
+
+One fix, for an export that did not always match itself.
+
+- **Flow Feedback and Motion Mosh on a video could export a black opening.** About one export in four began from a
+  black frame, and because these techniques feed each frame into the next, the black faded out over the first
+  frames instead of vanishing. Exporting the same project again could give a different file.
+- **Why.** At the first frame the export filled the feedback surface from the video before the video had finished
+  decoding that frame. It now waits for the frame first. Every later frame is handled exactly as before, so an export
+  that was correct in v0.8.6 is unchanged.
+- **Checked** on the packaged app: 30 out of 30 exports start from the real frame (before: about 1 in 4 black), and
+  repeated exports of the same project are byte-identical frame by frame.
+
 ## v0.8.6 — WINDOWS
 
 MATERIAL now has a Windows build (64-bit): an installer and a portable zip.
