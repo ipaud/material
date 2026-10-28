@@ -67,6 +67,7 @@ select {
 .timeline-num:focus-visible,
 .param-input:focus-visible,
 .select:focus-visible,
+.input:focus-visible,
 .preset-name-input:focus-visible,
 .look-rename:focus-visible {
   outline: 2px solid var(--accent);
