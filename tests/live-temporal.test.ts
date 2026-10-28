@@ -293,7 +293,9 @@ describe('release gates (18G)', () => {
     // the canvas) — export bytes unchanged, format unchanged. v0.8.4 rebuilds
     // temporal history for EVERY layer during export; rendered output changes
     // for any project with a temporal technique on a non-selected layer.
-    expect(pkg.version).toBe('0.8.6');
+    // v0.8.7 decodes the first video frame before priming feedback; exports
+    // that used to start black now start from the real frame.
+    expect(pkg.version).toBe('0.8.7');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     // v1 Pin snapshots capture input routing and activity windows; v6 marks
     // the nested addition so older builds refuse it instead of stripping it.
