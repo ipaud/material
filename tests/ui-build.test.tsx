@@ -100,6 +100,26 @@ describe('SystemPath', () => {
     expect(screen.getByText('OUTPUT')).toBeInTheDocument();
   });
 
+  it('shows enabled chain stages, in order, after the primary technique', () => {
+    loadProject((p) => {
+      const q = withTechnique('mosaic')(withSource('video')(p));
+      return {
+        ...q,
+        layers: q.layers.map((l, i) => i === 0 ? {
+          ...l,
+          techniqueChain: [
+            { id: 'stage-1', techniqueId: 'flow-displace', enabled: true, params: {} },
+            { id: 'stage-2', techniqueId: 'motion-rgb', enabled: false, params: {} },
+          ],
+        } : l),
+      };
+    });
+    render(<SystemPath />);
+    const path = screen.getByRole('navigation', { name: 'Processing path' }).textContent;
+    expect(path).toMatch(/MOSAIC→FLOW DISPLACE→SQUARE/);
+    expect(path).not.toMatch(/MOTION RGB/);
+  });
+
   it('falls back to SOURCE and NO SIGNAL rather than inventing labels', () => {
     loadProject((p) => withTechnique('mosaic')(p));
     render(<SystemPath />);
