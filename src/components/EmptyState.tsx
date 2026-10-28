@@ -9,11 +9,19 @@ import {
 } from '@/projects/projectActions';
 import { applyRecipe, listRecipes } from '@/projects/recipes';
 import { useProjectStore } from '@/state/projectStore';
+import { usePlaybackStore } from '@/state/playbackStore';
+import { playback } from '@/playback/PlaybackController';
 
 export function EmptyState({ isDragOver }: { isDragOver: boolean }) {
   const [showGenerators, setShowGenerators] = useState(false);
   const [recipe, setRecipe] = useState('');
   const recipes = listRecipes();
+  // A generator start promises a running system: with the transport stopped
+  // the first thing a new user saw was a frozen frame (and Flow techniques
+  // had no motion to work with) until they found Space.
+  const startRunning = () => {
+    if (!usePlaybackStore.getState().playing) playback.play();
+  };
   const focusSelectedSource = () => {
     requestAnimationFrame(() => {
       const layer = selectedLayerOf(useProjectStore.getState().project);
@@ -75,6 +83,7 @@ export function EmptyState({ isDragOver }: { isDragOver: boolean }) {
               className="vp-btn"
               onClick={() => {
                 addGeneratorSource(id);
+                startRunning();
                 focusSelectedSource();
               }}
             >
@@ -92,7 +101,10 @@ export function EmptyState({ isDragOver }: { isDragOver: boolean }) {
           onChange={(event) => {
             const id = event.currentTarget.value;
             setRecipe('');
-            if (id && applyRecipe(id)) focusSelectedSource();
+            if (id && applyRecipe(id)) {
+              startRunning();
+              focusSelectedSource();
+            }
           }}
         >
           <option value="">Choose recipe…</option>

@@ -1,5 +1,21 @@
 # Release Notes
 
+## v0.9.2 — IT STARTS RUNNING
+
+Found by installing 0.9.1 the way a new user does and using it. Same project format.
+
+- **A Recipe, or NOTHING → a generator, starts running.** It used to start with the transport stopped: the first
+  thing you saw was a frozen frame until you found Space, and motion techniques had nothing to move.
+- **Liquid Letter shows its letters.** It used Flow Displace alone, which does not draw the material, so the
+  typography never appeared. It is now Mosaic (the letters) followed by Flow Displace (the bending).
+- **The typography Text field** matches the rest of the Inspector instead of being a white box, and no longer covers
+  the Color row above it.
+- **The update dialog** shows the release notes as plain text, cut at a whole word.
+- **The processing path** at the top of BUILD lists every technique in a chain (NOISE → MOSAIC → FLOW DISPLACE → …).
+- **Security.** The app can no longer be started as a plain Node.js runtime (`ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`,
+  `--inspect`). Before, anything able to set an environment variable could run code as MATERIAL, with its camera
+  and screen-recording permissions. Nothing in MATERIAL used these.
+
 ## v0.9.1 — EACH LAYER ITS OWN TEXT
 
 Fixes for 0.9.0. Same project format: 0.9.1 opens and saves exactly what 0.9.0 does.

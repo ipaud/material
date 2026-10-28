@@ -49,6 +49,22 @@ describe('pickRelease', () => {
     expect(r).toMatchObject({ version: '0.8.5', assetName: 'MATERIAL-0.8.5-arm64.zip', size: 1234, sha256: HASH });
     expect(r?.notes).toBe('Faster export.');
   });
+  it('shows release notes without Markdown syntax and cuts them at a word', () => {
+    // The 0.9.1 dialog showed `**Fixes for 0.9.0.**` and ended mid-word.
+    const body = [
+      'MATERIAL 0.9.1. **Fixes for 0.9.0.** See [notes](https://example.com).',
+      '- **Two typography layers** used `the selected` texture.',
+      'typography '.repeat(60),
+      `SHA-256: \`${HASH}\``,
+    ].join('\n');
+    const notes = pickRelease(release({ body }), opts)!.notes;
+    expect(notes).toContain('MATERIAL 0.9.1. Fixes for 0.9.0. See notes.');
+    expect(notes).toContain('• Two typography layers used the selected texture.');
+    expect(notes).not.toMatch(/\*\*|`|\]\(/);
+    expect(notes.length).toBeLessThanOrEqual(401);
+    // Cut between words: the last word before the ellipsis is whole.
+    expect(notes).toMatch(/ typography…$/);
+  });
   it('prefers the asset digest GitHub computes', () => {
     const digest = 'b'.repeat(64);
     expect(pickRelease(release({}, { digest: `sha256:${digest}` }), opts)?.sha256).toBe(digest);

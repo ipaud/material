@@ -118,3 +118,16 @@ describe('typography text undo', () => {
     expect(textOf()).toBe('AB');
   });
 });
+
+describe('typography text field styling', () => {
+  it('the textarea class has a themed rule, not the browser default white box', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/components/parameter-slider.css', 'utf8');
+    const rule = /\n\.input\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toMatch(/background:\s*var\(--surface-2\)/);
+    expect(rule).toMatch(/color:\s*var\(--text-0\)/);
+    expect(readFileSync('src/styles/global.css', 'utf8')).toMatch(/\.input:focus-visible/);
+    // The row is a fixed 22px line; without this the field covered the Color row above.
+    expect(css).toMatch(/\.param-row:has\(> \.input\)\s*\{[^}]*height:\s*auto/);
+  });
+});

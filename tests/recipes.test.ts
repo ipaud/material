@@ -12,6 +12,7 @@ import { MOD_SOURCES } from '@/modulation/sources';
 import { emptyMutationLocks, mutateLookCore } from '@/performance/mutation';
 import { listRecipes, buildRecipeProject, applyRecipe } from '@/projects/recipes';
 import { useProjectStore } from '@/state/projectStore';
+import { assessTechniqueChain } from '@/techniques/chainCompatibility';
 
 afterEach(() => {
   useProjectStore.getState().newProject();
@@ -68,6 +69,30 @@ describe('starter recipes', () => {
       expect(first.metadata.changedParams, recipe.name).toBeGreaterThan(0);
       expect(replay).toEqual(first);
     }
+  });
+
+  it('a typography recipe draws its letters, and any extra stages are chain-compatible', () => {
+    for (const recipe of listRecipes()) {
+      const project = buildRecipeProject(recipe.id)!;
+      const layer = project.layers[0]!;
+      // Only Mosaic draws the material; anything else silently drops the type
+      // (Liquid Letter on 0.9.0–0.9.1 showed no letters at all).
+      if (layer.material.materialId === 'typography') {
+        expect(layer.technique!.techniqueId, recipe.name).toBe('mosaic');
+      }
+      if (layer.techniqueChain.length > 0) {
+        expect(assessTechniqueChain([layer.technique!, ...layer.techniqueChain]).compatible, recipe.name).toBe(true);
+      }
+    }
+    expect(buildRecipeProject('liquid-letter')!.layers[0]!.techniqueChain.map((s) => s.techniqueId)).toEqual(['flow-displace']);
+  });
+
+  it('applying a chained recipe twice gives each layer its own stage ids', () => {
+    expect(applyRecipe('liquid-letter')).toBe(true);
+    expect(applyRecipe('liquid-letter')).toBe(true);
+    const stageIds = useProjectStore.getState().project.layers.flatMap((l) => l.techniqueChain.map((s) => s.id));
+    expect(stageIds).toHaveLength(2);
+    expect(new Set(stageIds).size).toBe(2);
   });
 
   it('saves and reopens a recipe through the project file path', async () => {

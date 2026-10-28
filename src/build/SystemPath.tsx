@@ -31,6 +31,7 @@ export function SystemPath() {
   const sources = useProjectStore((s) => s.project.sources);
   const composition = useProjectStore((s) => s.project.composition);
   const technique = useProjectStore((s) => selectedLayerOf(s.project).technique);
+  const chain = useProjectStore((s) => selectedLayerOf(s.project).techniqueChain);
   const material = useProjectStore((s) => s.project.material);
   const modulations = useProjectStore((s) => s.project.modulations);
   const triggers = useProjectStore((s) => s.project.triggers);
@@ -38,6 +39,8 @@ export function SystemPath() {
   const segments: Segment[] = [
     sourceSegment(sources, composition.sourceId),
     techniqueSegment(technique),
+    // Chain stages run after the primary technique, so they read in order.
+    ...(technique?.enabled !== false ? chain.filter((stage) => stage.enabled).map(stageSegment) : []),
     materialSegment(material),
     signalSegment(modulations, triggers),
     { key: 'output', text: 'OUTPUT', title: 'Rendered output' },
@@ -102,6 +105,12 @@ function techniqueSegment(technique: Technique | null): Segment {
     title: definition?.description ?? name,
     current: true,
   };
+}
+
+function stageSegment(stage: Technique): Segment {
+  const definition = getTechnique(stage.techniqueId);
+  const name = (definition?.name ?? stage.techniqueId).toUpperCase();
+  return { key: `stage-${stage.id}`, text: truncate(name), title: definition?.description ?? name };
 }
 
 type Material = ReturnType<typeof useProjectStore.getState>['project']['material'];

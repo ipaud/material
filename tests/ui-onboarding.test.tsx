@@ -1,11 +1,18 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { EmptyState } from '@/components/EmptyState';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { addCaptureSource } from '@/projects/projectActions';
+import { playback } from '@/playback/PlaybackController';
+import { usePlaybackStore } from '@/state/playbackStore';
 import { createEmptyProject } from '@shared/schemas/project';
+
+// Starting a generator now starts the transport; jsdom has no preload bridge.
+beforeEach(() => {
+  vi.spyOn(playback, 'play').mockImplementation(() => usePlaybackStore.getState().setPlaying(true));
+});
 
 afterEach(() => {
   cleanup();
@@ -25,6 +32,21 @@ describe('first-run BUILD', () => {
     expect(project.layers[0]?.technique?.techniqueId).toBe('mosaic');
     expect(project.macros[0]?.name).toBe('DENSITY');
     expect(project.performancePads[0]?.label).toBe('PULSE');
+  });
+
+  it('a recipe or a generator start leaves the system running, not frozen', () => {
+    const play = vi.mocked(playback.play);
+    usePlaybackStore.getState().setPlaying(false);
+    render(<EmptyState isDragOver={false} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Start with a recipe' }), {
+      target: { value: 'noise-grid' },
+    });
+    expect(play).toHaveBeenCalledOnce();
+
+    usePlaybackStore.getState().setPlaying(false);
+    fireEvent.click(screen.getByRole('button', { name: 'NOTHING' }));
+    fireEvent.click(screen.getByRole('button', { name: 'GRID' }));
+    expect(play).toHaveBeenCalledTimes(2);
   });
 
   it('moves keyboard focus to new source control after starting a recipe', () => {
