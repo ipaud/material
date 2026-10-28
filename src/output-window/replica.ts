@@ -144,7 +144,6 @@ export class OutputReplica {
     this.syncCustomShaders(msg.customShaders);
 
     this.engine.setComposition(msg.compWidth, msg.compHeight, msg.background);
-    this.syncMaterialAsset(msg.materialState ?? null);
 
     // v0.6.1 — the single-source path is gone. Every source, generator and
     // technique now belongs to a LAYER, and the editor has sent a layer stack
@@ -268,28 +267,6 @@ export class OutputReplica {
     this.engine.setLiveSource('capture', capture.texture());
   }
 
-
-  private materialAssetKey: string | null = null;
-  private syncMaterialAsset(material: RenderInputsMsg['materialState'] | null): void {
-    const key = material?.materialId === 'custom' ? `custom:${material.assetPath ?? ''}`
-      : material?.materialId === 'typography' ? `typography:${JSON.stringify(material.params)}` : null;
-    if (key === this.materialAssetKey) return;
-    this.materialAssetKey = key;
-    if (!material || !key) {
-      this.engine.setMaterialTexture(null);
-      return;
-    }
-    void import('@/materials/textureLoader')
-      .then(({ loadMaterialTexture, loadTypographyTexture }) => material.materialId === 'typography'
-        ? loadTypographyTexture(material)
-        : material.assetPath ? loadMaterialTexture(material.assetPath) : null)
-      .then((texture) => {
-        if (!texture) return;
-        if (this.materialAssetKey === key) this.engine.setMaterialTexture(texture);
-        else texture.dispose();
-      })
-      .catch((err) => console.warn('[replica] material load failed:', err));
-  }
 
   /** Mirror the editor's pack registry for exactly the shaders it sent. */
   private syncCustomShaders(shaders: readonly LoadedShader[] | undefined): void {
