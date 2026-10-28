@@ -1212,8 +1212,14 @@ export async function runAnimationExport(request: AnimationExportRequest): Promi
       // passed while the value was wrong. Measured with a v0.5 ISF fixture:
       // ctx.timeSec sat at 2.699 for all 13 exported frames.
       engine.setTime(timeSec);
+      // Frame 0: decode BEFORE the feedback prime. exportBegin copies the
+      // source texture into the surface immediately; on a cold decoder that
+      // texture is still empty, and the black prime then bleeds through the
+      // whole clip (~1 in 4 exports of a feedback technique on video).
+      // Later frames keep their order so feedback stepping is unchanged.
+      if (video && i === 0) await seekVideoExact(video, timeSec, true);
       engine.prepareFeedbackForExport(timeSec, i === 0 && !prerolled, params);
-      if (video) await seekVideoExact(video, timeSec, i === 0);
+      if (video && i > 0) await seekVideoExact(video, timeSec, false);
       const rgba = engine.renderStill(
         request.width,
         request.height,
