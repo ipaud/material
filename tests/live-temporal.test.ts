@@ -299,7 +299,8 @@ describe('release gates (18G)', () => {
     // 1.0 sign-off gates in docs/V1_PLAN.md Phase K remain open.
     // v0.9.1 gives each layer its own material texture; rendered output
     // changes for projects with two or more typography/custom-image layers.
-    expect(pkg.version).toBe('0.9.1');
+    // v0.9.2: first-run fixes found on the installed app, and RunAsNode off.
+    expect(pkg.version).toBe('0.9.2');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     // v1 Pin snapshots capture input routing and activity windows; v6 marks
     // the nested addition so older builds refuse it instead of stripping it.
