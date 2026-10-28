@@ -9,6 +9,14 @@ files:
 extraResources:
   - from: build/dock
     to: dock
+# The packaged app must not turn into a Node runtime on request: with these on,
+# anyone who can set an environment variable or pass an argument could run
+# arbitrary Node code under MATERIAL's identity (and its camera / screen
+# permissions). Nothing in MATERIAL uses them; the updater swaps with /bin/sh.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
 mac:
   category: public.app-category.graphics-design
   extendInfo:
