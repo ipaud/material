@@ -91,3 +91,30 @@ describe('BUILD technique-chain editor', () => {
     expect(useProjectStore.getState().project.layers[0]!.techniqueChain[0]!.params.columns).toBe(48);
   });
 });
+
+describe('typography text undo', () => {
+  it('typing several characters is one undo step', () => {
+    const project = createEmptyProject('Typography undo');
+    const material = { materialId: 'typography', colorMode: 'source' as const, assetPath: null, params: { text: 'AB' } };
+    useProjectStore.getState().loadProject('', {
+      ...project,
+      material,
+      sources: [{ id: 'src1', kind: 'image', path: '/tmp/source.png', metadata: null }],
+      composition: { ...project.composition, sourceId: 'src1' },
+      layers: project.layers.map((layer, index) => index === 0
+        ? { ...layer, sourceId: 'src1', material, technique: { id: 'primary', techniqueId: 'mosaic', enabled: true, params: defaultParams(getTechnique('mosaic')!) } }
+        : layer),
+    });
+    render(<InspectorPanel />);
+    const text = screen.getByRole('textbox', { name: 'Text' });
+    fireEvent.change(text, { target: { value: 'ABC' } });
+    fireEvent.change(text, { target: { value: 'ABCD' } });
+    fireEvent.change(text, { target: { value: 'ABCDE' } });
+    fireEvent.blur(text);
+    const textOf = () => useProjectStore.getState().project.layers[0]!.material.params.text;
+    expect(textOf()).toBe('ABCDE');
+
+    useProjectStore.getState().undo();
+    expect(textOf()).toBe('AB');
+  });
+});
