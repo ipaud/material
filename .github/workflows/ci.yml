@@ -27,7 +27,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      # The encoder, proxy and probe tests drive a real ffmpeg; without one they skip and the gate is short.
+      - if: matrix.os == 'macos-14'
+        run: brew install ffmpeg
+      # macOS also enforces the coverage gate (80% of non-GPU statements, vitest.config.ts).
+      - run: ${{ matrix.os == 'macos-14' && 'npm run coverage' || 'npm test' }}
 
   windows-build:
     needs: test

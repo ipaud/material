@@ -1,5 +1,15 @@
 # Release Notes
 
+## v0.9.5 — PAUSE KEEPS ITS PLACE
+
+- **Pausing a project with no video or song** (a Recipe, or anything built on generators) sent the clock back to
+  0, so the next Play restarted the animation and any beat-driven movement from the beginning. Pause now holds
+  where you were, and Play continues from there.
+
+Also in this version: the automated tests now cover 80% of the code that does not draw with the GPU (up from 63%),
+including the updater, the Output window, camera and screen capture, export and the command line. Nothing else
+changes in how MATERIAL works.
+
 ## v0.9.4 — EASIER TO REACH, EASIER TO READ
 
 An accessibility pass, measured with axe-core against WCAG 2.2 AA in every workspace of the packaged app: 58
