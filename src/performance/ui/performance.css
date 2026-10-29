@@ -860,7 +860,8 @@
 }
 .perf-layer-tech {
   font-size: 9px;
-  opacity: 0.45;
+  /* opacity 0.45 measured 4.1:1; --text-2 passes AA on the strip */
+  color: var(--text-2);
   text-transform: uppercase;
   overflow: hidden;
   text-overflow: ellipsis;

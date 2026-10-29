@@ -301,7 +301,8 @@ describe('release gates (18G)', () => {
     // changes for projects with two or more typography/custom-image layers.
     // v0.9.2: first-run fixes found on the installed app, and RunAsNode off.
     // v0.9.3: a Look recall no longer re-announces an unchanged chain.
-    expect(pkg.version).toBe('0.9.3');
+    // v0.9.4: accessibility pass (select names, contrast, 24px targets).
+    expect(pkg.version).toBe('0.9.4');
     const { PROJECT_FORMAT_VERSION } = await import('@shared/constants/app');
     // v1 Pin snapshots capture input routing and activity windows; v6 marks
     // the nested addition so older builds refuse it instead of stripping it.

@@ -240,7 +240,7 @@ function NoteLearnRow() {
 
   return (
     <div className="midi-note-learn">
-      <select className="select" value={action} onChange={(e) => setAction(e.target.value as TriggerAction)}>
+      <select aria-label="Note action" className="select" value={action} onChange={(e) => setAction(e.target.value as TriggerAction)}>
         {NOTE_ACTIONS.map((a) => (
           <option key={a.value} value={a.value}>
             {a.label}
@@ -248,7 +248,7 @@ function NoteLearnRow() {
         ))}
       </select>
       {needsSlot && (
-        <select className="select midi-slot" value={lookSlot} onChange={(e) => setLookSlot(Number(e.target.value))}>
+        <select aria-label="Look slot" className="select midi-slot" value={lookSlot} onChange={(e) => setLookSlot(Number(e.target.value))}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
             <option key={n} value={n}>
               {n}
@@ -256,7 +256,7 @@ function NoteLearnRow() {
           ))}
         </select>
       )}
-      <select
+      <select aria-label="Note quantize"
         className="select"
         value={quantize}
         onChange={(e) => setQuantize(e.target.value as MidiMapping['quantize'])}

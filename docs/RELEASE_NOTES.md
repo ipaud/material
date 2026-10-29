@@ -1,5 +1,24 @@
 # Release Notes
 
+## v0.9.4 — EASIER TO REACH, EASIER TO READ
+
+An accessibility pass, measured with axe-core against WCAG 2.2 AA in every workspace of the packaged app: 58
+problems in 0.9.3, none now.
+
+- **Every menu has a name.** Technique, material, modulation source and target, trigger, MIDI, Morph and Export
+  menus used to be announced by a screen reader only as “pop-up button”.
+- **Every control is at least 24 px.** Parameter rows and sliders grew from 22 to 24 px, small buttons and menus got
+  a 24 px minimum, and the 7 px dot that turns a modulation mapping on and off now sits in a full-size button. The
+  layout is otherwise unchanged.
+- **Readable small text.** The “1 MOD” counts on Inspector sections, the total time on the timeline and the
+  technique name on PLAY layers were nearly invisible; they now meet the contrast minimum.
+
+Also fixed:
+
+- **Opening a project while something is playing** (for example right after starting a Recipe) left the new video
+  frozen on its first frame while the transport still showed “playing”, until you pressed Space twice. The new video
+  or song now starts with the transport.
+
 ## v0.9.3 — QUIET RECALLS
 
 - **Recalling a Look no longer pops up “Chain active in preview, Output and export…”** every time. A layer with

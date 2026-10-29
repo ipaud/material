@@ -35,7 +35,7 @@
   letter-spacing: 0.1em;
 }
 .vp-readout.dim {
-  color: var(--border-1);
+  color: var(--text-2); /* was a border token: 1.3:1, the total time was unreadable */
 }
 
 /* Flat band: the waveform is the panel, not a card inside it. */

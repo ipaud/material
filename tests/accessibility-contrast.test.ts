@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function channelToLinear(value: number): number {
@@ -127,5 +127,20 @@ describe('narrow viewport accessibility', () => {
     for (const selector of ['.macro-name-input', '.timeline-num', '.param-input', '.select', '.preset-name-input', '.look-rename']) {
       expect(styles).toContain(`${selector}:focus-visible`);
     }
+  });
+
+  it('never uses a border token as a text colour', () => {
+    // --border-0/1 are 7–12% white: as text they measured 1.3:1 (the "1 MOD"
+    // section counts and the timeline total time, found by the 0.9.3 axe audit).
+    const css = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
+      return statSync(path).isDirectory() ? css(path) : path.endsWith('.css') ? [path] : [];
+    });
+    const offenders = css(resolve(__dirname, '../src')).flatMap((file) =>
+      readFileSync(file, 'utf8').split('\n')
+        .map((line, i) => ({ line, i }))
+        .filter(({ line }) => /^\s*color:\s*var\(--border-/.test(line))
+        .map(({ i }) => `${file}:${i + 1}`));
+    expect(offenders).toEqual([]);
   });
 });

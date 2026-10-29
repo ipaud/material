@@ -85,3 +85,32 @@ select {
   letter-spacing: 0.08em;
   color: var(--text-2);
 }
+
+/* WCAG 2.2 AA 2.5.8 target size, found by the 0.9.3 axe audit: every pointer
+   target is at least --hit-min. min-height beats each component's own height
+   whatever the stylesheet order, so the components keep their look. */
+.select,
+.vp-btn,
+.inspector-section-header,
+.inspector-browse,
+.titlebar-action,
+.rail-lock,
+.explore-btn,
+.explore-primary,
+.cand-mutate-cta,
+.perf-mini-btn,
+.perf-layer-blend,
+.perf-layer-head,
+.perf-layer-fader,
+.rail-tap,
+.rail-transport,
+.macro-name-input {
+  min-height: var(--hit-min);
+}
+.vp-btn,
+.perf-layer-btn {
+  min-width: var(--hit-min);
+}
+.perf-layer-btn {
+  min-height: var(--hit-min);
+}
