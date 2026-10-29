@@ -190,6 +190,7 @@ export function InspectorPanel() {
                 <div className="param-control">
                   <select
                     className="select"
+                    aria-label="Technique"
                     value={technique.techniqueId}
                     onChange={(e) => {
                       const next = getTechnique(e.target.value);
@@ -366,6 +367,7 @@ export function InspectorPanel() {
                 <div className="param-control">
                   <select
                     className="select"
+                    aria-label="Material shape"
                     value={material.materialId}
                     onChange={(e) => setMaterial({ materialId: e.target.value })}
                   >
@@ -385,6 +387,7 @@ export function InspectorPanel() {
                 <div className="param-control">
                   <select
                     className="select"
+                    aria-label="Material color"
                     value={material.colorMode}
                     onChange={(e) =>
                       setMaterial({ colorMode: e.target.value as typeof material.colorMode })
@@ -543,6 +546,7 @@ function ParamControl({
       <div className="param-control">
         <select
           className="select"
+          aria-label={def.label}
           value={typeof value === 'string' ? value : def.default}
           onChange={(e) => onChange(e.target.value)}
         >

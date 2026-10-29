@@ -130,6 +130,7 @@ export function ModulationSection() {
               />
               <select
                 className="select mod-select"
+                aria-label="Modulation source"
                 value={m.source}
                 onChange={(e) => updateMapping(m.id, { source: e.target.value })}
               >
@@ -155,6 +156,7 @@ export function ModulationSection() {
               <span className="mod-arrow">→</span>
               <select
                 className="select mod-select"
+                aria-label="Modulation target"
                 value={m.target}
                 onChange={(e) => updateMapping(m.id, { target: e.target.value })}
               >
@@ -242,6 +244,7 @@ export function ModulationSection() {
                   <div className="param-control">
                     <select
                       className="select"
+                      aria-label="Mapping mode"
                       value={m.mode ?? 'add'}
                       onChange={(e) =>
                         updateMapping(m.id, {
@@ -327,6 +330,7 @@ export function ModulationSection() {
                   <div className="param-control">
                     <select
                       className="select"
+                      aria-label="Mapping curve"
                       value={m.curve}
                       onChange={(e) =>
                         updateMapping(m.id, { curve: e.target.value as typeof m.curve })

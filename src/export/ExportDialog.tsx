@@ -178,7 +178,7 @@ export function ExportDialog() {
           <>
             <div className="export-field">
               <span className="param-label">Format</span>
-              <select
+              <select aria-label="Format"
                 className="select"
                 value={format}
                 onChange={(e) => setFormat(e.target.value as DialogFormat)}
@@ -193,7 +193,7 @@ export function ExportDialog() {
             </div>
             <div className="export-field">
               <span className="param-label">Resolution</span>
-              <select className="select" value={resolution} onChange={(e) => setResolution(e.target.value)}>
+              <select aria-label="Resolution" className="select" value={resolution} onChange={(e) => setResolution(e.target.value)}>
                 {RESOLUTIONS.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.id === 'source'
@@ -207,7 +207,7 @@ export function ExportDialog() {
               <>
                 <div className="export-field">
                   <span className="param-label">Frame Rate</span>
-                  <select className="select" value={fps} onChange={(e) => setFps(Number(e.target.value))}>
+                  <select aria-label="Frame rate" className="select" value={fps} onChange={(e) => setFps(Number(e.target.value))}>
                     {fpsChoices.map((f) => (
                       <option key={f} value={f}>
                         {f} fps
@@ -217,7 +217,7 @@ export function ExportDialog() {
                 </div>
                 <div className="export-field">
                   <span className="param-label">Range</span>
-                  <select
+                  <select aria-label="Range"
                     className="select"
                     value={rangeMode}
                     onChange={(e) => setRangeMode(e.target.value as 'full' | 'custom')}

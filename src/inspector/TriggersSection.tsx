@@ -116,7 +116,7 @@ export function TriggersSection() {
                 title={t.enabled ? 'Disable' : 'Enable'}
                 onClick={() => updateTrigger(t.id, { enabled: !t.enabled })}
               />
-              <select
+              <select aria-label="Trigger source"
                 className="select mod-select"
                 value={t.source}
                 onChange={(e) => updateTrigger(t.id, { source: e.target.value })}
@@ -128,7 +128,7 @@ export function TriggersSection() {
                 ))}
               </select>
               <span className="mod-arrow">→</span>
-              <select
+              <select aria-label="Trigger action"
                 className="select mod-select"
                 value={t.action}
                 onChange={(e) => updateTrigger(t.id, { action: e.target.value as TriggerAction })}
@@ -193,7 +193,7 @@ export function TriggersSection() {
                   <div className="param-row">
                     <span className="param-label">Target</span>
                     <div className="param-control">
-                      <select
+                      <select aria-label="Trigger target"
                         className="select"
                         value={t.targetParam ?? ''}
                         onChange={(e) => updateTrigger(t.id, { targetParam: e.target.value })}
@@ -214,7 +214,7 @@ export function TriggersSection() {
                   <div className="param-row">
                     <span className="param-label">Mapping</span>
                     <div className="param-control">
-                      <select
+                      <select aria-label="Trigger mapping"
                         className="select"
                         value={t.targetMappingId ?? '*'}
                         onChange={(e) => updateTrigger(t.id, { targetMappingId: e.target.value })}
@@ -243,7 +243,7 @@ export function TriggersSection() {
                 <div className="param-row">
                   <span className="param-label">Quantize</span>
                   <div className="param-control">
-                    <select
+                    <select aria-label="Trigger quantize"
                       className="select"
                       value={t.quantize}
                       onChange={(e) =>
@@ -312,7 +312,7 @@ export function TriggersSection() {
                     <div className="param-row">
                       <span className="param-label">Curve</span>
                       <div className="param-control">
-                        <select
+                        <select aria-label="Trigger curve"
                           className="select"
                           value={t.curve}
                           onChange={(e) =>

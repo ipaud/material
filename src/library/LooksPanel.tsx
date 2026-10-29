@@ -290,7 +290,7 @@ function MorphPanel() {
         <span className="label">Morph</span>
       </div>
       <div className="morph-controls">
-        <select className="select" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+        <select aria-label="Morph to Look" className="select" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
           <option value="" disabled>
             To look…
           </option>
@@ -301,7 +301,7 @@ function MorphPanel() {
             </option>
           ))}
         </select>
-        <select
+        <select aria-label="Morph start"
           className="select"
           value={start}
           onChange={(e) => setStart(e.target.value as QuantizeMode)}
@@ -313,7 +313,7 @@ function MorphPanel() {
             </option>
           ))}
         </select>
-        <select
+        <select aria-label="Morph duration"
           className="select"
           value={durationId}
           onChange={(e) => setDurationId(e.target.value)}
@@ -325,7 +325,7 @@ function MorphPanel() {
             </option>
           ))}
         </select>
-        <select
+        <select aria-label="Morph curve"
           className="select"
           value={curve}
           onChange={(e) => setCurve(e.target.value as MorphCurve)}
@@ -339,7 +339,7 @@ function MorphPanel() {
         </select>
         {/* CE1G: the visual transition STYLE — a performance control, not
             Look content. 'Smooth' is v0.3 behaviour exactly. */}
-        <select
+        <select aria-label="Transition style"
           className="select"
           value={style}
           onChange={(e) => {
