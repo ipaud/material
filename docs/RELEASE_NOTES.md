@@ -13,6 +13,12 @@ problems in 0.9.3, none now.
 - **Readable small text.** The “1 MOD” counts on Inspector sections, the total time on the timeline and the
   technique name on PLAY layers were nearly invisible; they now meet the contrast minimum.
 
+Also fixed:
+
+- **Opening a project while something is playing** (for example right after starting a Recipe) left the new video
+  frozen on its first frame while the transport still showed “playing”, until you pressed Space twice. The new video
+  or song now starts with the transport.
+
 ## v0.9.3 — QUIET RECALLS
 
 - **Recalling a Look no longer pops up “Chain active in preview, Output and export…”** every time. A layer with

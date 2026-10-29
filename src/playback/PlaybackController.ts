@@ -38,6 +38,10 @@ class PlaybackController {
     this.video = video;
     video.loop = false; // looping handled by the controller
     this.refreshDuration();
+    // Opening a project while the transport runs (a Recipe auto-plays) used to
+    // leave it "playing" on a paused element: the clock now reads this video,
+    // so the time froze until the user pressed Space twice.
+    if (usePlaybackStore.getState().playing) this.startMedia();
   }
 
   detachVideo(): void {
@@ -53,6 +57,7 @@ class PlaybackController {
   audioChanged(): void {
     this.refreshDuration();
     if (!this.audioMaster && !this.video) this.pause();
+    else if (usePlaybackStore.getState().playing) this.startMedia(); // same case, for a song that loads later
   }
 
   refreshDuration(): void {
@@ -102,8 +107,21 @@ class PlaybackController {
     // Keep macOS App Nap from throttling the live engine to ~1 Hz while the
     // editor window is hidden or occluded (docs/BACKGROUND_RENDERING.md).
     void window.material.setLiveness('transport', true).catch(() => undefined);
+    this.startMedia();
+    usePlaybackStore.getState().setPlaying(true);
+    this.beginArmedRecording();
+    this.startTicking();
+    runtimeBus.emitTransport('play', this.getTime());
+  }
+
+  /**
+   * Start whatever media drives the clock, aligned to it. Safe to call while
+   * already playing: a running audio node is left alone (restarting it would
+   * jump back to where it was last paused).
+   */
+  private startMedia(): void {
     if (this.audioMaster) {
-      audioEngine.play();
+      if (!audioEngine.playing) audioEngine.play();
       if (this.video && this.video.duration > 0) {
         const t = audioEngine.getTime();
         if (t < this.video.duration) {
@@ -118,10 +136,6 @@ class PlaybackController {
     } else if (this.video) {
       void this.video.play().catch(() => undefined);
     }
-    usePlaybackStore.getState().setPlaying(true);
-    this.beginArmedRecording();
-    this.startTicking();
-    runtimeBus.emitTransport('play', this.getTime());
   }
 
   /**
