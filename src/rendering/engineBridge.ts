@@ -331,7 +331,10 @@ function syncLayerTechnique(
     const message = assessment.compatible
       ? 'Chain active in preview, Output and export. Takes, MIDI, modulation and Morph address stages by stable ID.'
       : assessment.reason ?? 'Technique chain is not supported.';
-    const warningKey = `${chain.map((stage) => stage.id).join('>')}:${message}`;
+    // Keyed on WHAT the chain is, not on instance ids: a Look recall gives the
+    // primary technique a fresh id, which re-announced the chain on every
+    // recall while performing.
+    const warningKey = `${chain.map((stage) => stage.techniqueId).join('>')}:${message}`;
     if (state.chainWarningKey !== warningKey) {
       if (assessment.compatible) useUiStore.getState().pushToast('info', message);
       else reportError('Technique chain', new Error(message));

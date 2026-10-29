@@ -7,6 +7,7 @@ import { resyncFromStore, syncLayersForExport } from '@/rendering/engineBridge';
 import { createEmptyProject } from '@shared/schemas/project';
 import type { MaterialState } from '@shared/schemas/project';
 import type { TechniqueRenderer } from '@/techniques/types';
+import { useUiStore } from '@/state/uiStore';
 
 describe('renderTechniqueChain', () => {
   const targets = [{ texture: 'target-a' }, { texture: 'target-b' }] as const;
@@ -147,6 +148,36 @@ describe('engine bridge technique-chain installation', () => {
     } finally {
       resyncFromStore();
       setChain.mockRestore();
+    }
+  });
+
+  it('announces a chain once, not again when a Look recall re-ids the same chain', () => {
+    const base = createEmptyProject('chain toast');
+    const layer = base.layers[0]!;
+    const withPrimaryId = (primaryId: string) => ({
+      ...base,
+      layers: [{
+        ...layer,
+        technique: { id: primaryId, techniqueId: 'mosaic', enabled: true, params: { tileMode: 'off' } },
+        techniqueChain: [{ id: 'stage-a', techniqueId: 'mosaic', enabled: true, params: { columns: 24 } }],
+      }],
+    });
+    // Each recall happens after the previous toast has expired (cleared here),
+    // so identical-toast de-duplication cannot hide a repeat.
+    let announced = 0;
+    const recall = (primaryId: string) => {
+      useUiStore.setState({ toasts: [] });
+      syncLayersForExport(withPrimaryId(primaryId));
+      announced += useUiStore.getState().toasts.filter((t) => t.message.startsWith('Chain active')).length;
+    };
+    try {
+      recall('primary-1');
+      recall('primary-2'); // what a Look recall does
+      recall('primary-3');
+      expect(announced).toBe(1);
+    } finally {
+      useUiStore.setState({ toasts: [] });
+      resyncFromStore();
     }
   });
 
