@@ -300,3 +300,75 @@ describe('dock icon', () => {
     }
   });
 });
+
+describe('pass-through routes still validate what they forward', () => {
+  it('media, project, preset and recovery calls reach their modules with checked arguments', async () => {
+    const { probeMedia } = await import('../electron/media/probe');
+    const { findProxy, createProxy } = await import('../electron/media/proxy');
+    const { collectMediaBeside, scanFolderForMedia } = await import('../electron/filesystem/mediaFolder');
+    const { writeProjectFile } = await import('../electron/filesystem/projects');
+    const { deleteUserPreset, listUserPresets, saveUserPreset } = await import('../electron/filesystem/presets');
+    const { writeRecovery, listRecoveries, clearRecovery } = await import('../electron/filesystem/recovery');
+
+    await call(IPC.probeMedia, '/m/a.mp4');
+    expect(probeMedia).toHaveBeenCalledWith('/m/a.mp4');
+    await expect(call(IPC.probeMedia, 42)).rejects.toThrow();
+
+    await call(IPC.findProxy, '/m/a.mov');
+    await call(IPC.createProxy, '/m/a.mov');
+    expect(findProxy).toHaveBeenCalledWith(join('/tmp/material-user', 'proxies'), '/m/a.mov');
+    expect(createProxy).toHaveBeenCalledWith(join('/tmp/material-user', 'proxies'), '/m/a.mov');
+
+    await call(IPC.collectMedia, '/s/a.material', ['/m/a.mp4']);
+    expect(collectMediaBeside).toHaveBeenCalledWith('/s/a.material', ['/m/a.mp4']);
+    await expect(call(IPC.collectMedia, '/s/a.material', [''])).rejects.toThrow();
+
+    m.openDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/moved'] });
+    await call(IPC.pickMediaFolder);
+    expect(scanFolderForMedia).toHaveBeenCalledWith('/moved');
+    m.openDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+    await expect(call(IPC.pickMediaFolder)).resolves.toBeNull();
+
+    await call(IPC.writeProject, '/s/b.material', { v: 7 });
+    expect(writeProjectFile).toHaveBeenCalledWith('/s/b.material', { v: 7 });
+    expect(m.addRecentDocument).toHaveBeenLastCalledWith('/s/b.material');
+
+    await call(IPC.listPresets);
+    await call(IPC.savePreset, { id: 'p' });
+    await call(IPC.deletePreset, 'p');
+    expect(listUserPresets).toHaveBeenCalled();
+    expect(saveUserPreset).toHaveBeenCalledWith({ id: 'p' });
+    expect(deleteUserPreset).toHaveBeenCalledWith('p');
+
+    await expect(call(IPC.sessionId)).resolves.toBe(mod.SESSION_ID);
+    await call(IPC.recoveryWrite, null, { v: 7 });
+    expect(writeRecovery).toHaveBeenCalledWith(mod.SESSION_ID, null, { v: 7 });
+    await call(IPC.recoveryList);
+    await call(IPC.recoveryClear);
+    expect(listRecoveries).toHaveBeenCalledWith(mod.SESSION_ID);
+    expect(clearRecovery).toHaveBeenCalledWith(mod.SESSION_ID);
+  });
+
+  it('dialogs return the chosen paths, or nothing when cancelled', async () => {
+    m.openDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/m/a.mp4', '/m/b.wav'] });
+    await expect(call(IPC.openMediaDialog)).resolves.toEqual(['/m/a.mp4', '/m/b.wav']);
+    m.openDialog.mockResolvedValueOnce({ canceled: true, filePaths: ['/ignored'] });
+    await expect(call(IPC.openMediaDialog)).resolves.toEqual([]);
+    m.openDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/s/a.material'] });
+    await expect(call(IPC.openProjectDialog)).resolves.toBe('/s/a.material');
+    m.saveDialog.mockResolvedValueOnce({ canceled: false, filePath: '/s/new.material' });
+    await expect(call(IPC.saveProjectDialog, 'new')).resolves.toBe('/s/new.material');
+  });
+
+  it('opening the Output remembers the display it opened on', async () => {
+    const { updateSettings } = await import('../electron/filesystem/settings');
+    const { openOutputWindow, closeOutputWindow } = await import('../electron/main/outputWindow');
+    await expect(call(IPC.outputOpen, { displayId: 2, mode: 'fullscreen' })).resolves.toBe(true);
+    expect(openOutputWindow).toHaveBeenCalledWith(expect.any(Function), { displayId: 2, mode: 'fullscreen' });
+    expect(updateSettings).toHaveBeenCalled();
+    await expect(call(IPC.outputOpen, { mode: 'kiosk' })).rejects.toThrow();
+    await call(IPC.outputClose);
+    expect(closeOutputWindow).toHaveBeenCalled();
+    await expect(call(IPC.outputDisplays)).resolves.toEqual([]);
+  });
+});
