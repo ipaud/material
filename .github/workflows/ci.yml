@@ -27,7 +27,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      # macOS also enforces the coverage gate (80% of non-GPU statements, vitest.config.ts).
+      - run: ${{ matrix.os == 'macos-14' && 'npm run coverage' || 'npm test' }}
 
   windows-build:
     needs: test
