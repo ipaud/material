@@ -191,7 +191,8 @@ describe('checking', () => {
   });
 });
 
-describe('installing', () => {
+// Installing is macOS-only (CAN_INSTALL) and reads a `.app/Contents/MacOS` path; Windows paths cannot form one.
+describe.skipIf(process.platform === 'win32')('installing', () => {
   beforeEach(() => {
     respond(latest());
     m.answers.set('MATERIAL 0.9.4 is available', 0);
