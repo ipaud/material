@@ -1,7 +1,7 @@
 {
   "name": "material",
   "version": "0.9.4",
-  "description": "MATERIAL \u2014 experimental moving-image design instrument",
+  "description": "MATERIAL — experimental moving-image design instrument",
   "main": "out/main/index.js",
   "type": "module",
   "private": true,
@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "icons": "node scripts/generate-icons.mjs",
-    "gate:identity": "node scripts/identity-gate.mjs"
+    "gate:identity": "node scripts/identity-gate.mjs",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "three": "^0.185.1",
@@ -36,6 +37,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "4.1.12",
     "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
