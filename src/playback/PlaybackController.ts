@@ -157,6 +157,9 @@ class PlaybackController {
     if (takeRecorder.recording) {
       void import('@/performance/take/takeActions').then((m) => m.stopRecording());
     }
+    // Without media the clock is wall time since play(); freeze it here, or a
+    // paused generator project reads its origin and snaps back to 0.
+    if (!this.hasMediaClock) this.clockOriginComp = this.getTime();
     void window.material.setLiveness('transport', false).catch(() => undefined);
     audioEngine.pause();
     this.video?.pause();
