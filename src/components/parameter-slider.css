@@ -7,7 +7,7 @@
   align-items: center;
   gap: var(--sp-3);
   padding: 0 var(--sp-4);
-  height: 22px;
+  height: var(--hit-min);
 }
 
 .param-label {
@@ -23,7 +23,7 @@
 .param-track {
   position: relative;
   flex: 1;
-  height: 18px;
+  height: var(--hit-min);
   cursor: ew-resize;
   display: flex;
   align-items: center;

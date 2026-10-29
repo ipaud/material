@@ -15,6 +15,9 @@
   --text-1: rgba(255, 255, 255, 0.6); /* secondary */
   --text-2: rgba(255, 255, 255, 0.5); /* tertiary / labels; AA on base surfaces */
 
+  /* WCAG 2.2 AA 2.5.8: the smallest pointer target, in CSS px */
+  --hit-min: 24px;
+
   /* Signal colors — used sparingly */
   --accent: #ffd800; /* Signal Yellow: playhead, primary action, active state */
   --accent-hover: #ffe238;

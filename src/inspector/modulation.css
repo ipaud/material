@@ -28,14 +28,23 @@
   flex-shrink: 0;
 }
 
+/* The dot stays 7px; the button around it is a full 24px target. */
 .mod-enable {
+  display: grid;
+  place-items: center;
+  width: var(--hit-min);
+  height: var(--hit-min);
+  margin: 0 -8px;
+  flex-shrink: 0;
+}
+.mod-enable::before {
+  content: '';
   width: 7px;
   height: 7px;
   border-radius: 50%;
   border: 1px solid var(--border-1);
-  flex-shrink: 0;
 }
-.mod-enable.on {
+.mod-enable.on::before {
   background: var(--mod);
   border-color: var(--mod);
 }
